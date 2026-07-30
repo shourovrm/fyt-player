@@ -9,7 +9,7 @@ package com.fyiplayer.app.core
  */
 object SourceRegistry {
     /** Populated by each platform module as it lands. */
-    val all: List<VideoSource> = emptyList()
+    val all: List<VideoSource> = listOf(com.fyiplayer.app.source.youtube.YoutubeSource())
 
     /**
      * Sources that never appear as a Home tab or a search target, even when enabled — a

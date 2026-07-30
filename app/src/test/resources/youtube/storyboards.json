@@ -1,0 +1,31 @@
+{
+  "formats": [
+    {
+      "format_id": "sb0",
+      "columns": 5,
+      "rows": 5,
+      "width": 160,
+      "height": 90,
+      "fragments": [
+        {"url": "https://example.invalid/sb0_M0.jpg"},
+        {"url": "https://example.invalid/sb0_M1.jpg"}
+      ]
+    },
+    {
+      "format_id": "sb1",
+      "columns": 10,
+      "rows": 10,
+      "width": 48,
+      "height": 27,
+      "fragments": [
+        {"url": "https://example.invalid/sb1_M0.jpg"},
+        {"url": "https://example.invalid/sb1_M1.jpg"},
+        {"url": "https://example.invalid/sb1_M2.jpg"}
+      ]
+    },
+    {
+      "format_id": "137",
+      "height": 1080
+    }
+  ]
+}
