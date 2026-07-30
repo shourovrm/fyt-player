@@ -4,7 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.Text
+import com.fyiplayer.app.ui.AppScaffold
+import com.fyiplayer.app.ui.AppShell
 import com.fyiplayer.app.ui.theme.FyiTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,7 +14,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             FyiTheme {
-                Text("FYI Player")
+                AppScaffold { AppShell(it) }
             }
         }
     }
