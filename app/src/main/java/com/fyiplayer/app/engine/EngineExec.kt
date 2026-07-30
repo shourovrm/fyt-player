@@ -3,6 +3,8 @@ package com.fyiplayer.app.engine
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +37,13 @@ internal suspend fun runEngine(url: String, vararg options: String): String {
             cont.invokeOnCancellation { YoutubeDL.getInstance().destroyProcessById(processId) }
             try {
                 val request = YoutubeDLRequest(url).apply { options.forEach { addOption(it) } }
-                val response = YoutubeDL.getInstance().execute(request, processId, null)
+                // Read side of the engine lock, taken and released inside this synchronous block:
+                // many extractions may overlap each other, but none may overlap a binary update,
+                // which swaps the executable out from under a running process. Held here rather
+                // than around the whole suspending call so acquire and release stay on one thread.
+                val response = engineLock.read {
+                    YoutubeDL.getInstance().execute(request, processId, null)
+                }
                 cont.resume(response.out)
             } catch (e: Exception) {
                 cont.resumeWithException(mapEngineError(e))
@@ -43,3 +51,10 @@ internal suspend fun runEngine(url: String, vararg options: String): String {
         }
     }
 }
+
+/**
+ * Guards the engine binary. Extractions take the read side (they may run concurrently); a binary
+ * update takes the write side, so it waits for in-flight extractions to finish and blocks new ones
+ * while the executable is being replaced.
+ */
+internal val engineLock = ReentrantReadWriteLock()

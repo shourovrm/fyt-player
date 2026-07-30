@@ -21,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +43,10 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
+    // Process scope, not rememberCoroutineScope: every action here dismisses the sheet, and
+    // disposal cancels a composition scope mid-write -- a multi-second download enqueue never
+    // survived to write its row.
+    val scope = rememberFyiApp().appScope
     val context = LocalContext.current
     val existing by playlists.observePlaylists().collectAsStateWithLifecycle(initialValue = emptyList())
     var showCreate by remember { mutableStateOf(false) }

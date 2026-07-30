@@ -1,6 +1,7 @@
 package com.fyiplayer.app.source.youtube
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 // Pure JSON -> model mapping, no Android, no network.
@@ -45,5 +46,46 @@ class YoutubeJsonTest {
     fun storyboardsFallsBackToFlatIntervalWithoutDuration() {
         val thumbs = checkNotNull(parseStoryboardsJson(fixture("/youtube/storyboards.json"), durationSeconds = null))
         assertEquals(10.0, thumbs.intervalSeconds, 0.001)
+    }
+
+    @Test
+    fun commentsMapRootToNullParentAndSkipMalformed() {
+        val comments = parseCommentsJson(fixture("/youtube/comments.json"))
+
+        assertEquals(2, comments.size) // the id-less entry is skipped
+
+        val top = comments.first { it.id == "c1" }
+        assertEquals(null, top.parentId) // raw "root" becomes null
+        assertEquals("Top Commenter", top.author)
+        assertEquals(42L, top.likeCount)
+        assertEquals(true, top.isHearted)
+        assertEquals(false, top.isUploader)
+        assertEquals("2 days ago", top.timeText)
+
+        val reply = comments.first { it.id == "c1-r1" }
+        assertEquals("c1", reply.parentId) // a reply carries its parent's id
+        assertEquals(true, reply.isUploader)
+    }
+
+    @Test
+    fun channelUploadsExcludeCurrentVideoAndRespectLimit() {
+        val related = parseChannelUploadsForRelated(
+            fixture("/youtube/channel_uploads.json"),
+            currentPageUrl = "https://www.youtube.com/watch?v=current12345",
+            limit = 12,
+        )
+
+        assertEquals(2, related.size)
+        assertTrue(related.none { it.pageUrl == "https://www.youtube.com/watch?v=current12345" })
+    }
+
+    @Test
+    fun channelUploadsRespectsLimitWhenLower() {
+        val related = parseChannelUploadsForRelated(
+            fixture("/youtube/channel_uploads.json"),
+            currentPageUrl = "https://www.youtube.com/watch?v=current12345",
+            limit = 1,
+        )
+        assertEquals(1, related.size)
     }
 }

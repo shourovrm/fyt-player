@@ -62,6 +62,51 @@ internal fun interleave(bySource: List<List<VideoRef>>): List<VideoRef> {
     return merged
 }
 
+// --- Home's default (no search) feed: newest uploads from channels the user actually watches. ---
+
+/** [loading] true while at least one channel's fetch is still in flight -- items still fill in
+ *  progressively while it's true, this is never a full-screen blocker after the first channel
+ *  returns. [hasHistory] separates "nothing watched yet" (first run) from "watched, but nothing
+ *  new right now" so the empty state never reads like an error either way. */
+internal data class FeedState(
+    val items: List<VideoRef> = emptyList(),
+    val loading: Boolean = false,
+    val loaded: Boolean = false,
+    val hasHistory: Boolean = false,
+)
+
+/** Each channel is a separate multi-second engine call, so the feed stays capped here rather than
+ *  fanning out to everything a user has ever watched. */
+internal const val MAX_FEED_CHANNELS = 4
+
+/** How many of a channel's newest (unwatched) uploads feed the round-robin merge. */
+internal const val FEED_ITEMS_PER_CHANNEL = 8
+
+/** One channel worth pulling more uploads from. */
+internal data class WatchedChannel(val sourceId: String, val uploaderUrl: String, val displayName: String)
+
+/**
+ * [history] must already be newest-first ([WatchHistoryDao.observeAll]'s own order) -- this walks
+ * it once and keeps first-seen order, which is then most-recently-watched order. Rows with no
+ * channel URL (recorded before the uploaderUrl column existed) are skipped, not treated as one
+ * channel.
+ */
+internal fun recentDistinctChannels(history: List<VideoRef>, cap: Int = MAX_FEED_CHANNELS): List<WatchedChannel> {
+    val seen = HashSet<String>()
+    val out = ArrayList<WatchedChannel>()
+    for (ref in history) {
+        if (out.size >= cap) break
+        val url = ref.uploaderUrl ?: continue
+        if (seen.add("${ref.sourceId}|$url")) out += WatchedChannel(ref.sourceId, url, ref.uploader ?: "")
+    }
+    return out
+}
+
+/** "Newest uploads" should mean unwatched -- already-watched videos add nothing to a feed meant to
+ *  surface what's new. */
+internal fun excludeWatched(candidates: List<VideoRef>, watchedPageUrls: Set<String>): List<VideoRef> =
+    candidates.filter { it.pageUrl !in watchedPageUrls }
+
 /** A page fetch succeeded: page==null replaces (fresh load), otherwise appends, deduped by page URL. */
 internal fun applySuccess(current: TabResult, requestedPage: String?, result: SearchPage): TabResult {
     val base = if (requestedPage == null) emptyList() else current.items

@@ -20,6 +20,15 @@ backup (HTML + embedded JSON, export and import over SAF).
 
 Nothing has run on a device. The shorts pager has no feed behind it — see Tried / rejected.
 
+Home feed rebuilt: YouTube's public trending/explore feeds are dead (confirmed live — both
+redirect to youtube.com home and the engine reports the playlist gone), so `homepage()` now
+throws `Unsupported` honestly instead of hitting a dead URL. Home's default (no search) view is
+composed in `HomeViewModel`/`HomeFeed.kt` instead: newest uploads from up to 4 recently-watched
+channels (`WatchHistoryEntity.uploaderUrl`, new column, `Migration(1, 2)`), round-robin
+interleaved, already-watched excluded, appended incrementally per channel. Cached in the
+ViewModel for its lifetime; a refresh icon next to the search pill is the explicit reload (no
+pull-to-refresh — smaller diff, same effect). Search is untouched and still per-source-tabbed.
+
 - Module: single `:app`, package `com.fyiplayer.app`, minSdk 26 / targetSdk 35, AGP 8.13, Kotlin 2.4.
 - Extraction backend: `youtubedl-android` 0.18.1 (library + ffmpeg). YouTube needs no HTML parsing —
   the engine returns search, metadata and formats as JSON.
@@ -101,9 +110,19 @@ started and stopped before any agent wrote a file — nothing partial to recover
   `ACTION_VIEW` on a `file://` Uri throws `FileUriExposedException` at this targetSdk.
 - The exported backup page says in prose that no cookies are stored, so a naive whole-document
   scan for "cookie" matches that sentence. The security test scans the JSON payload block instead.
+- `HomeViewModel.homeResults`/`loadHome` (per-source browse tabs) are gone: `homepage()` always
+  throws now, so that machinery was dead weight. `retryTab`/`continueTab` lost their `isSearching`
+  param — they only ever act on `searchResults` today. Re-add per-source browse tabs only if a
+  future platform actually implements `homepage()`.
 
 ## Tried / rejected
 
+- YouTube `/feed/trending` and `/feed/explore` as Home's source — dead. Both redirect to
+  youtube.com home and error "the channel/playlist does not exist" (verified live).
+- Mix/radio playlists (`watch?v=X&list=RDX`) as a Home feed source — rejected by the extractor
+  ("Unable to recognize playlist"), confirmed live. Not an option for any feed.
+- Pull-to-refresh (Material3 `PullToRefreshBox`) for the Home feed — skipped for a plain refresh
+  icon button next to the search pill; same effect, no experimental-API surface.
 - `jsoup` dependency — dropped. YouTube extraction goes through the engine's JSON, no markup parsing.
 - `biometric` dependency — dropped. No lock feature in the target shape.
 - Material-You / dynamic colour — rejected. One deliberate accent; wallpaper never overrides it.
@@ -133,3 +152,7 @@ started and stopped before any agent wrote a file — nothing partial to recover
 - 2026-07-31 | Shorts pager shipped without a feed | The pager is finished and correct; the source
   side stays off until a feed URL can be checked against a live run. It renders an honest empty
   state, which is the same thing it would render if the platform stopped publishing one.
+- 2026-07-31 | Home feed = newest uploads from watched channels, not trending | Trending is dead
+  platform-side (verified live); watch history already tells us what a user actually cares about.
+- 2026-07-31 | `watch_history.thumbnailUrl` stripped to bare path before insert | Listing
+  thumbnails carry a signature query that expires; only the unsigned path form is worth persisting.

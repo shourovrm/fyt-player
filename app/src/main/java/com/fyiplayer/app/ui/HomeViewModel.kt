@@ -9,11 +9,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.Listing
+import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
+import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.SearchHistoryRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 /**
@@ -26,17 +30,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as FyiApp
     val prefs = app.prefs
     private val searchHistoryRepo = SearchHistoryRepository(app.database.searchHistoryDao())
+    private val historyRepo = HistoryRepository(app.database.watchHistoryDao())
 
     var query: String by mutableStateOf("")
     var selectedTab: String by mutableStateOf(ALL_TAB_ID)
 
-    /** Per-source homepage feed (blank query) and per-source active-search feed -- independent, so
-     *  clearing the query back to blank never re-fetches the home feed. */
-    internal val homeResults = mutableStateMapOf<String, TabResult>()
     internal val searchResults = mutableStateMapOf<String, TabResult>()
 
-    // one in-flight job per "home:<id>" / "search:<id>" key -- refuses a duplicate load and lets a
-    // superseded query's jobs be cancelled by prefix.
+    /** Home's default (blank-query) feed: newest uploads from recently watched channels. Cached
+     *  for the ViewModel's lifetime -- [loadFeedIfNeeded] never refetches once [FeedState.loaded]
+     *  is true; [refreshFeed] is the explicit way back in (a refresh action in HomeScreen). */
+    internal var feed: FeedState by mutableStateOf(FeedState())
+        private set
+    private var feedJob: Job? = null
+
+    // one in-flight job per "search:<id>" key -- refuses a duplicate load and lets a superseded
+    // query's jobs be cancelled by prefix.
     private val activeJobs = mutableMapOf<String, Job>()
 
     fun searchHistory() = searchHistoryRepo.observe()
@@ -47,18 +56,46 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         keys.forEach { activeJobs.remove(it) }
     }
 
-    fun loadHome(source: VideoSource, page: String?) {
-        val key = "home:${source.id}"
-        if (activeJobs[key]?.isActive == true) return
-        val before = homeResults[source.id] ?: TabResult(source.displayName)
-        homeResults[source.id] = before.copy(loading = true, error = null)
-        activeJobs[key] = viewModelScope.launch {
-            val cur = homeResults[source.id] ?: before
-            homeResults[source.id] = runCatching { source.homepage(page) }
-                .fold(
-                    onSuccess = { applySuccess(cur, page, it) },
-                    onFailure = { e -> if (e is CancellationException) throw e else outcomeFor(cur, page, e) },
-                )
+    /** First entry into Home (or a source list that changed) only -- a no-op once cached. */
+    fun loadFeedIfNeeded(sources: List<VideoSource>) {
+        if (feed.loaded || feedJob?.isActive == true) return
+        refreshFeed(sources)
+    }
+
+    /** Rebuilds the feed from scratch: re-reads history, re-fetches every channel. */
+    fun refreshFeed(sources: List<VideoSource>) {
+        feedJob?.cancel()
+        val byId = sources.associateBy { it.id }
+        feed = FeedState(loading = true)
+        feedJob = viewModelScope.launch {
+            val history = historyRepo.observe().first()
+            val channels = recentDistinctChannels(history)
+            if (channels.isEmpty()) {
+                feed = FeedState(loaded = true, hasHistory = history.isNotEmpty())
+                return@launch
+            }
+            val watched = history.mapTo(HashSet()) { it.pageUrl }
+            // Mutated only from this coroutine's children, all on the Main dispatcher (viewModelScope's
+            // default) -- each child only suspends inside source.listing(), never races another child's
+            // write to its own index.
+            val perChannel = MutableList<List<VideoRef>>(channels.size) { emptyList() }
+            val jobs = channels.mapIndexed { i, channel ->
+                launch {
+                    val src = byId[channel.sourceId] ?: return@launch
+                    val page = try {
+                        src.listing(Listing(channel.sourceId, Listing.Kind.CHANNEL, channel.uploaderUrl, channel.displayName))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
+                    perChannel[i] = excludeWatched(page?.items.orEmpty(), watched).take(FEED_ITEMS_PER_CHANNEL)
+                    // Append as each channel returns rather than waiting for the slowest one.
+                    feed = feed.copy(items = interleave(perChannel))
+                }
+            }
+            jobs.joinAll()
+            feed = feed.copy(loading = false, loaded = true, hasHistory = true)
         }
     }
 
@@ -96,19 +133,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         searchResults.clear()
     }
 
-    fun retryTab(source: VideoSource, isSearching: Boolean) {
-        val map = if (isSearching) searchResults else homeResults
-        val page = map[source.id]?.retryPage
-        if (isSearching) loadSearch(source, query, page) else loadHome(source, page)
+    fun retryTab(source: VideoSource) {
+        val page = searchResults[source.id]?.retryPage
+        loadSearch(source, query, page)
     }
 
-    fun continueTab(sources: List<VideoSource>, isSearching: Boolean) {
+    fun continueTab(sources: List<VideoSource>) {
         sources.forEach { src ->
-            val map = if (isSearching) searchResults else homeResults
-            val cur = map[src.id] ?: return@forEach
+            val cur = searchResults[src.id] ?: return@forEach
             if (cur.loading) return@forEach
             val page = cur.nextPage ?: return@forEach
-            if (isSearching) loadSearch(src, query, page) else loadHome(src, page)
+            loadSearch(src, query, page)
         }
     }
 

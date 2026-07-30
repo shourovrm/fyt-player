@@ -21,7 +21,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,7 +47,10 @@ import kotlinx.coroutines.launch
 fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
     val app = rememberFyiApp()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    // Process scope, not rememberCoroutineScope: every action here dismisses the sheet, and
+    // disposal cancels a composition scope mid-write -- the multi-second download enqueue never
+    // survived long enough to write its row.
+    val scope = app.appScope
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val downloads = remember(context) { DownloadQueue.get(context) }
@@ -115,7 +117,9 @@ private fun SheetAction(label: String, onClick: () -> Unit) {
  *  not on the scroll path. */
 @Composable
 private fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss: () -> Unit) {
-    val scope = rememberCoroutineScope()
+    // Process scope: picking a playlist dismisses this dialog, and disposal would cancel the
+    // write before it lands.
+    val scope = rememberFyiApp().appScope
     val existing by playlists.observePlaylists().collectAsState(initial = emptyList())
     var newName by remember { mutableStateOf("") }
 

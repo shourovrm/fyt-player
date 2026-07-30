@@ -1,0 +1,25 @@
+{
+  "entries": [
+    {
+      "id": "current12345",
+      "title": "The video whose detail page this came from",
+      "duration": 200,
+      "channel": "Lofi Girl",
+      "channel_url": "https://www.youtube.com/@LofiGirl"
+    },
+    {
+      "id": "other111111",
+      "title": "Another upload",
+      "duration": 180,
+      "channel": "Lofi Girl",
+      "channel_url": "https://www.youtube.com/@LofiGirl"
+    },
+    {
+      "id": "other222222",
+      "title": "Yet another upload",
+      "duration": 240,
+      "channel": "Lofi Girl",
+      "channel_url": "https://www.youtube.com/@LofiGirl"
+    }
+  ]
+}

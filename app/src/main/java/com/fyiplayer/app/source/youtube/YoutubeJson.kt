@@ -1,5 +1,6 @@
 package com.fyiplayer.app.source.youtube
 
+import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.SpriteSheet
@@ -82,8 +83,9 @@ private data class DetailJson(
 )
 
 /**
- * Full `-J --no-playlist` info JSON -> [VideoDetail]. The engine does not expose related videos
- * for this platform, so [VideoDetail.related] is always empty here -- an honest gap, not invented.
+ * Full `-J --no-playlist` info JSON -> [VideoDetail]. The engine exposes no related/recommended
+ * list for a watch URL, so [VideoDetail.related] is always empty here -- [YoutubeSource.detail]
+ * fills it separately from the uploader's own channel uploads (see [parseChannelUploadsForRelated]).
  */
 internal fun parseDetailJson(json: String, ref: VideoRef): VideoDetail {
     val info = try {
@@ -115,6 +117,60 @@ internal fun parseDetailJson(json: String, ref: VideoRef): VideoDetail {
         likeCount = info.likeCount,
         viewCount = info.viewCount,
     )
+}
+
+/**
+ * `--flat-playlist -J` on a channel's `/videos` page -> "more from this channel", real per-channel
+ * data (never algorithmic recommendation). Reuses [parseFlatPlaylistJson] since the entry shape is
+ * identical to search/listing; filters out the video whose detail page this list was fetched for.
+ */
+internal fun parseChannelUploadsForRelated(json: String, currentPageUrl: String, limit: Int): List<VideoRef> =
+    parseFlatPlaylistJson(json).filter { it.pageUrl != currentPageUrl }.take(limit)
+
+@Serializable
+private data class CommentJson(
+    val id: String? = null,
+    val author: String? = null,
+    val text: String? = null,
+    @SerialName("like_count") val likeCount: Long? = null,
+    @SerialName("author_thumbnail") val authorThumbnail: String? = null,
+    @SerialName("author_is_uploader") val authorIsUploader: Boolean = false,
+    @SerialName("is_favorited") val isFavorited: Boolean = false,
+    @SerialName("_time_text") val timeText: String? = null,
+    val parent: String? = null,
+)
+
+@Serializable
+private data class CommentsRootJson(val comments: List<JsonElement>? = null)
+
+/**
+ * `-J --write-comments` output -> flat [Comment] list. Threading is [Comment.parentId]: the raw
+ * `"root"` sentinel becomes null (top-level), anything else is the parent comment's id. An entry
+ * missing `id` or `text` is skipped rather than aborting the whole page.
+ */
+internal fun parseCommentsJson(json: String): List<Comment> {
+    val root = try {
+        jsonCodec.decodeFromString(CommentsRootJson.serializer(), json)
+    } catch (e: SerializationException) {
+        return emptyList()
+    }
+    return root.comments.orEmpty().mapNotNull { el ->
+        val c = runCatching { jsonCodec.decodeFromJsonElement(CommentJson.serializer(), el) }
+            .getOrNull() ?: return@mapNotNull null
+        val id = c.id ?: return@mapNotNull null
+        val text = c.text ?: return@mapNotNull null
+        Comment(
+            id = id,
+            author = c.author ?: "",
+            text = text,
+            likeCount = c.likeCount,
+            timeText = c.timeText,
+            parentId = c.parent?.takeIf { it != "root" },
+            isUploader = c.authorIsUploader,
+            isHearted = c.isFavorited,
+            authorAvatarUrl = c.authorThumbnail,
+        )
+    }
 }
 
 @Serializable

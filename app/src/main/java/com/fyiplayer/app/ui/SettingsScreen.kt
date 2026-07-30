@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.settings.BackupSettings
 import com.fyiplayer.app.settings.ContainerSettings
+import com.fyiplayer.app.settings.EngineSettings
 import com.fyiplayer.app.settings.GestureSettings
 import com.fyiplayer.app.settings.HistorySettings
 import com.fyiplayer.app.settings.PlaybackSettings
@@ -29,5 +30,6 @@ fun SettingsScreen() {
         item { GestureSettings(app.prefs) }
         item { PlaybackSettings(app.prefs) }
         item { BackupSettings() }
+        item { EngineSettings() }
     }
 }

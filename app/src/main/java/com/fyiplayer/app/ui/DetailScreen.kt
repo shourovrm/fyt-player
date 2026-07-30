@@ -188,12 +188,14 @@ fun DetailScreen(
                         }
                     }
                 }
-                // This platform publishes no related videos (YoutubeSource.detail's own doc) --
-                // an honest empty gap renders nothing, never an empty "Related videos" header.
+                // "related" here is real per-channel data (YoutubeSource.detail's own doc), not an
+                // algorithmic feed -- an empty list (no channel, or the platform has none) renders
+                // nothing, never an empty header.
                 if (detail.related.isNotEmpty()) {
                     item {
                         Text(
-                            "Related videos",
+                            detail.uploader?.title?.takeIf { it.isNotBlank() }?.let { "More from $it" }
+                                ?: "More from this channel",
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
                         )
@@ -209,6 +211,13 @@ fun DetailScreen(
                             onLongPress = { actionSheetRef = rel },
                         )
                     }
+                }
+                item {
+                    CommentsSection(
+                        source = SourceRegistry.bySourceId(shownRef.sourceId),
+                        ref = shownRef,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
                 }
             }
         }
