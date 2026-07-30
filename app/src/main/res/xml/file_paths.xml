@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Downloads land in the app's own external files dir; sharing one out needs a content:// Uri. -->
-    <external-files-path name="downloads" path="." />
+    <!-- Scoped to the one directory downloads land in, not the whole files dir.
+         Both roots are declared because the queue falls back to internal storage when external
+         is unavailable, and an undeclared root makes getUriForFile throw. -->
+    <external-files-path name="downloads" path="Download/" />
+    <files-path name="internal_downloads" path="Download/" />
 </paths>

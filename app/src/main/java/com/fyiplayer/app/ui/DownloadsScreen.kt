@@ -232,13 +232,16 @@ private fun openDownloadedFile(context: Context, filePath: String?) {
         Toast.makeText(context, "File is no longer on disk", Toast.LENGTH_LONG).show()
         return
     }
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-    val intent = Intent(Intent.ACTION_VIEW)
-        .setDataAndType(uri, "video/*")
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "video/*")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         context.startActivity(intent)
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, "No app on this device can open it", Toast.LENGTH_LONG).show()
+    } catch (e: IllegalArgumentException) {
+        // getUriForFile throws when the file sits outside every declared provider root.
+        Toast.makeText(context, "Can't open this file from here", Toast.LENGTH_LONG).show()
     }
 }
