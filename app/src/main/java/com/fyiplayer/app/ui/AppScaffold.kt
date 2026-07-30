@@ -52,8 +52,8 @@ import androidx.navigation.compose.rememberNavController
 @Composable
 fun AppScaffold(
     modifier: Modifier = Modifier,
-    queueBar: @Composable () -> Unit = {},
-    miniPlayer: @Composable () -> Unit = {},
+    queueBar: @Composable (NavHostController) -> Unit = {},
+    miniPlayer: @Composable (NavHostController) -> Unit = {},
     content: @Composable (NavHostController) -> Unit,
 ) {
     val navController = rememberNavController()
@@ -83,8 +83,12 @@ fun AppScaffold(
             // One Column: queue bar + mini player sit above the nav bar and are part of the
             // Scaffold's bottom inset, so content is never hidden under them.
             Column {
-                queueBar()
-                miniPlayer()
+                // Detail hosts the full player, and there is exactly one shared video surface —
+                // mounting the mini bar there would steal it mid-playback.
+                if (!isFullPlayerRoute(route)) {
+                    queueBar(navController)
+                    miniPlayer(navController)
+                }
                 AnimatedVisibility(
                     visible = barVisible,
                     enter = slideInVertically(tween(NAV_ANIM_MILLIS)) { it },
@@ -123,6 +127,9 @@ private val NAV_TABS = listOf(
 private const val NAV_ANIM_MILLIS = 180
 /** A few px of downward travel before hiding, so a jittery finger doesn't flicker the bar. */
 private const val NAV_HIDE_SLOP_PX = 3f
+
+/** Routes that own the shared video surface themselves. */
+private fun isFullPlayerRoute(route: String?): Boolean = route?.startsWith("detail/") == true
 
 /** Which nav item is lit. detail/listing light nothing — they're reachable from more than one tab. */
 private fun selectedTab(route: String?): String? = when (route) {
