@@ -1,0 +1,50 @@
+{
+  "title": "Resolved Title",
+  "duration": 754.9,
+  "thumbnail": "https://example.invalid/resolved_thumb.jpg",
+  "formats": [
+    {
+      "format_id": "137",
+      "ext": "mp4",
+      "height": 1080,
+      "vcodec": "avc1.640028",
+      "acodec": "none",
+      "protocol": "https",
+      "url": "https://example.invalid/video137",
+      "http_headers": {"User-Agent": "test-agent", "Referer": "https://www.youtube.com/"},
+      "filesize": 123456789,
+      "tbr": 4500.5
+    },
+    {
+      "format_id": "140",
+      "ext": "m4a",
+      "vcodec": "none",
+      "acodec": "mp4a.40.2",
+      "protocol": "https",
+      "url": "https://example.invalid/audio140",
+      "http_headers": {"User-Agent": "test-agent"},
+      "filesize_approx": 3456789,
+      "tbr": 128.0
+    },
+    {
+      "format_id": "96",
+      "ext": "mp4",
+      "height": 1080,
+      "vcodec": "avc1.640028",
+      "acodec": "none",
+      "protocol": "m3u8_native",
+      "url": "https://example.invalid/hls96",
+      "tbr": 5000.0
+    },
+    {
+      "format_id": "232",
+      "ext": "mp4",
+      "height": 720,
+      "vcodec": "avc1.4d401f",
+      "acodec": "none",
+      "protocol": "http_dash_segments",
+      "url": "https://example.invalid/dash232",
+      "tbr": 2500.0
+    }
+  ]
+}

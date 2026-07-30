@@ -13,7 +13,6 @@
     <application
         android:name=".FyiApp"
         android:allowBackup="false"
-        android:extractNativeLibs="true"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
@@ -32,6 +31,14 @@
 
         <!-- services are declared by the phase that adds them: playback (mediaPlayback),
              downloads (dataSync). A declaration without its class is a runtime crash. -->
+        <service
+            android:name=".player.PlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
 
     </application>
 </manifest>

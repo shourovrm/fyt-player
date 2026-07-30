@@ -1,0 +1,28 @@
+{
+  "entries": [
+    {
+      "id": "abc12345678",
+      "title": "First Video",
+      "duration": 125.4,
+      "channel": "Channel One",
+      "channel_url": "https://www.youtube.com/channel/UC1",
+      "thumbnails": [
+        {"url": "https://example.invalid/thumb_small.jpg", "width": 120},
+        {"url": "https://example.invalid/thumb_large.jpg", "width": 480}
+      ]
+    },
+    {
+      "title": "Missing id, should be skipped",
+      "duration": 60
+    },
+    {
+      "id": "xyz98765432",
+      "title": "Second Video",
+      "duration": 300,
+      "uploader": "Uploader Two",
+      "uploader_url": "https://www.youtube.com/@uploadertwo",
+      "thumbnail": "https://example.invalid/single_thumb.jpg"
+    },
+    "not-even-an-object"
+  ]
+}

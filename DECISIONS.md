@@ -2,10 +2,16 @@
 
 ## Current state
 
-Signed arm64-v8a release APK builds; JVM unit tests green. Compose + Material 3, single Activity.
-`core/` contracts + `SourceRegistry`, `data/` (Room + DataStore + repositories), `ui/` shell
-(AppScaffold + NavHost + placeholder screens) are in. No source adapter, no engine, no player yet —
-`SourceRegistry.all` is still empty, so every screen renders its empty state.
+Signed arm64-v8a release APK builds; 37 JVM unit tests green. Compose + Material 3, single Activity.
+
+In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
+(AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only
+WebView tier, chain); `source/youtube/`; `player/` (queue maths, format selection, session, media
+session service, shared surface). `FyiApp` wires the resolver into `PlaybackSession` and kicks off
+engine init.
+
+Not in: real screen bodies (every screen still renders a placeholder), player chrome and gestures,
+library, downloads, shorts, seek thumbnails, backup. Nothing has run on a device.
 
 - Module: single `:app`, package `com.fyiplayer.app`, minSdk 26 / targetSdk 35, AGP 8.13, Kotlin 2.4.
 - Extraction backend: `youtubedl-android` 0.18.1 (library + ffmpeg). YouTube needs no HTML parsing —
@@ -14,7 +20,6 @@ Signed arm64-v8a release APK builds; JVM unit tests green. Compose + Material 3,
 
 ## Next
 
-- Wave 2: `engine/` resolver chain, `source/youtube/` end to end, `player/` session + service.
 - Wave 3: home/search/detail screens, player chrome + gestures.
 - Wave 4: library, downloads, shorts + seek thumbnails + backup.
 - Wave 5: clean build, tests, review, arm64 release APK copied to repo root.
@@ -37,6 +42,20 @@ Signed arm64-v8a release APK builds; JVM unit tests green. Compose + Material 3,
   platform id when the ref came out of the database.
 - `AppScaffold` consumes system-bar insets for the whole app. A future full-bleed surface
   (fullscreen player, shorts pager) has to opt out there, not pad itself.
+- `extractNativeLibs=true` is NOT in the manifest — AGP emits it from `packaging.jniLibs
+  .useLegacyPackaging = true`. The engine cannot unpack its payload without it, so if native init
+  ever starts failing, check the merged manifest before anything else.
+- Kotlin: `private companion object` is illegal inside a standalone `object`. Use a private
+  top-level val in the same file.
+- Search paging refetches cumulatively: page N asks the engine for N×pageSize results and drops the
+  earlier ones. The search protocol takes a count, not an offset. Real listings page properly with
+  `--playlist-start`/`--playlist-end`.
+- Storyboard tile interval is derived as `duration / tileCount`, not published by the engine. Scrub
+  previews may drift on very long videos until measured on a device.
+- `Listing.key` is assumed to be a full channel/playlist URL, because that is what `detail()` puts
+  there. Anything else constructing a `Listing` must honour that or `listing()` breaks.
+- `Protocol.DASH` throws in `MediaItemFactory`: `media3-exoplayer-dash` is not a dependency and
+  nothing emits DASH yet. Adding a DASH path means adding that artifact first.
 
 ## Tried / rejected
 
@@ -56,3 +75,9 @@ Signed arm64-v8a release APK builds; JVM unit tests green. Compose + Material 3,
   variant would double build output on a disk already at 91%.
 - 2026-07-30 | Own signing key generated, 0600, gitignored | Sideloaded updates must keep a stable
   signature; the key never enters git.
+- 2026-07-30 | Shorts feed left off (`providesShorts = false`) | No feed URL could be verified
+  without a live run. An honest empty state beats a feed that silently returns the wrong thing.
+- 2026-07-30 | Playback pairs video-only + audio-only via `MergingMediaSource` | The platform caps
+  muxed streams low; playing only muxed would be a permanent, visible quality regression.
+- 2026-07-30 | Resolution ceiling picked by metered-ness, not radio type | A metered hotspot is
+  billed like mobile data even though it reports as wifi.
