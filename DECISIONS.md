@@ -23,8 +23,24 @@ Not in: library screens, downloads, shorts feed, backup. Nothing has run on a de
 
 ## Next
 
-- Wave 4: library, downloads, shorts + seek thumbnails + backup.
-- Wave 5: clean build, tests, review, arm64 release APK copied to repo root.
+Resume point: HEAD is wave 3, working tree clean, release build + 61 tests green. Wave 4 was
+started and stopped before any agent wrote a file — nothing partial to recover.
+
+- Wave 4, three parallel workstreams on disjoint files:
+  - Library — `ui/Library*`, `ui/Playlist*`, `ui/SavePlaylistSheet.kt`. Likes + playlists + history
+    tabs, multi-select, resume bars from `PositionsRepository.observeAll()`. Keep the wired
+    signatures `LibraryScreen(onOpenDetail, onOpenPlaylist)` and `PlaylistDetailScreen(id, onOpenDetail)`.
+  - Downloads — new `download/` package, `ui/DownloadsScreen.kt`, plus the `dataSync` service
+    declaration in the manifest. Must park a running row as resumable on the Android 15 foreground
+    timeout, and mux the separate video + audio pair with ffmpeg or a "1080p" download silently
+    yields a 360p file.
+  - Shorts + backup — `ui/Shorts*`, new `data/backup/`, `settings/BackupSettings.kt`, and the
+    `providesShorts` decision in `source/youtube/`. Backup is one HTML file with the machine copy
+    in a `<script type="application/json">` block; additive and idempotent on import.
+- Wave 5: clean build, tests, whole-branch review, arm64 release APK copied to repo root.
+- Still outstanding at every wave: nothing has run on a device. No `adb` device was attached.
+- Not built and not scheduled: engine self-update (`EngineUpdater`). Extractors rot, so this
+  matters before the app is usable long-term. Verified API for it is noted in Gotchas.
 
 ## Gotchas
 
@@ -65,6 +81,11 @@ Not in: library screens, downloads, shorts feed, backup. Nothing has run on a de
 - Overriding Java's `LinkedHashMap.removeEldestEntry` from Kotlin needs
   `MutableMap.MutableEntry`, not `MutableMap.Entry`.
 - `Prefs.backgroundPlayback` has a settings row but nothing in `player/` reads it yet.
+- Engine self-update API, confirmed against the artifact's bytecode: `YoutubeDL.version(context)`,
+  `YoutubeDL.updateYoutubeDL(context, channel)`, and `YoutubeDL.UpdateChannel._STABLE` /
+  `._NIGHTLY` / `._MASTER` — the leading underscore is the real API, not a typo.
+- Subagents must not run Gradle, and none of them can verify a build. Every wave so far compiled
+  only because the main session built it; expect 1–3 small compile fixes per wave at integration.
 
 ## Tried / rejected
 
