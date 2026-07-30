@@ -48,4 +48,9 @@ interface PlaylistItemDao {
 
     @Query("SELECT COALESCE(MAX(sortIndex), -1) FROM playlist_items WHERE playlistId = :playlistId")
     suspend fun maxSortIndex(playlistId: Long): Int
+
+    /** Reorder without touching the row's other columns — a delete-and-re-add would rewrite
+     *  `addedAt` for the whole list and cost two writes per item. */
+    @Query("UPDATE playlist_items SET sortIndex = :sortIndex WHERE playlistId = :playlistId AND pageUrl = :pageUrl")
+    suspend fun setSortIndex(playlistId: Long, pageUrl: String, sortIndex: Int)
 }

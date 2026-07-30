@@ -2,7 +2,7 @@
 
 ## Current state
 
-Signed arm64-v8a release APK builds; 61 JVM unit tests green. Compose + Material 3, single Activity.
+Signed arm64-v8a release APK builds; 94 JVM unit tests green. Compose + Material 3, single Activity.
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only
@@ -14,7 +14,11 @@ Also in: home (tabs, search, paging), results list + long-press actions, detail 
 header, metadata, channel tap-through), listing, settings sections, and the full player — chrome,
 gestures, quality/speed sheets, mini player, queue bar, seek-thumbnail mapping.
 
-Not in: library screens, downloads, shorts feed, backup. Nothing has run on a device.
+And: library (likes / playlists / history, multi-select, resume bars), playlist detail with
+reorder, the download queue + foreground service + downloads screen, the shorts pager, and library
+backup (HTML + embedded JSON, export and import over SAF).
+
+Nothing has run on a device. The shorts pager has no feed behind it — see Tried / rejected.
 
 - Module: single `:app`, package `com.fyiplayer.app`, minSdk 26 / targetSdk 35, AGP 8.13, Kotlin 2.4.
 - Extraction backend: `youtubedl-android` 0.18.1 (library + ffmpeg). YouTube needs no HTML parsing —
@@ -86,6 +90,17 @@ started and stopped before any agent wrote a file — nothing partial to recover
   `._NIGHTLY` / `._MASTER` — the leading underscore is the real API, not a typo.
 - Subagents must not run Gradle, and none of them can verify a build. Every wave so far compiled
   only because the main session built it; expect 1–3 small compile fixes per wave at integration.
+- A Kotlin `public` property may not expose an `internal` type. Several state holders hit this;
+  mark the property `internal` rather than widening the type.
+- Only ONE screen may hold the shared video surface at a time. `AppScaffold.isFullPlayerRoute`
+  gates the mini player and queue bar off those routes — add any new full-bleed route to it.
+- Downloads go through `DownloadQueue.enqueue`, never a hand-built repository row: the queue is
+  what pairs video-only with audio-only and what starts the service. The single highest-`height`
+  format is usually video-only, so picking it directly yields a silent, audio-less file.
+- Finished downloads open via `FileProvider` (`${applicationId}.files`, `res/xml/file_paths.xml`).
+  `ACTION_VIEW` on a `file://` Uri throws `FileUriExposedException` at this targetSdk.
+- The exported backup page says in prose that no cookies are stored, so a naive whole-document
+  scan for "cookie" matches that sentence. The security test scans the JSON payload block instead.
 
 ## Tried / rejected
 
@@ -111,3 +126,10 @@ started and stopped before any agent wrote a file — nothing partial to recover
   muxed streams low; playing only muxed would be a permanent, visible quality regression.
 - 2026-07-30 | Resolution ceiling picked by metered-ness, not radio type | A metered hotspot is
   billed like mobile data even though it reports as wifi.
+- 2026-07-31 | Backup carries no timestamps, only page URLs and display text | Skipping them is
+  what makes re-import strictly idempotent: match on page URL, skip if present, never overwrite.
+- 2026-07-31 | Playlist reorder writes `sortIndex` in place | Delete-and-re-add rewrote `addedAt`
+  for every row and cost two writes per item per tap.
+- 2026-07-31 | Shorts pager shipped without a feed | The pager is finished and correct; the source
+  side stays off until a feed URL can be checked against a live run. It renders an honest empty
+  state, which is the same thing it would render if the platform stopped publishing one.
