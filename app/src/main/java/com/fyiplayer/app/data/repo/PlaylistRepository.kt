@@ -53,4 +53,9 @@ class PlaylistRepository(private val playlists: PlaylistDao, private val items: 
     }
 
     suspend fun removeItem(playlistId: Long, pageUrl: String) = items.delete(playlistId, pageUrl)
+
+    /** Persist a new order. Rewrites only `sortIndex`, so `addedAt` and every other column survive. */
+    suspend fun reorder(playlistId: Long, pageUrlsInOrder: List<String>) {
+        pageUrlsInOrder.forEachIndexed { index, pageUrl -> items.setSortIndex(playlistId, pageUrl, index) }
+    }
 }

@@ -1,0 +1,72 @@
+package com.fyiplayer.app.data.backup
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+// Pure render/parse round trip -- no Android, runs under testDebugUnitTest.
+class BackupCodecTest {
+
+    private fun sampleDoc() = BackupDocument(
+        exportedAtMillis = 1_700_000_000_000L,
+        playlists = listOf(
+            BackupPlaylist(
+                name = "Watch later",
+                items = listOf(
+                    BackupVideo("youtube", "https://example.com/watch?v=a", "Video A", 125, "Uploader A"),
+                    BackupVideo("youtube", "https://example.com/watch?v=b", "Video B", null, null),
+                ),
+            ),
+        ),
+        liked = listOf(BackupVideo("youtube", "https://example.com/watch?v=c", "Video C", 10, "Uploader C")),
+        history = listOf(BackupVideo("youtube", "https://example.com/watch?v=d", "Video D", 20, "Uploader D")),
+    )
+
+    @Test
+    fun `export then parse round trip is lossless`() {
+        val doc = sampleDoc()
+        val parsed = parseBackupHtml(renderBackupHtml(doc))
+        assertEquals(doc, parsed)
+    }
+
+    @Test
+    fun `version field survives serialization despite sitting on its default`() {
+        // Regression guard for the encodeDefaults trap (DESIGN.md §8): if that setting is ever
+        // removed from the Json instance, `version` silently vanishes from the payload and this
+        // fails both assertions below.
+        val doc = sampleDoc() // version left on its default, never set explicitly
+        val html = renderBackupHtml(doc)
+        assertTrue("payload must carry an explicit version key", html.contains("\"version\":$BACKUP_VERSION"))
+        assertEquals(BACKUP_VERSION, parseBackupHtml(html).version)
+    }
+
+    @Test
+    fun `a file carrying an unknown future field still imports`() {
+        val json = """{"version":1,"exportedAtMillis":100,"playlists":[],"liked":[],"history":[],""" +
+            """"futureField":{"nested":"nonsense"}}"""
+        val html = "<script id=\"fyi-player-backup\" type=\"application/json\">\n$json\n</script>"
+
+        val doc = parseBackupHtml(html)
+
+        assertEquals(1, doc.version)
+        assertEquals(100L, doc.exportedAtMillis)
+        assertTrue(doc.playlists.isEmpty())
+    }
+
+    @Test
+    fun `a title with closing script tag and html metacharacters round-trips`() {
+        val nasty = """</script><b>&"'title"""
+        val doc = BackupDocument(
+            exportedAtMillis = 1L,
+            liked = listOf(BackupVideo("youtube", "https://example.com/watch?v=x", nasty, null, nasty)),
+        )
+        val html = renderBackupHtml(doc)
+
+        // Exactly one real closing </script> -- the embedded title must not have produced another.
+        assertEquals(1, Regex("</script>").findAll(html).count())
+
+        val parsed = parseBackupHtml(html)
+        assertEquals(nasty, parsed.liked.single().title)
+        assertEquals(nasty, parsed.liked.single().uploader)
+    }
+}

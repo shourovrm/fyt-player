@@ -128,8 +128,13 @@ private const val NAV_ANIM_MILLIS = 180
 /** A few px of downward travel before hiding, so a jittery finger doesn't flicker the bar. */
 private const val NAV_HIDE_SLOP_PX = 3f
 
-/** Routes that own the shared video surface themselves. */
-private fun isFullPlayerRoute(route: String?): Boolean = route?.startsWith("detail/") == true
+/**
+ * Routes that own the shared video surface themselves. There is exactly one `PlayerView` and the
+ * last composable to attach it wins, so mounting the mini bar over one of these would steal the
+ * surface out from under the screen currently playing into it.
+ */
+private fun isFullPlayerRoute(route: String?): Boolean =
+    route?.startsWith("detail/") == true || route == Routes.SHORTS
 
 /** Which nav item is lit. detail/listing light nothing — they're reachable from more than one tab. */
 private fun selectedTab(route: String?): String? = when (route) {

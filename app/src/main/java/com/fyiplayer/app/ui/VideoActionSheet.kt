@@ -29,11 +29,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.VideoRef
-import com.fyiplayer.app.data.repo.DownloadItem
-import com.fyiplayer.app.data.repo.DownloadRepository
-import com.fyiplayer.app.data.repo.DownloadState
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
+import com.fyiplayer.app.download.DownloadQueue
+import com.fyiplayer.app.download.EnqueueOutcome
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -52,7 +51,7 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
-    val downloads = remember { DownloadRepository(app.database.downloadDao()) }
+    val downloads = remember(context) { DownloadQueue.get(context) }
 
     var liked by remember(ref.pageUrl) { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(ref.pageUrl) { liked = likes.observeIsLiked(ref.pageUrl).first() }
@@ -80,28 +79,15 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
             }
             SheetAction("Download") {
                 scope.launch {
-                    try {
-                        val resolved = app.resolver.resolve(ref)
-                        val format = resolved.formats.maxByOrNull { it.height ?: 0 }
-                        if (format == null) {
-                            Toast.makeText(context, "No downloadable format for this video", Toast.LENGTH_SHORT).show()
-                        } else {
-                            downloads.upsert(
-                                DownloadItem(
-                                    ref = ref,
-                                    formatId = format.formatId,
-                                    filePath = null,
-                                    state = DownloadState.QUEUED,
-                                    bytesDownloaded = 0,
-                                    totalBytes = format.filesizeBytes ?: 0,
-                                    updatedAt = System.currentTimeMillis(),
-                                ),
-                            )
-                            Toast.makeText(context, "Download queued", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: ExtractionError) {
-                        Toast.makeText(context, e.userMessage(), Toast.LENGTH_SHORT).show()
+                    // Straight through the queue, never a hand-rolled row: it is what picks a
+                    // playable video+audio pair (the highest single stream is often video-only,
+                    // which downloads silently without sound) and what starts the service.
+                    val outcome = downloads.enqueue(ref)
+                    val message = when (outcome) {
+                        is EnqueueOutcome.Queued -> "Download queued"
+                        is EnqueueOutcome.Failed -> outcome.message
                     }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
                 onDismiss()
             }

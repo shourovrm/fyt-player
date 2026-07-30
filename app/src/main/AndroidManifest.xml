@@ -40,5 +40,22 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".download.DownloadService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- A finished download can only be handed to another app as a content:// Uri;
+             ACTION_VIEW on a file:// Uri throws FileUriExposedException on this targetSdk. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 </manifest>
