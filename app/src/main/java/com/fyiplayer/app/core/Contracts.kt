@@ -1,0 +1,183 @@
+package com.fyiplayer.app.core
+
+/**
+ * The boundary every layer talks across. A source produces [VideoRef]s; a [StreamResolver] turns a
+ * canonical page URL into playable [MediaFormat]s. Nothing above this package may know how a
+ * platform is parsed or how a media URL is obtained.
+ *
+ * Rule that outranks convenience: only [VideoRef.pageUrl] is ever persisted, logged or shared.
+ * [MediaFormat.url] is signed, short-lived and often IP-bound — it stays in memory and dies there.
+ */
+
+/** A video as listed. Enough to render a result row and to re-resolve later. */
+data class VideoRef(
+    val sourceId: String,
+    /** Canonical page URL. The one identity that may be written down. */
+    val pageUrl: String,
+    val remoteId: String,
+    val title: String,
+    val thumbnailUrl: String? = null,
+    val durationSeconds: Int? = null,
+    val uploader: String? = null,
+    /** Uploader's canonical channel URL, when the listing already carried it. */
+    val uploaderUrl: String? = null,
+    /** Free-form count text the listing supplied ("1.2M views"). Display only, never parsed. */
+    val viewCountText: String? = null,
+)
+
+/** One page of results. [nextPage] is an opaque token the same source hands back to itself. */
+data class SearchPage(
+    val items: List<VideoRef>,
+    val nextPage: String? = null,
+)
+
+/** A playable stream variant. [headers] must be applied verbatim or the CDN rejects the request. */
+data class MediaFormat(
+    val formatId: String,
+    val url: String,
+    val container: String,
+    val protocol: Protocol,
+    val height: Int? = null,
+    val videoCodec: String? = null,
+    val audioCodec: String? = null,
+    val bitrate: Long? = null,
+    val filesizeBytes: Long? = null,
+    val headers: Map<String, String> = emptyMap(),
+) {
+    val isVideoOnly: Boolean get() = videoCodec != null && audioCodec == null
+    val isAudioOnly: Boolean get() = audioCodec != null && videoCodec == null
+    val isMuxed: Boolean get() = videoCodec != null && audioCodec != null
+}
+
+enum class Protocol { PROGRESSIVE, HLS, DASH }
+
+/** Result of resolution. [resolvedAtMillis] is why we re-resolve instead of trusting a stored copy. */
+data class Resolved(
+    val ref: VideoRef,
+    val formats: List<MediaFormat>,
+    val resolvedAtMillis: Long,
+)
+
+/**
+ * Scrubber preview frames. Two shapes cover everything: [frames] is one image URL per fixed
+ * [intervalSeconds] slot, [sprites] is one or more sheets whose tiles tile the timeline in order.
+ * A player maps a scrub time to a frame (index = time / interval) or to a sprite tile (walk the
+ * sheets, then row-major inside one).
+ *
+ * Like [MediaFormat.url] these URLs are signed and ephemeral: memory only, never persisted, never
+ * logged, never exported.
+ */
+data class SeekThumbnails(
+    val intervalSeconds: Double,
+    val frames: List<String> = emptyList(),
+    val sprites: List<SpriteSheet> = emptyList(),
+)
+
+/** One preview sheet: [count] tiles of [tileWidth]x[tileHeight] laid out [cols] x [rows]. */
+data class SpriteSheet(
+    val url: String,
+    val cols: Int,
+    val rows: Int,
+    val tileWidth: Int,
+    val tileHeight: Int,
+    val count: Int,
+)
+
+/**
+ * Typed failure. Every layer maps its own errors into one of these; the UI renders a message per
+ * case and never a stack trace. [AccessChallenge] is a hard stop, never something to work around.
+ */
+sealed class ExtractionError(message: String, cause: Throwable? = null) : Exception(message, cause) {
+    /** No network, DNS failure, timeout. Retryable. */
+    class Network(message: String, cause: Throwable? = null) : ExtractionError(message, cause)
+
+    /** Reachable, but the content is gone, private, or never existed. */
+    class ContentUnavailable(message: String) : ExtractionError(message)
+
+    /** Login wall, CAPTCHA, age verification, paywall, region block, DRM, rate limit. We stop. */
+    class AccessChallenge(message: String) : ExtractionError(message)
+
+    /** A signed URL aged out. The caller re-resolves; it never retries the dead URL. */
+    class Expired(message: String) : ExtractionError(message)
+
+    /** The platform changed under us, or nothing here can handle this URL. */
+    class Unsupported(message: String, cause: Throwable? = null) : ExtractionError(message, cause)
+}
+
+/** A named listing a source can navigate to: a channel, or a playlist. */
+data class Listing(val sourceId: String, val kind: Kind, val key: String, val title: String) {
+    enum class Kind { CHANNEL, PLAYLIST }
+}
+
+/**
+ * What a video's own page exposes beyond the listing row. Every field is optional: a field the
+ * platform does not publish stays empty rather than being invented.
+ */
+data class VideoDetail(
+    val ref: VideoRef,
+    val related: List<VideoRef> = emptyList(),
+    val uploader: Listing? = null,
+    val description: String? = null,
+    val uploadDate: String? = null,
+    val likeCount: Long? = null,
+    val viewCount: Long? = null,
+)
+
+/** One platform. Listing and URL recognition only — media resolution is [StreamResolver]'s job. */
+interface VideoSource {
+    val id: String
+    val displayName: String
+
+    /** True if this source owns [url] and can resolve it. */
+    fun matches(url: String): Boolean
+
+    /** @param page a token from a previous [SearchPage], or null for the first page. */
+    suspend fun search(query: String, page: String? = null): SearchPage
+
+    /**
+     * The platform's own front page / trending feed, for the per-source Home tabs.
+     * Default throws so an adapter that has not implemented it degrades to an explained empty
+     * state instead of silently pretending the platform has no videos.
+     */
+    suspend fun homepage(page: String? = null): SearchPage =
+        throw ExtractionError.Unsupported("$displayName has no browsable feed yet")
+
+    /** True when this source contributes to the vertical Shorts feed, so callers never probe-and-catch. */
+    val providesShorts: Boolean get() = false
+
+    /** A page of short-form vertical clips. Default throws so a source that has not opted in
+     *  ([providesShorts]) degrades to an explained skip, never a silent empty. */
+    suspend fun shorts(page: String? = null): SearchPage =
+        throw ExtractionError.Unsupported("$displayName has no shorts feed")
+
+    /** Related videos, uploader and description from a video's own page. */
+    suspend fun detail(ref: VideoRef): VideoDetail = VideoDetail(ref)
+
+    /** Videos for a channel or playlist surfaced by [detail]. */
+    suspend fun listing(listing: Listing, page: String? = null): SearchPage =
+        throw ExtractionError.Unsupported("$displayName cannot browse that listing yet")
+
+    /** Scrubber preview frames for [ref], or null where the platform publishes none. Fetched
+     *  lazily on first scrub, never at resolve time. */
+    suspend fun seekThumbnails(ref: VideoRef): SeekThumbnails? = null
+
+    /**
+     * Frames for a list tile's preview, in time order, or null where this source cannot supply
+     * them without a fetch.
+     *
+     * Deliberately NOT suspend and deliberately doing NO I/O: a listing screen calls this once per
+     * visible tile, so anything that fetched would put an HTTP request on the scroll path.
+     * Everything must come out of [ref] alone. A source that would need a page fetch returns null,
+     * and that tile simply gets no preview.
+     */
+    fun previewThumbnails(ref: VideoRef): SeekThumbnails? = null
+}
+
+/**
+ * Turns a canonical page URL into playable formats. Implementations form a tiered chain:
+ * extraction engine first, headless capture second, a typed [ExtractionError] third. Call at play
+ * or download time — never ahead of it, and never cache the result.
+ */
+interface StreamResolver {
+    suspend fun resolve(ref: VideoRef): Resolved
+}

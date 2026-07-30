@@ -2,8 +2,10 @@
 
 ## Current state
 
-Gradle skeleton builds a signed arm64-v8a release APK. Compose + Material 3, single Activity,
-theme tokens in place. No contracts, no data layer, no sources, no player yet.
+Signed arm64-v8a release APK builds; JVM unit tests green. Compose + Material 3, single Activity.
+`core/` contracts + `SourceRegistry`, `data/` (Room + DataStore + repositories), `ui/` shell
+(AppScaffold + NavHost + placeholder screens) are in. No source adapter, no engine, no player yet —
+`SourceRegistry.all` is still empty, so every screen renders its empty state.
 
 - Module: single `:app`, package `com.fyiplayer.app`, minSdk 26 / targetSdk 35, AGP 8.13, Kotlin 2.4.
 - Extraction backend: `youtubedl-android` 0.18.1 (library + ffmpeg). YouTube needs no HTML parsing —
@@ -12,7 +14,6 @@ theme tokens in place. No contracts, no data layer, no sources, no player yet.
 
 ## Next
 
-- Wave 1: `core/` contracts + `SourceRegistry`, `data/` Room + DataStore, `ui/` AppScaffold + NavHost.
 - Wave 2: `engine/` resolver chain, `source/youtube/` end to end, `player/` session + service.
 - Wave 3: home/search/detail screens, player chrome + gestures.
 - Wave 4: library, downloads, shorts + seek thumbnails + backup.
@@ -29,6 +30,13 @@ theme tokens in place. No contracts, no data layer, no sources, no player yet.
   is what keeps packaging from failing.
 - Gradle 8.13 wrapper and every dependency version match an already-populated local cache, so a
   cold build downloads nothing. Do not bump versions casually — disk is at 91%.
+- `material-icons-core` 1.7.8 has no Download / Pause / SkipNext / SkipPrevious / Fullscreen /
+  Shuffle glyph, and `Icons.Filled.List` is deprecated in favour of `Icons.AutoMirrored.Filled.List`.
+- Persisted rows carry no `remoteId`; entity → `VideoRef` mappers set `remoteId = pageUrl`. A saved
+  video is always re-resolved from its page URL, so nothing downstream may treat `remoteId` as a
+  platform id when the ref came out of the database.
+- `AppScaffold` consumes system-bar insets for the whole app. A future full-bleed surface
+  (fullscreen player, shorts pager) has to opt out there, not pad itself.
 
 ## Tried / rejected
 
