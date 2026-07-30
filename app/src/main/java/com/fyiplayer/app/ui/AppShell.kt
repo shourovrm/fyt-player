@@ -4,12 +4,17 @@ import android.net.Uri
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.fyiplayer.app.core.Listing
+import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.player.PlayerScreen
 
 /** Typed route table — no caller hand-builds a route string. */
 object Routes {
@@ -19,13 +24,28 @@ object Routes {
     const val DOWNLOADS = "downloads"
     const val SETTINGS = "settings"
     const val DETAIL = "detail/{pageUrl}"
-    const val LISTING = "listing/{key}"
+    // key is a full channel/playlist URL (path segment); sourceId/kind/title ride as query args so
+    // ListingScreen can call the right VideoSource.listing() without a second lookup.
+    const val LISTING = "listing/{key}?sourceId={sourceId}&kind={kind}&title={title}"
     const val PLAYLIST = "playlist/{id}"
 }
 
-/** [pageUrl] and [key] are full URLs; [id] just rides the same encode/decode for safety. */
+/** Raw-URL overload for screens that only have a page URL (Shorts/Library/Playlist placeholders,
+ *  still unbuilt). Detail then starts blank until its own resolve lands -- honest, not a crash. */
 fun NavController.openDetail(pageUrl: String) = navigate("detail/${Uri.encode(pageUrl)}")
-fun NavController.openListing(key: String) = navigate("listing/${Uri.encode(key)}")
+
+/** [ref] is stashed in [RefCache] (see its doc) so Detail paints its header from it immediately —
+ *  a nav route can only carry the page URL itself. Preferred whenever a full ref is on hand. */
+fun NavController.openDetail(ref: VideoRef) {
+    RefCache.put(ref)
+    openDetail(ref.pageUrl)
+}
+
+fun NavController.openListing(listing: Listing) = navigate(
+    "listing/${Uri.encode(listing.key)}" +
+        "?sourceId=${Uri.encode(listing.sourceId)}&kind=${listing.kind.name}&title=${Uri.encode(listing.title)}",
+)
+
 fun NavController.openPlaylist(id: String) = navigate("playlist/${Uri.encode(id)}")
 
 /**
@@ -45,10 +65,7 @@ fun AppShell(navController: NavHostController) {
         popExitTransition = { ExitTransition.None },
     ) {
         composable(Routes.HOME) {
-            HomeScreen(
-                onOpenDetail = { navController.openDetail(it) },
-                onOpenListing = { navController.openListing(it) },
-            )
+            HomeScreen(onOpenDetail = { navController.openDetail(it) })
         }
         composable(Routes.SHORTS) {
             ShortsScreen(onOpenDetail = { navController.openDetail(it) })
@@ -70,14 +87,42 @@ fun AppShell(navController: NavHostController) {
             arguments = listOf(navArgument("pageUrl") { type = NavType.StringType }),
         ) { entry ->
             val pageUrl = entry.arguments?.getString("pageUrl")?.let(Uri::decode).orEmpty()
-            DetailScreen(pageUrl = pageUrl, onOpenDetail = { navController.openDetail(it) })
+            val prefs = rememberFyiApp().prefs
+            val brightnessGesture by prefs.gestureBrightness.collectAsState(initial = true)
+            val volumeGesture by prefs.gestureVolume.collectAsState(initial = true)
+            DetailScreen(
+                pageUrl = pageUrl,
+                onOpenDetail = { navController.openDetail(it) },
+                onOpenListing = { navController.openListing(it) },
+                onBack = { navController.popBackStack() },
+                playerSurface = {
+                    PlayerScreen(
+                        gestureBrightness = brightnessGesture,
+                        gestureVolume = volumeGesture,
+                    )
+                },
+            )
         }
         composable(
             Routes.LISTING,
-            arguments = listOf(navArgument("key") { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument("key") { type = NavType.StringType },
+                navArgument("sourceId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("kind") { type = NavType.StringType; defaultValue = Listing.Kind.CHANNEL.name },
+                navArgument("title") { type = NavType.StringType; defaultValue = "" },
+            ),
         ) { entry ->
-            val key = entry.arguments?.getString("key")?.let(Uri::decode).orEmpty()
-            ListingScreen(key = key, onOpenDetail = { navController.openDetail(it) })
+            val args = entry.arguments
+            val key = args?.getString("key")?.let(Uri::decode).orEmpty()
+            val sourceId = args?.getString("sourceId").orEmpty()
+            val kind = runCatching { Listing.Kind.valueOf(args?.getString("kind").orEmpty()) }
+                .getOrDefault(Listing.Kind.CHANNEL)
+            val title = args?.getString("title")?.let(Uri::decode).orEmpty()
+            ListingScreen(
+                listing = Listing(sourceId = sourceId, kind = kind, key = key, title = title),
+                onOpenDetail = { navController.openDetail(it) },
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(
             Routes.PLAYLIST,

@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.StreamResolver
 import com.fyiplayer.app.core.VideoRef
@@ -24,17 +25,25 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-/** Immutable snapshot for the UI. Deliberately carries no media URL — Contracts.kt's rule. */
+/**
+ * Immutable snapshot for the UI. Deliberately carries no media URL — Contracts.kt's rule.
+ * [availableHeights] is the resolution ladder the quality picker may offer, as plain ints derived
+ * from the current item's formats; the [MediaFormat]s themselves (signed URLs) never leave
+ * [PlaybackSession] — see [selectQuality].
+ */
 data class PlayerState(
     val current: VideoRef? = null,
     val index: Int = -1,
     val queueSize: Int = 0,
+    val queue: List<VideoRef> = emptyList(),
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val error: ExtractionError? = null,
     val selectedHeight: Int? = null,
+    val availableHeights: List<Int> = emptyList(),
+    val speed: Float = 1f,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val shuffled: Boolean = false,
 )
@@ -73,6 +82,9 @@ object PlaybackSession {
     // player timeline position -> queue index, at most 2 entries: [current] or [current, prefetched]
     private var window: List<Int> = emptyList()
     private var prepared: PreparedItem? = null // resolved-ahead item, adopted without a re-resolve
+    // The current item's raw formats, kept private — see PlayerState's doc. Only heights derived
+    // from this ever reach [PlayerState.availableHeights].
+    private var currentFormats: List<MediaFormat> = emptyList()
     private var loadJob: Job? = null
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
@@ -113,9 +125,14 @@ object PlaybackSession {
         index = QueueMath.clamp(startIndex, refs.size)
         prepared = null
         retriedIndex = null
+        currentFormats = emptyList()
         // a fresh state must seed isPlaying from the player: onIsPlayingChanged only fires on a
         // change, and skipping between two already-playing items would otherwise never fire it.
-        _state.value = PlayerState(index = index, queueSize = queue.size, isPlaying = player.isPlaying)
+        // speed is seeded too: it's a player-level setting that survives across queues.
+        _state.value = PlayerState(
+            index = index, queueSize = queue.size, queue = queue,
+            isPlaying = player.isPlaying, speed = player.playbackParameters.speed,
+        )
         startAt(index)
     }
 
@@ -168,6 +185,37 @@ object PlaybackSession {
         startAt(target)
     }
 
+    /** Jump to an arbitrary queue position — what tapping a row in the queue list does. Always
+     *  re-resolves: only the current item and the one ahead of it ever hold a live signed URL. */
+    fun playAt(i: Int) {
+        ensureInit()
+        if (i !in queue.indices || i == index) return
+        index = i
+        prepared = null
+        retriedIndex = null
+        startAt(i)
+    }
+
+    /** Reorders the queue: moves the item at [from] to [to]. Keeps [index] pointing at the same
+     *  item it did before the move, and drops the prefetch window when the move could have
+     *  touched it. */
+    fun move(from: Int, to: Int) {
+        ensureInit()
+        if (from !in queue.indices || to !in queue.indices || from == to) return
+        val affectsWindow = from >= index || to >= index
+        val item = queue[from]
+        queue = queue.toMutableList().apply { removeAt(from); add(to, item) }
+        index = when {
+            from == index -> to
+            from < index && to >= index -> index - 1
+            from > index && to <= index -> index + 1
+            else -> index
+        }
+        if (affectsWindow) dropPrefetchedWindowSlot()
+        publishQueueState()
+        if (affectsWindow) prefetchNext()
+    }
+
     fun seekTo(positionMs: Long) {
         ensureInit()
         player.seekTo(positionMs)
@@ -176,6 +224,35 @@ object PlaybackSession {
     fun togglePlayPause() {
         ensureInit()
         player.playWhenReady = !player.playWhenReady
+    }
+
+    fun setSpeed(speed: Float) {
+        ensureInit()
+        player.setPlaybackSpeed(speed)
+        _state.update { it.copy(speed = speed) }
+    }
+
+    /** Reselects a format from the current item's already-resolved list — no re-resolve, no
+     *  network wait. [height] null reapplies the configured ceiling ("Auto"). Only ever picks
+     *  from [currentFormats], so this can never offer a height the item has no format for. */
+    fun selectQuality(height: Int?) {
+        ensureInit()
+        if (currentFormats.isEmpty()) return
+        val result = FormatSelector.select(currentFormats, height ?: maxHeight())
+        val selection = result.selection ?: return
+        val resumeAt = player.currentPosition
+        prepared = null
+        window = listOf(index)
+        player.setMediaSource(MediaItemFactory.create(selection))
+        player.prepare()
+        player.seekTo(resumeAt)
+        player.playWhenReady = true
+        val newHeight = when (selection) {
+            is FormatSelection.Single -> selection.format.height
+            is FormatSelection.Paired -> selection.video.height
+        }
+        _state.update { it.copy(selectedHeight = newHeight) }
+        prefetchNext()
     }
 
     fun setRepeatMode(mode: RepeatMode) {
@@ -218,6 +295,7 @@ object PlaybackSession {
         loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
         queue = emptyList(); order = null; index = -1
         window = emptyList(); prepared = null; retriedIndex = null
+        currentFormats = emptyList()
         player.stop()
         player.clearMediaItems()
         _state.value = PlayerState()
@@ -229,8 +307,20 @@ object PlaybackSession {
     }
 
     private fun publishQueueState() {
-        _state.update { it.copy(index = index, queueSize = queue.size, current = queue.getOrNull(index)) }
+        _state.update {
+            it.copy(index = index, queueSize = queue.size, queue = queue, current = queue.getOrNull(index))
+        }
     }
+
+    // ponytail: the tier2 WebView fallback (engine/WebViewResolver.kt) returns one formatless
+    // entry (height = null) for what's really an adaptive HLS master — mapNotNull drops it, so
+    // that path's quality sheet shows "Auto" only instead of the renditions Media3 actually
+    // parses out of the master. Honest, not wrong: no fake resolution gets offered. Add a second,
+    // track-selection-mode sheet (Player.Listener onTracksChanged -> per-height
+    // TrackSelectionOverride, instead of this formats list) only if that tier2 path turns out to
+    // matter enough to spend the extra plumbing on.
+    private fun availableHeightsOf(formats: List<MediaFormat>): List<Int> =
+        formats.filter { !it.isAudioOnly }.mapNotNull { it.height }.distinct().sortedDescending()
 
     /** Resolve [i] and load it as the only window item, then prefetch the one after it. */
     private fun startAt(i: Int) {
@@ -245,10 +335,12 @@ object PlaybackSession {
             player.playWhenReady = true
             retriedIndex = null
             window = listOf(i)
+            currentFormats = item.resolved.formats
             _state.update {
                 it.copy(
-                    current = ref, index = i, queueSize = queue.size, error = null,
-                    selectedHeight = item.height, isPlaying = player.isPlaying,
+                    current = ref, index = i, queueSize = queue.size, queue = queue, error = null,
+                    selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
+                    isPlaying = player.isPlaying,
                 )
             }
             prefetchNext()
@@ -263,7 +355,13 @@ object PlaybackSession {
             resolver.resolve(ref)
         } catch (e: ExtractionError) {
             if (i == index) {
-                _state.update { it.copy(current = ref, index = i, queueSize = queue.size, error = e) }
+                currentFormats = emptyList()
+                _state.update {
+                    it.copy(
+                        current = ref, index = i, queueSize = queue.size, queue = queue,
+                        error = e, availableHeights = emptyList(),
+                    )
+                }
             }
             return null
         }
@@ -271,10 +369,12 @@ object PlaybackSession {
         val selection = result.selection
         if (selection == null) {
             if (i == index) {
+                currentFormats = emptyList()
                 _state.update {
                     it.copy(
-                        current = ref, index = i, queueSize = queue.size,
+                        current = ref, index = i, queueSize = queue.size, queue = queue,
                         error = ExtractionError.Unsupported(result.reason ?: "no playable format"),
+                        availableHeights = emptyList(),
                     )
                 }
             }
@@ -310,10 +410,11 @@ object PlaybackSession {
     private fun adoptPrepared(item: PreparedItem) {
         retriedIndex = null
         val ref = queue.getOrNull(item.queueIndex) ?: return
+        currentFormats = item.resolved.formats
         _state.update {
             it.copy(
-                current = ref, index = item.queueIndex, queueSize = queue.size, error = null,
-                selectedHeight = item.height,
+                current = ref, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
+                selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                 // seed from the player: an advance between two already-playing items never fires
                 // onIsPlayingChanged, so a value left at the previous default would stick.
                 isPlaying = player.isPlaying,

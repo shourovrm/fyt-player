@@ -2,7 +2,7 @@
 
 ## Current state
 
-Signed arm64-v8a release APK builds; 37 JVM unit tests green. Compose + Material 3, single Activity.
+Signed arm64-v8a release APK builds; 61 JVM unit tests green. Compose + Material 3, single Activity.
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only
@@ -10,8 +10,11 @@ WebView tier, chain); `source/youtube/`; `player/` (queue maths, format selectio
 session service, shared surface). `FyiApp` wires the resolver into `PlaybackSession` and kicks off
 engine init.
 
-Not in: real screen bodies (every screen still renders a placeholder), player chrome and gestures,
-library, downloads, shorts, seek thumbnails, backup. Nothing has run on a device.
+Also in: home (tabs, search, paging), results list + long-press actions, detail (pinned player
+header, metadata, channel tap-through), listing, settings sections, and the full player — chrome,
+gestures, quality/speed sheets, mini player, queue bar, seek-thumbnail mapping.
+
+Not in: library screens, downloads, shorts feed, backup. Nothing has run on a device.
 
 - Module: single `:app`, package `com.fyiplayer.app`, minSdk 26 / targetSdk 35, AGP 8.13, Kotlin 2.4.
 - Extraction backend: `youtubedl-android` 0.18.1 (library + ffmpeg). YouTube needs no HTML parsing —
@@ -20,7 +23,6 @@ library, downloads, shorts, seek thumbnails, backup. Nothing has run on a device
 
 ## Next
 
-- Wave 3: home/search/detail screens, player chrome + gestures.
 - Wave 4: library, downloads, shorts + seek thumbnails + backup.
 - Wave 5: clean build, tests, review, arm64 release APK copied to repo root.
 
@@ -56,6 +58,13 @@ library, downloads, shorts, seek thumbnails, backup. Nothing has run on a device
   there. Anything else constructing a `Listing` must honour that or `listing()` breaks.
 - `Protocol.DASH` throws in `MediaItemFactory`: `media3-exoplayer-dash` is not a dependency and
   nothing emits DASH yet. Adding a DASH path means adding that artifact first.
+- There is exactly ONE shared video surface. `AppScaffold` therefore hides the mini player and
+  queue bar on the detail route — mounting both would have the mini bar steal the surface from the
+  full player mid-playback.
+- `Modifier.padding` has no `horizontal` + `top` overload; name all four edges instead.
+- Overriding Java's `LinkedHashMap.removeEldestEntry` from Kotlin needs
+  `MutableMap.MutableEntry`, not `MutableMap.Entry`.
+- `Prefs.backgroundPlayback` has a settings row but nothing in `player/` reads it yet.
 
 ## Tried / rejected
 
