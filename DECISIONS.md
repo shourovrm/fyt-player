@@ -11,8 +11,18 @@ session service, shared surface). `FyiApp` wires the resolver into `PlaybackSess
 engine init.
 
 Also in: home (tabs, search, paging), results list + long-press actions, detail (pinned player
-header, metadata, channel tap-through), listing, settings sections, and the full player — chrome,
-gestures, quality/speed sheets, mini player, queue bar, seek-thumbnail mapping.
+header, metadata, channel tap-through, Similar/Comments tabs below), listing, settings sections,
+and the full player — chrome, gestures, quality/speed sheets, mini player, queue bar,
+seek-thumbnail mapping.
+
+Detail's "more from this channel" section is now two tabs (`DetailTabsViewModel`): **Similar**
+(search on the video's own title, honestly labelled as search matches, never "recommended" — the
+engine has no related/recommended list and rejects mix/radio playlists, both confirmed live) and
+**Comments** (unchanged threading/replies, now fed by the state holder instead of owning its own
+fetch). Each tab fetches at most once per video, gated the same idempotent way
+`ListingViewModel.ensureLoaded` is. `YoutubeSource.detail()` still fetches channel uploads into
+`VideoDetail.related` (untouched, per this wave's constraints) but the UI no longer reads that
+field — a now-pointless extra engine call worth trimming in a future wave.
 
 And: library (likes / playlists / history, multi-select, resume bars), playlist detail with
 reorder, the download queue + foreground service + downloads screen, the shorts pager, and library
@@ -71,8 +81,9 @@ started and stopped before any agent wrote a file — nothing partial to recover
 - Persisted rows carry no `remoteId`; entity → `VideoRef` mappers set `remoteId = pageUrl`. A saved
   video is always re-resolved from its page URL, so nothing downstream may treat `remoteId` as a
   platform id when the ref came out of the database.
-- `AppScaffold` consumes system-bar insets for the whole app. A future full-bleed surface
-  (fullscreen player, shorts pager) has to opt out there, not pad itself.
+- `AppScaffold` consumes system-bar insets for the whole app. A full-bleed surface opts out via
+  `ui/AppScaffold.kt`'s `FullscreenChrome.active` seam (set by `DetailScreen`, same package) —
+  used by the fullscreen player; a future full-bleed screen (shorts pager) reuses the same seam.
 - `extractNativeLibs=true` is NOT in the manifest — AGP emits it from `packaging.jniLibs
   .useLegacyPackaging = true`. The engine cannot unpack its payload without it, so if native init
   ever starts failing, check the merged manifest before anything else.
@@ -156,3 +167,10 @@ started and stopped before any agent wrote a file — nothing partial to recover
   platform-side (verified live); watch history already tells us what a user actually cares about.
 - 2026-07-31 | `watch_history.thumbnailUrl` stripped to bare path before insert | Listing
   thumbnails carry a signature query that expires; only the unsigned path form is worth persisting.
+- 2026-07-31 | Fullscreen button fixed: `fullscreen` hoisted from `PlayerScreen` to `DetailScreen` |
+  It was local player state inside a fixed-height 16:9 header `Box` — toggling it only rescaled
+  chrome, the box never grew. `DetailScreen` now owns the bool, early-returns to a bare
+  `Modifier.fillMaxSize()` player when true (top bar/list not composed), and tells
+  `AppScaffold.FullscreenChrome` so the nav bar and system-bar padding drop too. `PlaybackSession`
+  gained `videoWidth`/`videoHeight` off `onVideoSizeChanged`; fullscreen orientation locks to
+  match once known, so a portrait video no longer gets force-landscaped into a letterbox.

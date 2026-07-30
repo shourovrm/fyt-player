@@ -67,6 +67,33 @@ internal fun parseFlatPlaylistJson(json: String): List<VideoRef> {
 }
 
 @Serializable
+private data class PlaylistEntryJson(
+    val id: String? = null,
+    val title: String? = null,
+    val url: String? = null,
+)
+
+/**
+ * `--flat-playlist -J` on a channel's Playlists/Courses tab -> [Listing]s. These entries are
+ * containers, not videos (no duration): the engine's own `url` field is the playlist's canonical
+ * page, falling back to building one from `id`. Pure; a malformed entry is skipped.
+ */
+internal fun parseChannelPlaylistsJson(json: String, sourceId: String): List<Listing> {
+    val root = try {
+        jsonCodec.decodeFromString(FlatPlaylistRootJson.serializer(), json)
+    } catch (e: SerializationException) {
+        return emptyList()
+    }
+    return root.entries.orEmpty().mapNotNull { el ->
+        val entry = runCatching { jsonCodec.decodeFromJsonElement(PlaylistEntryJson.serializer(), el) }
+            .getOrNull() ?: return@mapNotNull null
+        val id = entry.id ?: return@mapNotNull null
+        val key = entry.url ?: "https://www.youtube.com/playlist?list=$id"
+        Listing(sourceId = sourceId, kind = Listing.Kind.PLAYLIST, key = key, title = entry.title ?: "")
+    }
+}
+
+@Serializable
 private data class DetailJson(
     val title: String? = null,
     val description: String? = null,

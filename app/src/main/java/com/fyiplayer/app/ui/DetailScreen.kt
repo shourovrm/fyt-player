@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -20,10 +20,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoDetail
@@ -50,6 +54,12 @@ import java.text.NumberFormat
  * from [RefCache] when available, so the header isn't blank while the network resolve is in
  * flight. [playerSurface] is a slot: the live playback surface is owned by a parallel unit of
  * work and is never imported here.
+ *
+ * Fullscreen is owned HERE, not by the player slot: this screen is the one that knows the LAYOUT
+ * fullscreen implies (skip the whole page, render only the player at full size), and a player
+ * composable one layer down can't make that call for its own parent. [FullscreenChrome] (same
+ * package, `ui/AppScaffold.kt`) is told about it explicitly, and back exits fullscreen before it
+ * ever reaches the nav back stack.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +68,7 @@ fun DetailScreen(
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
     onBack: () -> Unit,
-    playerSurface: @Composable (ref: VideoRef) -> Unit = {},
+    playerSurface: @Composable (ref: VideoRef, fullscreen: Boolean, onToggleFullscreen: () -> Unit) -> Unit = { _, _, _ -> },
 ) {
     val app = rememberFyiApp()
     val ref = remember(pageUrl) {
@@ -69,13 +79,27 @@ fun DetailScreen(
             title = "",
         )
     }
+    val source = remember(pageUrl) { SourceRegistry.bySourceId(ref.sourceId) }
+    val tabsVm: DetailTabsViewModel = viewModel()
+    val showCommentsTab = source?.providesComments == true
     var detail by remember(pageUrl) { mutableStateOf(VideoDetail(ref)) }
     var descriptionExpanded by remember(pageUrl) { mutableStateOf(false) }
     var actionSheetRef by remember(pageUrl) { mutableStateOf<VideoRef?>(null) }
     var historyRecorded by remember(pageUrl) { mutableStateOf(false) }
+    // NOT keyed on pageUrl: this screen's own lifetime is the right scope for it, not a per-video
+    // reset. Toggled by the player slot's own fullscreen button, or by the BackHandler below.
+    var fullscreen by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = fullscreen) { fullscreen = false }
+    // AppScaffold reads this to drop the nav bar and its inset padding for exactly as long as
+    // fullscreen lasts — restored on every exit path, including this composable leaving
+    // composition outright (e.g. navigating away without explicitly toggling back first).
+    DisposableEffect(fullscreen) {
+        FullscreenChrome.active = fullscreen
+        onDispose { FullscreenChrome.active = false }
+    }
 
     LaunchedEffect(pageUrl) {
-        val source = SourceRegistry.bySourceId(ref.sourceId)
         detail = try {
             source?.detail(ref) ?: VideoDetail(ref)
         } catch (e: CancellationException) {
@@ -96,6 +120,26 @@ fun DetailScreen(
 
     val shownRef = detail.ref.takeIf { it.title.isNotBlank() } ?: ref
 
+    // Only the selected tab fetches, and only once per video -- ensureXLoaded is idempotent
+    // (DetailTabsViewModel), so re-running this on every recomposition (e.g. re-entering from
+    // fullscreen) never refetches. Similar needs a real title to build a query from, so it waits;
+    // Comments doesn't. Keeps loading even while fullscreen so content is ready the moment the
+    // user exits it.
+    LaunchedEffect(tabsVm.selectedTab, shownRef.pageUrl, shownRef.title) {
+        when (tabsVm.selectedTab) {
+            DetailTab.SIMILAR -> if (shownRef.title.isNotBlank()) tabsVm.ensureSimilarLoaded(source, shownRef)
+            DetailTab.COMMENTS -> if (showCommentsTab) tabsVm.ensureCommentsLoaded(source, shownRef)
+        }
+    }
+
+    // Fullscreen: render ONLY the player, full size -- the top bar, metadata and related list are
+    // not composed at all, so there is nothing left for AppScaffold's own chrome to compete with
+    // for screen edges.
+    if (fullscreen) {
+        playerSurface(shownRef, true) { fullscreen = false }
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -114,7 +158,7 @@ fun DetailScreen(
             // never recycled by scroll, so the player surface underneath keeps its identity.
             val headerHeight = LocalConfiguration.current.screenWidthDp.dp * 9 / 16
             Box(Modifier.fillMaxWidth().height(headerHeight).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                playerSurface(shownRef)
+                playerSurface(shownRef, false) { fullscreen = true }
             }
 
             LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
@@ -188,36 +232,49 @@ fun DetailScreen(
                         }
                     }
                 }
-                // "related" here is real per-channel data (YoutubeSource.detail's own doc), not an
-                // algorithmic feed -- an empty list (no channel, or the platform has none) renders
-                // nothing, never an empty header.
-                if (detail.related.isNotEmpty()) {
+                // Only one tab worth showing when this source has no comments (providesComments):
+                // an honest gap, not a tab bar with a single option. Selection stays SIMILAR then.
+                if (showCommentsTab) {
                     item {
-                        Text(
-                            detail.uploader?.title?.takeIf { it.isNotBlank() }?.let { "More from $it" }
-                                ?: "More from this channel",
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
-                        )
-                    }
-                    items(detail.related, key = { it.pageUrl }) { rel ->
-                        ResultRow(
-                            rel,
-                            onClick = {
-                                val index = detail.related.indexOfFirst { it.pageUrl == rel.pageUrl }.coerceAtLeast(0)
-                                PlaybackSession.play(detail.related, index)
-                                onOpenDetail(rel)
-                            },
-                            onLongPress = { actionSheetRef = rel },
-                        )
+                        PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = 16.dp)) {
+                            Tab(
+                                selected = tabsVm.selectedTab == DetailTab.SIMILAR,
+                                onClick = { tabsVm.selectedTab = DetailTab.SIMILAR },
+                                text = { Text("Similar") },
+                            )
+                            Tab(
+                                selected = tabsVm.selectedTab == DetailTab.COMMENTS,
+                                onClick = { tabsVm.selectedTab = DetailTab.COMMENTS },
+                                text = { Text(tabsVm.commentsCount?.let { "Comments ($it)" } ?: "Comments") },
+                            )
+                        }
                     }
                 }
-                item {
-                    CommentsSection(
-                        source = SourceRegistry.bySourceId(shownRef.sourceId),
-                        ref = shownRef,
-                        modifier = Modifier.padding(top = 12.dp),
+                if (!showCommentsTab || tabsVm.selectedTab == DetailTab.SIMILAR) {
+                    similarVideosSection(
+                        results = tabsVm.similarItems,
+                        loading = tabsVm.similarLoading,
+                        error = tabsVm.similarError,
+                        retryEnabled = !tabsVm.similarBlocked,
+                        onRetry = { tabsVm.retrySimilar(source, shownRef) },
+                        onClick = { rel ->
+                            val index = tabsVm.similarItems.indexOfFirst { it.pageUrl == rel.pageUrl }.coerceAtLeast(0)
+                            PlaybackSession.play(tabsVm.similarItems, index)
+                            onOpenDetail(rel)
+                        },
+                        onLongPress = { actionSheetRef = it },
                     )
+                } else {
+                    item {
+                        CommentsSection(
+                            comments = tabsVm.comments,
+                            loading = tabsVm.commentsLoading,
+                            error = tabsVm.commentsError,
+                            retryEnabled = !tabsVm.commentsBlocked,
+                            onRetry = { tabsVm.retryComments(source, shownRef) },
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
                 }
             }
         }

@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {
+      "id": "short1abcde",
+      "title": "A Short",
+      "duration": 28,
+      "channel": "Shorts Channel",
+      "channel_url": "https://www.youtube.com/@shortschannel",
+      "thumbnail": "https://example.invalid/short_thumb.jpg"
+    },
+    {
+      "id": "short2fghij",
+      "title": "Another Short",
+      "duration": 45
+    }
+  ]
+}

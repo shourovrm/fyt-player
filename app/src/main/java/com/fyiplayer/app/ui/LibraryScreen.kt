@@ -1,6 +1,8 @@
 package com.fyiplayer.app.ui
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -366,4 +368,13 @@ internal fun NamePromptDialog(title: String, initial: String = "", onConfirm: (S
     )
 }
 
-internal fun showToast(context: Context, message: String) = Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+/**
+ * Always hops to the main looper instead of trusting the call site. Several callers report the
+ * result of a write launched on the process-wide scope, which runs on [kotlinx.coroutines
+ * .Dispatchers.Default] — and `Toast` throws on a thread with no Looper.
+ */
+internal fun showToast(context: Context, message: String) {
+    Handler(Looper.getMainLooper()).post {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+}

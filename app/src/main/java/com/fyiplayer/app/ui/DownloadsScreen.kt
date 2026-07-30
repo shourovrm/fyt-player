@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -29,8 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +65,10 @@ fun DownloadsScreen() {
     val errors by queue.errors.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
+    // Neither dialog defaults to the destructive choice -- see RemoveConfirmDialog.
+    var removeTarget by remember { mutableStateOf<DownloadItem?>(null) }
+    var confirmClearCompleted by remember { mutableStateOf(false) }
+
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(
@@ -70,7 +78,7 @@ fun DownloadsScreen() {
             ) {
                 Text("Downloads", style = MaterialTheme.typography.headlineSmall)
                 if (rows.any { it.state == DownloadState.COMPLETED }) {
-                    TextButton(onClick = { scope.launch { queue.clearCompleted() } }) { Text("Clear completed") }
+                    TextButton(onClick = { confirmClearCompleted = true }) { Text("Clear completed") }
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -91,7 +99,7 @@ fun DownloadsScreen() {
                                 error = errors[item.ref.pageUrl],
                                 onPause = { scope.launch { queue.pause(item.ref.pageUrl) } },
                                 onResume = { scope.launch { queue.resume(item.ref.pageUrl) } },
-                                onCancel = { scope.launch { queue.cancel(item.ref.pageUrl) } },
+                                onCancel = { removeTarget = item },
                                 onRetry = { scope.launch { queue.retry(item.ref.pageUrl) } },
                                 onOpen = { openDownloadedFile(context, item.filePath) },
                             )
@@ -101,6 +109,86 @@ fun DownloadsScreen() {
             }
         }
     }
+
+    removeTarget?.let { item ->
+        RemoveConfirmDialog(
+            title = "Remove \"${item.ref.title}\"?",
+            body = removeBody(item),
+            removeLabel = "Remove from list",
+            deleteLabel = "Delete file too",
+            onRemove = { scope.launch { queue.cancel(item.ref.pageUrl) }; removeTarget = null },
+            onDeleteToo = {
+                scope.launch {
+                    if (!queue.cancelAndDelete(item.ref.pageUrl)) showToast(context, "Removed from list; couldn't delete the file")
+                }
+                removeTarget = null
+            },
+            onDismiss = { removeTarget = null },
+        )
+    }
+
+    if (confirmClearCompleted) {
+        val completed = rows.filter { it.state == DownloadState.COMPLETED }
+        val count = completed.size
+        val totalSize = completed.sumOf { it.totalBytes }
+        val plural = if (count == 1) "" else "s"
+        RemoveConfirmDialog(
+            title = "Clear $count completed download$plural?",
+            body = "Choose whether the downloaded file$plural" +
+                (if (totalSize > 0) " (${formatBytes(totalSize)})" else "") + " should also be deleted from storage.",
+            removeLabel = "Remove $count from list",
+            deleteLabel = "Delete $count file$plural too",
+            onRemove = { scope.launch { queue.clearCompleted() }; confirmClearCompleted = false },
+            onDeleteToo = {
+                scope.launch {
+                    if (!queue.clearCompletedAndDeleteFiles()) showToast(context, "Removed from list; couldn't delete every file")
+                }
+                confirmClearCompleted = false
+            },
+            onDismiss = { confirmClearCompleted = false },
+        )
+    }
+}
+
+private fun removeBody(item: DownloadItem): String {
+    val sizeNote = if (item.totalBytes > 0) " (${formatBytes(item.totalBytes)})" else ""
+    val fileWord = if (item.state == DownloadState.COMPLETED) "the downloaded file" else "any partial file"
+    return "Choose whether $fileWord$sizeNote should also be deleted from storage."
+}
+
+/**
+ * The shared shape for both destructive confirmations (per-row and clear-completed): the safe
+ * "remove from list" choice sits first and plain, the file-deleting choice sits second and
+ * error-tinted -- deleting a file is irreversible and must never be the default or the visually
+ * emphasised option. `confirmButton`/`dismissButton` are left to a bare Cancel; both real choices
+ * live in `text` instead, side by side and equally reachable, not stacked as primary/secondary.
+ */
+@Composable
+private fun RemoveConfirmDialog(
+    title: String,
+    body: String,
+    removeLabel: String,
+    deleteLabel: String,
+    onRemove: () -> Unit,
+    onDeleteToo: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(body)
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth()) { Text(removeLabel) }
+                TextButton(onClick = onDeleteToo, modifier = Modifier.fillMaxWidth()) {
+                    Text(deleteLabel, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -209,7 +297,8 @@ private fun statusColor(item: DownloadItem) = when (item.state) {
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
-private fun formatBytes(bytes: Long): String {
+// internal, not private: [DownloadQualityDialog] (same package) formats approximate sizes too.
+internal fun formatBytes(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val units = listOf("KB", "MB", "GB")
     var value = bytes / 1024.0

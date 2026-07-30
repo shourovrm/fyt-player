@@ -1,11 +1,13 @@
 package com.fyiplayer.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,13 +28,16 @@ import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
 
-/** A channel or playlist listing (DESIGN.md §5), paged the same way as Home's single-source tab. */
+/** A playlist listing (DESIGN.md §5), paged the same way as Home's single-source tab -- a
+ *  playlist is genuinely one flat list, unlike a channel's five independent tabs (see
+ *  [ChannelScreen], which is what a CHANNEL [Listing] routes to instead). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: () -> Unit) {
     val vm: ListingViewModel = viewModel()
-    val listState = rememberLazyListState()
-    var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
+    var selection by remember { mutableStateOf(emptySet<String>()) }
+    val selecting = selection.isNotEmpty()
+    BackHandler(enabled = selecting) { selection = emptySet() }
 
     LaunchedEffect(listing) { vm.ensureLoaded(listing) }
 
@@ -44,10 +49,40 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(listing.title.ifBlank { "Listing" }, maxLines = 1) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
-            )
+            if (selecting) {
+                SelectionTopBar(
+                    count = selection.size,
+                    onClose = { selection = emptySet() },
+                    onSelectAll = { selection = selectAllOrNone(vm.items, selection) },
+                    actions = {
+                        IconButton(onClick = {
+                            selectedInOrder(vm.items, selection).forEach { PlaybackSession.enqueue(it) }
+                            selection = emptySet()
+                        }) { Icon(Icons.Filled.Add, contentDescription = "Add selected to queue") }
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(listing.title.ifBlank { "Listing" }, maxLines = 1) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
+                    actions = {
+                        if (vm.items.isNotEmpty()) {
+                            IconButton(onClick = { PlaybackSession.play(vm.items, 0) }) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = "Play all")
+                            }
+                        }
+                    },
+                )
+            }
+        },
+        floatingActionButton = {
+            if (selecting) {
+                PlaySelectionFab(selection.size) {
+                    val refs = selectedInOrder(vm.items, selection)
+                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0)
+                    selection = emptySet()
+                }
+            }
         },
     ) { padding ->
         if (vm.items.isEmpty() && vm.loading) {
@@ -58,19 +93,17 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
             val errors = vm.error?.let {
                 listOf(ErrorRow(listing.title, it, onRetry = if (vm.blocked) null else { { vm.retry(listing) } }))
             } ?: emptyList()
-            ResultsListColumn(
+            SelectableVideoList(
                 items = vm.items,
                 errors = errors,
                 hasMore = vm.nextPage != null,
-                onLoadMore = { vm.loadMore(listing) },
-                onClick = ::playAndOpen,
-                onLongPress = { actionSheetRef = it },
-                listState = listState,
-                modifier = Modifier.fillMaxSize().padding(padding),
                 isLoadingMore = vm.loading && vm.items.isNotEmpty(),
+                onLoadMore = { vm.loadMore(listing) },
+                selecting = selecting,
+                onTap = ::playAndOpen,
+                onToggle = { selection = selection.toggled(it.pageUrl) },
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
         }
     }
-
-    actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
 }

@@ -1,5 +1,8 @@
 package com.fyiplayer.app.source.youtube
 
+import com.fyiplayer.app.core.ChannelTab
+import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.TAB_UNAVAILABLE_PREFIX
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -29,5 +32,71 @@ class YoutubeSourceTest {
     fun idAndDisplayName() {
         assertEquals("youtube", source.id)
         assertEquals("YouTube", source.displayName)
+    }
+
+    @Test
+    fun channelTabUrlAppendsSegment() {
+        assertEquals(
+            "https://www.youtube.com/@handle/videos",
+            channelTabUrl("https://www.youtube.com/@handle", ChannelTab.VIDEOS),
+        )
+        assertEquals(
+            "https://www.youtube.com/@handle/shorts",
+            channelTabUrl("https://www.youtube.com/@handle", ChannelTab.SHORTS),
+        )
+        assertEquals(
+            "https://www.youtube.com/@handle/streams",
+            channelTabUrl("https://www.youtube.com/@handle", ChannelTab.LIVE),
+        )
+    }
+
+    @Test
+    fun channelTabUrlHandlesTrailingSlash() {
+        assertEquals(
+            "https://www.youtube.com/@handle/playlists",
+            channelTabUrl("https://www.youtube.com/@handle/", ChannelTab.PLAYLISTS),
+        )
+    }
+
+    @Test
+    fun channelTabUrlReplacesExistingTabSuffix() {
+        assertEquals(
+            "https://www.youtube.com/@handle/courses",
+            channelTabUrl("https://www.youtube.com/@handle/videos", ChannelTab.COURSES),
+        )
+    }
+
+    @Test
+    fun channelSearchUrlEncodesQuery() {
+        val url = channelSearchUrl("https://www.youtube.com/@handle", "cats & dogs")
+        assertEquals("https://www.youtube.com/@handle/search?query=cats+%26+dogs", url)
+    }
+
+    @Test
+    fun channelSearchUrlStripsExistingTabSuffixAndTrailingSlash() {
+        val url = channelSearchUrl("https://www.youtube.com/@handle/videos/", "a b")
+        assertEquals("https://www.youtube.com/@handle/search?query=a+b", url)
+    }
+
+    @Test
+    fun isTabUnavailableMatchesEngineWording() {
+        val err = ExtractionError.Unsupported(
+            "unknown engine failure",
+            RuntimeException("ERROR: [youtube:tab] This channel does not have a courses tab"),
+        )
+        assertTrue(isTabUnavailable(err))
+    }
+
+    @Test
+    fun isTabUnavailableFalseForUnrelatedFailure() {
+        val err = ExtractionError.Unsupported("unknown engine failure", RuntimeException("ERROR: something else broke"))
+        assertFalse(isTabUnavailable(err))
+    }
+
+    @Test
+    fun tabUnavailableErrorCarriesMarkerPrefixAndNoRawEngineText() {
+        val err = tabUnavailableError(ChannelTab.LIVE)
+        assertTrue(err.message!!.startsWith(TAB_UNAVAILABLE_PREFIX))
+        assertTrue(err.message!!.contains("streams"))
     }
 }

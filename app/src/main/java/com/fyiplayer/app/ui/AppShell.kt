@@ -95,8 +95,10 @@ fun AppShell(navController: NavHostController) {
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
                 onBack = { navController.popBackStack() },
-                playerSurface = {
+                playerSurface = { _, fullscreen, onToggleFullscreen ->
                     PlayerScreen(
+                        fullscreen = fullscreen,
+                        onToggleFullscreen = onToggleFullscreen,
                         gestureBrightness = brightnessGesture,
                         gestureVolume = volumeGesture,
                     )
@@ -118,11 +120,24 @@ fun AppShell(navController: NavHostController) {
             val kind = runCatching { Listing.Kind.valueOf(args?.getString("kind").orEmpty()) }
                 .getOrDefault(Listing.Kind.CHANNEL)
             val title = args?.getString("title")?.let(Uri::decode).orEmpty()
-            ListingScreen(
-                listing = Listing(sourceId = sourceId, kind = kind, key = key, title = title),
-                onOpenDetail = { navController.openDetail(it) },
-                onBack = { navController.popBackStack() },
-            )
+            val listing = Listing(sourceId = sourceId, kind = kind, key = key, title = title)
+            // A channel has five independent tabs (videos/shorts/playlists/courses/live) plus
+            // in-channel search; a playlist is genuinely one flat list. Same route, different
+            // screen per Listing.Kind rather than one screen straddling both shapes.
+            if (kind == Listing.Kind.CHANNEL) {
+                ChannelScreen(
+                    listing = listing,
+                    onOpenDetail = { navController.openDetail(it) },
+                    onOpenListing = { navController.openListing(it) },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                ListingScreen(
+                    listing = listing,
+                    onOpenDetail = { navController.openDetail(it) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
         composable(
             Routes.PLAYLIST,

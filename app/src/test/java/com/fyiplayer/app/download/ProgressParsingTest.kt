@@ -88,4 +88,47 @@ class ProgressParsingTest {
         val progress = parseProgressLine("""{"downloaded":1,"total":3,"eta":null,"speed":null}""")
         assertEquals(33.333332f, progress?.percent!!, 0.001f)
     }
+
+    // The engine writes a bare, non-JSON `NA` for eta/speed on the first tick of every download --
+    // NA_TOKEN rewrites `: NA` (before a comma or closing brace) to `: null` ahead of decoding.
+
+    @Test
+    fun bareNaTokensOnFirstTickParseAsNullEtaAndSpeed() {
+        val line = """{"downloaded":1000,"total":5000,"eta":NA,"speed":NA}"""
+        val progress = parseProgressLine(line)
+
+        assertEquals(1000L, progress?.downloadedBytes)
+        assertEquals(5000L, progress?.totalBytes)
+        assertNull(progress?.etaSeconds)
+        assertNull(progress?.speedBytesPerSecond)
+    }
+
+    @Test
+    fun realNumbersAfterFirstTickStillParseAlongsideNaHandling() {
+        val line = """{"downloaded":2000,"total":8000,"eta":12,"speed":45678.9}"""
+        val progress = parseProgressLine(line)
+
+        assertEquals(12L, progress?.etaSeconds)
+        assertEquals(45678.9, progress?.speedBytesPerSecond)
+    }
+
+    @Test
+    fun naSubstringInsideAQuotedValueIsNotCorrupted() {
+        // NA_TOKEN only matches a bare `NA` value immediately after a colon -- a quoted string
+        // that happens to contain the letters "NA" (e.g. echoing part of a title) must decode
+        // untouched, not get mangled into invalid JSON by the same regex.
+        val line = """{"downloaded":10,"total":20,"eta":1,"speed":1.0,"info":"NASA rover landing NA"}"""
+        val progress = parseProgressLine(line)
+
+        assertEquals(10L, progress?.downloadedBytes)
+        assertEquals(1L, progress?.etaSeconds)
+        assertEquals(1.0, progress?.speedBytesPerSecond)
+    }
+
+    @Test
+    fun malformedLineWithNaTokensStillReturnsNullNotThrows() {
+        // "NA_BROKEN" isn't a bare NA value (nothing after it is a comma or brace), so NA_TOKEN
+        // leaves it alone and the line stays invalid JSON -- must fail closed, not throw.
+        assertNull(parseProgressLine("""{"downloaded":NA_BROKEN,"eta":NA}"""))
+    }
 }

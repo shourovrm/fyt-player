@@ -1,6 +1,5 @@
 package com.fyiplayer.app.ui
 
-import com.fyiplayer.app.core.VideoRef
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -26,15 +25,4 @@ class ShortsNavTest {
         assertEquals(ShortsNavAction.JUMP, shortsNavAction(page = 5, index = 2))
         assertEquals(ShortsNavAction.JUMP, shortsNavAction(page = 0, index = 3))
     }
-
-    @Test fun `append dedupes by page URL across paging rounds`() {
-        val existing = listOf(ref("a"), ref("b"))
-        val incoming = listOf(ref("b"), ref("c")) // "b" reappears from a feed that shifted underneath
-        val merged = appendDeduped(existing, incoming)
-        assertEquals(listOf("a", "b", "c"), merged.map { it.remoteId })
-    }
-
-    private fun ref(id: String) = VideoRef(
-        sourceId = "youtube", pageUrl = "https://example.com/$id", remoteId = id, title = id,
-    )
 }

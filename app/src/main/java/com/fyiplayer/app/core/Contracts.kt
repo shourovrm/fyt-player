@@ -104,10 +104,26 @@ sealed class ExtractionError(message: String, cause: Throwable? = null) : Except
     class Unsupported(message: String, cause: Throwable? = null) : ExtractionError(message, cause)
 }
 
+/**
+ * [Unsupported.message] prefix meaning "this channel has no such tab" (e.g. a channel with no
+ * Courses/Live tab), so a caller can hide the tab instead of rendering an error.
+ *
+ * Not a new sealed subclass of [ExtractionError]: `ErrorMessages.kt` and `PlayerScreen.kt` both
+ * `when` over it exhaustively with no `else`, so adding a case would break both today. Promote
+ * this to a real case if either ever grows one.
+ */
+const val TAB_UNAVAILABLE_PREFIX = "tab-unavailable: "
+
 /** A named listing a source can navigate to: a channel, or a playlist. */
 data class Listing(val sourceId: String, val kind: Kind, val key: String, val title: String) {
     enum class Kind { CHANNEL, PLAYLIST }
 }
+
+/** A tab on a channel page. VIDEOS/SHORTS/LIVE hold video entries; PLAYLISTS/COURSES hold containers. */
+enum class ChannelTab { VIDEOS, SHORTS, PLAYLISTS, COURSES, LIVE }
+
+/** One page of playlists/courses -- these are containers, not videos, so they are [Listing]s. */
+data class ListingPage(val items: List<Listing>, val nextPage: String? = null)
 
 /**
  * What a video's own page exposes beyond the listing row. Every field is optional: a field the
@@ -173,6 +189,21 @@ interface VideoSource {
     /** Videos for a channel or playlist surfaced by [detail]. */
     suspend fun listing(listing: Listing, page: String? = null): SearchPage =
         throw ExtractionError.Unsupported("$displayName cannot browse that listing yet")
+
+    /** A page of video entries (VIDEOS/SHORTS/LIVE) from one [tab] of [channelUrl]. Throws
+     *  [Unsupported][ExtractionError.Unsupported] with [TAB_UNAVAILABLE_PREFIX] when the channel
+     *  has no such tab, so a caller can hide it rather than show an error. */
+    suspend fun channelTab(channelUrl: String, tab: ChannelTab, page: String? = null): SearchPage =
+        throw ExtractionError.Unsupported("$displayName cannot browse channel tabs yet")
+
+    /** A page of container entries (PLAYLISTS/COURSES) from one [tab] of [channelUrl]. Same
+     *  [TAB_UNAVAILABLE_PREFIX] convention as [channelTab]. */
+    suspend fun channelContainers(channelUrl: String, tab: ChannelTab, page: String? = null): ListingPage =
+        throw ExtractionError.Unsupported("$displayName cannot browse channel tabs yet")
+
+    /** Search restricted to one channel. */
+    suspend fun searchChannel(channelUrl: String, query: String, page: String? = null): SearchPage =
+        throw ExtractionError.Unsupported("$displayName cannot search within a channel yet")
 
     /** Scrubber preview frames for [ref], or null where the platform publishes none. Fetched
      *  lazily on first scrub, never at resolve time. */

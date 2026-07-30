@@ -15,6 +15,23 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/** v2 -> v3: Home moves from watch-history-derived channels to explicit subscriptions. New table,
+ *  additive -- never fall back to destructive migration, that wipes a user's library. */
+private val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                channelUrl TEXT NOT NULL PRIMARY KEY,
+                sourceId TEXT NOT NULL,
+                title TEXT NOT NULL,
+                subscribedAt INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+}
+
 @Database(
     entities = [
         WatchHistoryEntity::class,
@@ -25,8 +42,9 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
         PlaylistItemEntity::class,
         CookieEntity::class,
         DownloadEntity::class,
+        SubscriptionEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,13 +56,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playlistItemDao(): PlaylistItemDao
     abstract fun cookieDao(): CookieDao
     abstract fun downloadDao(): DownloadDao
+    abstract fun subscriptionDao(): SubscriptionDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fyi-player.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 .also { instance = it }
         }

@@ -1,5 +1,6 @@
 package com.fyiplayer.app.source.youtube
 
+import com.fyiplayer.app.core.Listing
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -87,5 +88,43 @@ class YoutubeJsonTest {
             limit = 1,
         )
         assertEquals(1, related.size)
+    }
+
+    @Test
+    fun channelPlaylistsMapToPlaylistListingsAndSkipMalformed() {
+        val listings = parseChannelPlaylistsJson(fixture("/youtube/channel_playlists.json"), sourceId = "youtube")
+
+        // missing-id entry and the non-object entry are both skipped
+        assertEquals(2, listings.size)
+
+        val first = listings[0]
+        assertEquals(Listing.Kind.PLAYLIST, first.kind)
+        assertEquals("youtube", first.sourceId)
+        assertEquals("https://www.youtube.com/playlist?list=PLabc111", first.key)
+        assertEquals("Full Season", first.title)
+
+        // no explicit "url" field -> canonical playlist URL built from id
+        val second = listings[1]
+        assertEquals("https://www.youtube.com/playlist?list=PLabc222", second.key)
+    }
+
+    @Test
+    fun shortsTabParsesToVideoRefsWithCanonicalWatchUrls() {
+        val refs = parseFlatPlaylistJson(fixture("/youtube/shorts_tab.json"))
+
+        assertEquals(2, refs.size)
+        assertEquals("https://www.youtube.com/watch?v=short1abcde", refs[0].pageUrl)
+        assertEquals(28, refs[0].durationSeconds)
+        assertEquals("https://www.youtube.com/watch?v=short2fghij", refs[1].pageUrl)
+    }
+
+    // Verified live: a channel's /shorts tab reports `duration: null` for every entry -- this must
+    // stay null (never coerced to 0), or a duration badge downstream would render a false "0:00".
+    @Test
+    fun shortsTabNullDurationStaysNullNotZero() {
+        val refs = parseFlatPlaylistJson(fixture("/youtube/shorts_tab_null_duration.json"))
+
+        assertEquals(1, refs.size)
+        assertEquals(null, refs[0].durationSeconds)
     }
 }

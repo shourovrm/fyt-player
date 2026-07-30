@@ -1,0 +1,11 @@
+{
+  "entries": [
+    {
+      "id": "short3nulldur",
+      "title": "A Short With No Duration",
+      "duration": null,
+      "channel": "Shorts Channel",
+      "channel_url": "https://www.youtube.com/@shortschannel"
+    }
+  ]
+}
