@@ -9,11 +9,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
-import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.SearchHistoryRepository
+import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -31,13 +31,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val prefs = app.prefs
     private val searchHistoryRepo = SearchHistoryRepository(app.database.searchHistoryDao())
     private val historyRepo = HistoryRepository(app.database.watchHistoryDao())
+    private val subscriptionRepo = SubscriptionRepository(app.database.subscriptionDao())
 
     var query: String by mutableStateOf("")
     var selectedTab: String by mutableStateOf(ALL_TAB_ID)
 
     internal val searchResults = mutableStateMapOf<String, TabResult>()
 
-    /** Home's default (blank-query) feed: newest uploads from recently watched channels. Cached
+    /** Home's default (blank-query) feed: newest uploads from subscribed channels. Cached
      *  for the ViewModel's lifetime -- [loadFeedIfNeeded] never refetches once [FeedState.loaded]
      *  is true; [refreshFeed] is the explicit way back in (a refresh action in HomeScreen). */
     internal var feed: FeedState by mutableStateOf(FeedState())
@@ -58,23 +59,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     /** First entry into Home (or a source list that changed) only -- a no-op once cached. */
     fun loadFeedIfNeeded(sources: List<VideoSource>) {
-        if (feed.loaded || feedJob?.isActive == true) return
+        // The enabled-source set is read from DataStore, so the FIRST composition always sees an
+        // empty list. Loading then yields an empty feed and latches loaded=true, and the real set
+        // arriving a moment later is ignored — which is how the feed silently stayed empty.
+        if (sources.isEmpty()) return
+        if (feedJob?.isActive == true) return
+        val ids = sources.mapTo(HashSet()) { it.id }
+        if (feed.loaded && loadedForSourceIds == ids) return
+        loadedForSourceIds = ids
         refreshFeed(sources)
     }
 
-    /** Rebuilds the feed from scratch: re-reads history, re-fetches every channel. */
+    /** Source ids the cached feed was built for, so enabling/disabling a source rebuilds it. */
+    private var loadedForSourceIds: Set<String>? = null
+
+    /** Rebuilds the feed from scratch: re-reads subscriptions, re-fetches every channel. */
     fun refreshFeed(sources: List<VideoSource>) {
         feedJob?.cancel()
         val byId = sources.associateBy { it.id }
         feed = FeedState(loading = true)
         feedJob = viewModelScope.launch {
-            val history = historyRepo.observe().first()
-            val channels = recentDistinctChannels(history)
+            val channels = capChannels(subscriptionRepo.observeAll().first())
             if (channels.isEmpty()) {
-                feed = FeedState(loaded = true, hasHistory = history.isNotEmpty())
+                feed = FeedState(loaded = true, hasSubscriptions = false)
                 return@launch
             }
-            val watched = history.mapTo(HashSet()) { it.pageUrl }
+            val watched = historyRepo.observe().first().mapTo(HashSet()) { it.pageUrl }
             // Mutated only from this coroutine's children, all on the Main dispatcher (viewModelScope's
             // default) -- each child only suspends inside source.listing(), never races another child's
             // write to its own index.
@@ -83,7 +93,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 launch {
                     val src = byId[channel.sourceId] ?: return@launch
                     val page = try {
-                        src.listing(Listing(channel.sourceId, Listing.Kind.CHANNEL, channel.uploaderUrl, channel.displayName))
+                        src.listing(channel)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -95,7 +105,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             jobs.joinAll()
-            feed = feed.copy(loading = false, loaded = true, hasHistory = true)
+            feed = feed.copy(loading = false, loaded = true, hasSubscriptions = true)
         }
     }
 

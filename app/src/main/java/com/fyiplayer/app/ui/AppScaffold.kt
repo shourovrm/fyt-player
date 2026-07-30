@@ -77,7 +77,9 @@ fun AppScaffold(
     LaunchedEffect(route) { barVisible = true }
 
     Scaffold(
-        modifier = modifier.windowInsetsPadding(WindowInsets.systemBars),
+        // A fullscreen player must reach the screen edges — skip the app-wide inset padding
+        // while FullscreenChrome.active, rather than letting it stop the video short.
+        modifier = if (FullscreenChrome.active) modifier else modifier.windowInsetsPadding(WindowInsets.systemBars),
         contentWindowInsets = WindowInsets(0), // already applied (and consumed) by the modifier above
         bottomBar = {
             // One Column: queue bar + mini player sit above the nav bar and are part of the
@@ -90,7 +92,7 @@ fun AppScaffold(
                     miniPlayer(navController)
                 }
                 AnimatedVisibility(
-                    visible = barVisible,
+                    visible = barVisible && !FullscreenChrome.active,
                     enter = slideInVertically(tween(NAV_ANIM_MILLIS)) { it },
                     exit = slideOutVertically(tween(NAV_ANIM_MILLIS)) { it },
                 ) {
@@ -135,6 +137,17 @@ private const val NAV_HIDE_SLOP_PX = 3f
  */
 private fun isFullPlayerRoute(route: String?): Boolean =
     route?.startsWith("detail/") == true || route == Routes.SHORTS
+
+/**
+ * Is a player currently fullscreen? Set by `DetailScreen`'s own fullscreen state — same package,
+ * so no `player/` import is needed there — and read here to drop the nav bar and the app-wide
+ * system-bar padding for exactly as long as fullscreen lasts. A narrow, explicitly-named seam
+ * rather than inferring it from inset visibility, which DESIGN.md's pitfalls call out as always
+ * getting it wrong.
+ */
+internal object FullscreenChrome {
+    var active by mutableStateOf(false)
+}
 
 /** Which nav item is lit. detail/listing light nothing — they're reachable from more than one tab. */
 private fun selectedTab(route: String?): String? = when (route) {

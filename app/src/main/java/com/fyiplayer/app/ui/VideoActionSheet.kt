@@ -1,7 +1,6 @@
 package com.fyiplayer.app.ui
 
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,8 +29,10 @@ import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
+import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.download.DownloadQueue
 import com.fyiplayer.app.download.EnqueueOutcome
+import com.fyiplayer.app.download.ResolveOutcome
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -58,6 +59,10 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
     var liked by remember(ref.pageUrl) { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(ref.pageUrl) { liked = likes.observeIsLiked(ref.pageUrl).first() }
     var showPlaylistPicker by remember { mutableStateOf(false) }
+    // Own state, not folded into the sheet's dismissal: the sheet itself stays open underneath
+    // this while it resolves/lists/errors, so the user can still Cancel out without losing the
+    // rest of the action list.
+    var downloadPicker by remember(ref.pageUrl) { mutableStateOf<DownloadPickerState?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 16.dp)) {
@@ -80,18 +85,17 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
                 onDismiss()
             }
             SheetAction("Download") {
+                // Every download asks which size, every time -- never a silent fall-back to the
+                // playback resolution preference. Resolving takes seconds, so this runs on the
+                // process scope: the sheet (and this state) may still be showing when it lands,
+                // but if it isn't, nothing was written yet -- resolving alone touches no row.
+                downloadPicker = DownloadPickerState.Resolving
                 scope.launch {
-                    // Straight through the queue, never a hand-rolled row: it is what picks a
-                    // playable video+audio pair (the highest single stream is often video-only,
-                    // which downloads silently without sound) and what starts the service.
-                    val outcome = downloads.enqueue(ref)
-                    val message = when (outcome) {
-                        is EnqueueOutcome.Queued -> "Download queued"
-                        is EnqueueOutcome.Failed -> outcome.message
+                    downloadPicker = when (val outcome = downloads.resolveOptions(ref)) {
+                        is ResolveOutcome.Ready -> DownloadPickerState.Options(outcome.options)
+                        is ResolveOutcome.Failed -> DownloadPickerState.Error(outcome.message)
                     }
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
-                onDismiss()
             }
         }
     }
@@ -101,6 +105,27 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
             ref = ref,
             playlists = playlists,
             onDismiss = { showPlaylistPicker = false; onDismiss() },
+        )
+    }
+
+    downloadPicker?.let { state ->
+        DownloadQualityDialog(
+            state = state,
+            onSelect = { option: DownloadOption ->
+                // Same process-scope reasoning as the resolve above: this write must survive the
+                // sheet closing right underneath it.
+                scope.launch {
+                    val outcome = downloads.start(ref, option)
+                    val message = when (outcome) {
+                        is EnqueueOutcome.Queued -> "Download queued"
+                        is EnqueueOutcome.Failed -> outcome.message
+                    }
+                    showToast(context, message)
+                }
+                downloadPicker = null
+                onDismiss()
+            },
+            onDismiss = { downloadPicker = null },
         )
     }
 }

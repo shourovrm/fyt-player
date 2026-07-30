@@ -38,11 +38,15 @@ data class DownloadProgress(
  * template above -- returns null for anything that isn't a JSON object on its own line, and never
  * throws on garbage input. This is the only place progress text is interpreted.
  */
+/** The engine writes a bare `NA` (not valid JSON) for a value it doesn't have yet — eta and speed
+ *  are both NA on the first tick of every download. Left alone it fails the whole line. */
+private val NA_TOKEN = Regex(""":\s*NA\s*(?=[,}])""")
+
 internal fun parseProgressLine(line: String): DownloadProgress? {
     val trimmed = line.trim()
     if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null
     val parsed = try {
-        progressJson.decodeFromString(ProgressLineJson.serializer(), trimmed)
+        progressJson.decodeFromString(ProgressLineJson.serializer(), NA_TOKEN.replace(trimmed, ":null"))
     } catch (e: SerializationException) {
         return null
     } catch (e: IllegalArgumentException) {

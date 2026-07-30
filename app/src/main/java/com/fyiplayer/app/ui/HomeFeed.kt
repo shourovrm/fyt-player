@@ -1,6 +1,7 @@
 package com.fyiplayer.app.ui
 
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SearchPage
 import com.fyiplayer.app.core.VideoRef
 
@@ -62,45 +63,30 @@ internal fun interleave(bySource: List<List<VideoRef>>): List<VideoRef> {
     return merged
 }
 
-// --- Home's default (no search) feed: newest uploads from channels the user actually watches. ---
+// --- Home's default (no search) feed: newest uploads from the channels the user subscribed to. ---
 
 /** [loading] true while at least one channel's fetch is still in flight -- items still fill in
  *  progressively while it's true, this is never a full-screen blocker after the first channel
- *  returns. [hasHistory] separates "nothing watched yet" (first run) from "watched, but nothing
- *  new right now" so the empty state never reads like an error either way. */
+ *  returns. [hasSubscriptions] separates "nothing subscribed yet" (first run) from "subscribed,
+ *  but nothing new right now" so the empty state never reads like an error either way. */
 internal data class FeedState(
     val items: List<VideoRef> = emptyList(),
     val loading: Boolean = false,
     val loaded: Boolean = false,
-    val hasHistory: Boolean = false,
+    val hasSubscriptions: Boolean = false,
 )
 
-/** Each channel is a separate multi-second engine call, so the feed stays capped here rather than
- *  fanning out to everything a user has ever watched. */
-internal const val MAX_FEED_CHANNELS = 4
+/** Each channel is a separate multi-second engine call. These are deliberate subscriptions though
+ *  (not a guess off watch history), so the cap is generous -- a slow feed beats a thin one. */
+internal const val MAX_FEED_CHANNELS = 8
 
 /** How many of a channel's newest (unwatched) uploads feed the round-robin merge. */
 internal const val FEED_ITEMS_PER_CHANNEL = 8
 
-/** One channel worth pulling more uploads from. */
-internal data class WatchedChannel(val sourceId: String, val uploaderUrl: String, val displayName: String)
-
-/**
- * [history] must already be newest-first ([WatchHistoryDao.observeAll]'s own order) -- this walks
- * it once and keeps first-seen order, which is then most-recently-watched order. Rows with no
- * channel URL (recorded before the uploaderUrl column existed) are skipped, not treated as one
- * channel.
- */
-internal fun recentDistinctChannels(history: List<VideoRef>, cap: Int = MAX_FEED_CHANNELS): List<WatchedChannel> {
-    val seen = HashSet<String>()
-    val out = ArrayList<WatchedChannel>()
-    for (ref in history) {
-        if (out.size >= cap) break
-        val url = ref.uploaderUrl ?: continue
-        if (seen.add("${ref.sourceId}|$url")) out += WatchedChannel(ref.sourceId, url, ref.uploader ?: "")
-    }
-    return out
-}
+/** [subscriptions] must already be newest-subscribed-first ([SubscriptionDao.observeAll]'s own
+ *  order) -- this just bounds the fan-out, ordering is the DAO's job. */
+internal fun capChannels(subscriptions: List<Listing>, cap: Int = MAX_FEED_CHANNELS): List<Listing> =
+    subscriptions.take(cap)
 
 /** "Newest uploads" should mean unwatched -- already-watched videos add nothing to a feed meant to
  *  surface what's new. */

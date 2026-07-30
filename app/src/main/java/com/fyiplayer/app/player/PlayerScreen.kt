@@ -1,6 +1,5 @@
 package com.fyiplayer.app.player
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,8 +42,13 @@ private fun friendlyMessage(e: ExtractionError): String = when (e) {
 /**
  * The full player: shared surface, gesture layer, HUDs, centred transport and the one-row bottom
  * chrome, driven end to end by [PlaybackSession.state]. Works both embedded (pinned atop a
- * scrollable detail page) and fullscreen — [fullscreen] only changes chrome/gesture scaling and
- * system-bar visibility, never which item is playing, so toggling it never interrupts playback.
+ * scrollable detail page) and fullscreen — [fullscreen] only changes chrome/gesture scaling,
+ * system-bar visibility and orientation, never which item is playing, so toggling it never
+ * interrupts playback.
+ *
+ * [fullscreen] is a parameter, not local state: the caller (`ui/DetailScreen.kt`) owns it because
+ * it also owns the LAYOUT decision fullscreen implies (an early return to a bare full-size player,
+ * skipping the rest of the page) — that can't happen from in here, one layer down.
  *
  * Reads [PlaybackSession.state] straight through [collectAsState] rather than mirroring it into a
  * `LaunchedEffect`-driven copy: a queue can advance underneath a route pinned to one video, and
@@ -55,6 +59,8 @@ private fun friendlyMessage(e: ExtractionError): String = when (e) {
  */
 @Composable
 fun PlayerScreen(
+    fullscreen: Boolean,
+    onToggleFullscreen: () -> Unit,
     gestureBrightness: Boolean = true,
     gestureVolume: Boolean = true,
     onDownload: (() -> Unit)? = null,
@@ -64,7 +70,6 @@ fun PlayerScreen(
     val context = LocalContext.current
     val activity = context.asActivity()
 
-    var fullscreen by remember { mutableStateOf(false) }
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showJumpGrid by remember { mutableStateOf(false) }
@@ -75,10 +80,17 @@ fun PlayerScreen(
         seekThumbs = state.current?.let { fetchSeekThumbnails(it) }
     }
 
-    BackHandler(enabled = fullscreen) { fullscreen = false }
+    // Exiting fullscreen (button, or back — handled one level up in DetailScreen, which owns the
+    // state) always tears down and rebuilds this composable at a different call site, so onDispose
+    // here is what guarantees the bars come back on every exit path, not just this one.
     DisposableEffect(fullscreen) {
         activity?.let { setFullscreen(it, fullscreen) }
         onDispose { activity?.let { setFullscreen(it, false) } }
+    }
+    // Portrait video must stay portrait fullscreen, not get force-landscaped into a letterbox —
+    // narrows the sensor-default lock above once the decoder reports real dimensions.
+    LaunchedEffect(fullscreen, state.videoWidth, state.videoHeight) {
+        activity?.let { applyAspectOrientation(it, fullscreen, state.videoWidth, state.videoHeight) }
     }
     DisposableEffect(state.isPlaying) {
         activity?.let { setKeepScreenOn(it, state.isPlaying) }
@@ -225,7 +237,7 @@ fun PlayerScreen(
                         state = state,
                         seekThumbs = seekThumbs,
                         fullscreen = fullscreen,
-                        onToggleFullscreen = { interact(); fullscreen = !fullscreen },
+                        onToggleFullscreen = { interact(); onToggleFullscreen() },
                         modifier = Modifier.align(Alignment.BottomStart),
                     )
                 }

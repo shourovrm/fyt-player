@@ -1,6 +1,8 @@
 package com.fyiplayer.app.data.repo
 
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.db.SubscriptionEntity
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -87,5 +89,22 @@ class MapperTest {
         assertEquals(item.state, back.state)
         assertEquals(item.bytesDownloaded, back.bytesDownloaded)
         assertEquals(item.totalBytes, back.totalBytes)
+    }
+
+    @Test
+    fun subscriptionEntityMapsToAChannelListing() {
+        val entity = SubscriptionEntity(
+            channelUrl = "https://example.com/@channel",
+            sourceId = "youtube",
+            title = "Channel Name",
+            subscribedAt = 99L,
+        )
+        val listing = entity.toListing()
+
+        assertEquals(entity.sourceId, listing.sourceId)
+        assertEquals(Listing.Kind.CHANNEL, listing.kind)
+        // channelUrl is Listing.key -- the exact value a source.listing() call needs back
+        assertEquals(entity.channelUrl, listing.key)
+        assertEquals(entity.title, listing.title)
     }
 }

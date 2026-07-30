@@ -191,10 +191,10 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
 }
 
 /**
- * Home's default view: newest uploads from channels the user has actually watched, filling in
- * per-channel as each fetch returns (never one spinner blocked on the slowest channel). Three
- * honest states beyond the list itself: first load, first-run empty (no watch history to build
- * from yet), and "watched, but nothing new right now" -- neither empty case reads as an error.
+ * Home's default view: newest uploads from subscribed channels, filling in per-channel as each
+ * fetch returns (never one spinner blocked on the slowest channel). Three honest states beyond
+ * the list itself: first load, no subscriptions yet, and "subscribed, but nothing new right now"
+ * -- neither empty case reads as an error.
  */
 @Composable
 private fun HomeFeedSection(
@@ -218,10 +218,10 @@ private fun HomeFeedSection(
             )
         }
         feed.items.isEmpty() -> {
-            val message = if (feed.hasHistory) {
-                "No new videos from the channels you watch right now."
+            val message = if (feed.hasSubscriptions) {
+                "No new uploads from your subscriptions right now."
             } else {
-                "Your feed builds from the channels you watch. Search for something to get started."
+                "Your feed is empty. Search for a channel, open it, and subscribe to build it."
             }
             Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(

@@ -6,6 +6,7 @@ import android.os.Environment
 import androidx.core.content.ContextCompat
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.StreamResolver
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.DownloadItem
@@ -43,6 +44,19 @@ private const val WEBVIEW_FORMAT_ID = "webview"
 sealed class EnqueueOutcome {
     object Queued : EnqueueOutcome()
     data class Failed(val message: String) : EnqueueOutcome()
+}
+
+/**
+ * One user-choosable quality/size. Deliberately plain data -- no [MediaFormat], no URL: [formatId]
+ * is the engine's own `-f` selector text (e.g. `"137+140"`), which is safe to hold and pass around
+ * because it identifies a format *choice*, not a signed media location. Never persisted anywhere
+ * except as the [com.fyiplayer.app.data.repo.DownloadItem.formatId] of the row the user picked.
+ */
+data class DownloadOption(val formatId: String, val label: String, val approxBytes: Long?)
+
+sealed class ResolveOutcome {
+    data class Ready(val ref: VideoRef, val options: List<DownloadOption>) : ResolveOutcome()
+    data class Failed(val message: String) : ResolveOutcome()
 }
 
 private sealed class EngineOutcome {
@@ -85,46 +99,40 @@ class DownloadQueue private constructor(
         repository.observe().stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /**
-     * Resolves [ref] through the app's one resolver seam, picks a format at or under [maxHeight]
-     * (default: best available -- a download is a deliberate one-off, not bound by the playback
-     * network ceiling), and persists only the format selector + canonical page URL. The signed
-     * media URL [resolver] just handed back is never stored: the engine re-resolves it itself from
-     * the page URL at run time, via the very same selector, using `--continue` to resume.
+     * Resolves [ref] through the app's one resolver seam and derives the sizes the user can pick
+     * from -- every download asks, never a silent fall-back to the playback resolution preference.
+     * Returns plain [DownloadOption]s only; the [MediaFormat]s backing them never leave this class.
      */
-    suspend fun enqueue(ref: VideoRef, maxHeight: Int = Int.MAX_VALUE): EnqueueOutcome {
+    suspend fun resolveOptions(ref: VideoRef): ResolveOutcome {
         val resolved = try {
             resolver.resolve(ref)
         } catch (e: ExtractionError) {
-            return EnqueueOutcome.Failed(e.userMessage())
+            return ResolveOutcome.Failed(e.userMessage())
         }
-        val result = FormatSelector.select(resolved.formats, maxHeight)
-        val selection = result.selection
-            ?: return EnqueueOutcome.Failed(result.reason ?: "no downloadable format")
+        val options = deriveDownloadOptions(resolved.formats)
+        if (options.isEmpty()) return ResolveOutcome.Failed("No downloadable video or audio track found.")
+        return ResolveOutcome.Ready(resolved.ref, options)
+    }
 
-        val selector = when (selection) {
-            is FormatSelection.Single -> selection.format.formatId
-            // The engine's own `-f video+audio` selector syntax merges the pair via ffmpeg --
-            // exactly the muxed-download case DESIGN.md calls out, with no extra plumbing here.
-            is FormatSelection.Paired -> "${selection.video.formatId}+${selection.audio.formatId}"
-        }
-        if (selector.isBlank() || selector.contains(WEBVIEW_FORMAT_ID)) {
+    /**
+     * Persists the user's chosen [option] as a queued row. [option] already carries the resolved
+     * format selector (see [deriveDownloadOptions]) so this does no re-resolving and touches no
+     * signed URL -- the engine re-resolves the page URL itself at run time via that same selector,
+     * with `--continue` to resume.
+     */
+    suspend fun start(ref: VideoRef, option: DownloadOption): EnqueueOutcome {
+        if (option.formatId.isBlank() || option.formatId.contains(WEBVIEW_FORMAT_ID)) {
             return EnqueueOutcome.Failed("this source can't be downloaded yet")
         }
-        val totalBytes = when (selection) {
-            is FormatSelection.Single -> selection.format.filesizeBytes ?: 0L
-            is FormatSelection.Paired ->
-                (selection.video.filesizeBytes ?: 0L) + (selection.audio.filesizeBytes ?: 0L)
-        }
-
-        _errors.update { it - resolved.ref.pageUrl }
+        _errors.update { it - ref.pageUrl }
         repository.upsert(
             DownloadItem(
-                ref = resolved.ref,
-                formatId = selector,
+                ref = ref,
+                formatId = option.formatId,
                 filePath = null,
                 state = DownloadState.QUEUED,
                 bytesDownloaded = 0,
-                totalBytes = totalBytes,
+                totalBytes = option.approxBytes ?: 0L,
                 updatedAt = System.currentTimeMillis(),
             ),
         )
@@ -151,8 +159,10 @@ class DownloadQueue private constructor(
         kickService()
     }
 
-    /** Kills the live process if [pageUrl] is running, then drops the row. Leaves any partial
-     *  file on disk -- deleting it is a separate, explicit user action this screen doesn't offer. */
+    /** Kills the live process if [pageUrl] is running, then drops the row. Leaves any produced or
+     *  partial file on disk -- the safe default; see [cancelAndDelete] for the destructive twin.
+     *  Callers must confirm with the user before choosing between the two; this function itself
+     *  does not ask. */
     suspend fun cancel(pageUrl: String) {
         _errors.update { it - pageUrl }
         if (activePageUrl == pageUrl) {
@@ -161,8 +171,31 @@ class DownloadQueue private constructor(
         repository.remove(pageUrl)
     }
 
+    /** Same as [cancel], but also deletes the produced file and any leftover `.part`/`.ytdl`
+     *  sidecar the engine wrote for this row -- so a partial download removed this way leaves
+     *  nothing orphaned on disk. Irreversible; the caller must already have an explicit
+     *  confirmation before calling this. Returns false if a matched file resisted deletion (still
+     *  there afterwards), so the caller can say so instead of pretending it worked. */
+    suspend fun cancelAndDelete(pageUrl: String): Boolean {
+        val item = repository.get(pageUrl)
+        _errors.update { it - pageUrl }
+        if (activePageUrl == pageUrl) {
+            activeProcessId?.let { YoutubeDL.getInstance().destroyProcessById(it) }
+        }
+        repository.remove(pageUrl)
+        return item?.let { deleteDownloadFiles(dir, it.ref) } ?: true
+    }
+
     suspend fun clearCompleted() {
         rows.value.filter { it.state == DownloadState.COMPLETED }.forEach { repository.remove(it.ref.pageUrl) }
+    }
+
+    /** Batch [cancelAndDelete] over every completed row. Irreversible; caller confirms first.
+     *  Returns false if any file resisted deletion. */
+    suspend fun clearCompletedAndDeleteFiles(): Boolean {
+        val completed = rows.value.filter { it.state == DownloadState.COMPLETED }
+        completed.forEach { repository.remove(it.ref.pageUrl) }
+        return completed.fold(true) { allOk, item -> deleteDownloadFiles(dir, item.ref) && allOk }
     }
 
     /**
@@ -256,10 +289,11 @@ class DownloadQueue private constructor(
     }
 
     /**
-     * The engine resolves [item]'s page URL itself with `-f formatId` -- the signed URL [enqueue]
-     * saw is never handled by this process again. `--continue` resumes a paused row's partial
-     * file; `--merge-output-format mp4` gives a deterministic container on the video+audio path
-     * (single-format rows are written in their own container unmuxed, per the engine's default).
+     * The engine resolves [item]'s page URL itself with `-f formatId` -- the signed URL
+     * [resolveOptions] saw is never handled by this process again. `--continue` resumes a paused
+     * row's partial file; `--merge-output-format mp4` gives a deterministic container on the
+     * video+audio path (single-format rows are written in their own container unmuxed, per the
+     * engine's default).
      */
     private suspend fun runEngine(
         item: DownloadItem,
@@ -278,6 +312,10 @@ class DownloadQueue private constructor(
                 addOption("-f", item.formatId)
                 addOption("--merge-output-format", "mp4")
                 addOption("-o", destTemplate(dir, item.ref))
+                // Without --newline the engine rewrites one progress line with \r, so the line
+                // reader that feeds the callback below never sees a complete line and progress
+                // stays at zero for the whole download.
+                addOption("--newline")
                 addOption("--progress-template", PROGRESS_TEMPLATE)
             }
             YoutubeDL.getInstance().execute(request, processId) { _, _, line ->
@@ -323,8 +361,9 @@ class DownloadQueue private constructor(
 
 // A fixed app-private directory built entirely from our own inputs (never a user- or DB-supplied
 // path), so unlike a picker-backed destination this needs no root/traversal validation: there is
-// exactly one root, and every name under it is one this function generated.
-private fun safeBaseName(ref: VideoRef): String {
+// exactly one root, and every name under it is one this function generated. internal (not
+// private): the delete-matching logic is pure string work, worth unit-testing without a File.
+internal fun safeBaseName(ref: VideoRef): String {
     val title = ref.title.take(120).replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "video" }
     val suffix = (ref.pageUrl.hashCode() and 0x7fffffff).toString(36) // stable per page URL
     return "$title-$suffix"
@@ -337,7 +376,71 @@ private fun destTemplate(dir: File, ref: VideoRef): String {
     return File(dir, "${safeBaseName(ref)}.%(ext)s").absolutePath
 }
 
+/** True for the finished file AND every sidecar the engine can leave behind for [ref] -- `.part`,
+ *  `.ytdl`, or any other extension variant -- since they all share the one `<safeBaseName>.<ext>`
+ *  shape regardless of which extension the engine picked. Matching by this shared prefix, instead
+ *  of hardcoding a suffix list, is what lets deletion catch a `.part` file without knowing the
+ *  engine's sidecar naming scheme in detail. */
+internal fun matchesDownloadFile(fileName: String, ref: VideoRef): Boolean =
+    fileName.startsWith("${safeBaseName(ref)}.")
+
 private fun findProducedFile(dir: File, ref: VideoRef): File? {
-    val prefix = "${safeBaseName(ref)}."
-    return dir.listFiles { f -> f.isFile && f.name.startsWith(prefix) }?.maxByOrNull { it.lastModified() }
+    return dir.listFiles { f -> f.isFile && matchesDownloadFile(f.name, ref) }?.maxByOrNull { it.lastModified() }
+}
+
+/** Deletes the produced file plus every sidecar for [ref] under [dir] -- the one fixed app-private
+ *  download directory, never anywhere else. A row that never started (nothing on disk yet) is not
+ *  a failure: [File.listFiles] simply returns nothing to delete. Returns false only when a matched
+ *  file is still there after a real delete attempt, so a genuine permission/IO failure can be
+ *  surfaced instead of silently pretending it worked. */
+private fun deleteDownloadFiles(dir: File, ref: VideoRef): Boolean {
+    val candidates = dir.listFiles { f -> f.isFile && matchesDownloadFile(f.name, ref) } ?: return true
+    var allOk = true
+    for (file in candidates) {
+        val deleted = runCatching { file.delete() }.getOrDefault(false)
+        if (!deleted && file.exists()) allOk = false
+    }
+    return allOk
+}
+
+/**
+ * Pure derivation of the choosable qualities from a resolved format list, reusing
+ * [FormatSelector.select] per candidate height so a chosen "1080p" maps through the exact same
+ * video-only+audio-only pairing the player itself uses -- never a hand-rolled pick that could
+ * silently drop the paired audio track. Distinct heights are taken from the formats themselves
+ * (never invented), highest first; entries that collapse onto the same actual selector (e.g. two
+ * source heights both falling back to the same pair) are deduped. An audio-only option is
+ * appended last when the engine reported one. Any option routed through the synthetic tier-2
+ * selector is dropped -- that id can never be downloaded (see [WEBVIEW_FORMAT_ID]).
+ */
+internal fun deriveDownloadOptions(formats: List<MediaFormat>): List<DownloadOption> {
+    val heights = formats.mapNotNull { it.height }.filter { it > 0 }.distinct().sortedDescending()
+    val seenSelectors = mutableSetOf<String>()
+    val videoOptions = heights.mapNotNull { ceiling ->
+        val selection = FormatSelector.select(formats, ceiling).selection ?: return@mapNotNull null
+        val picked = selectionSummary(selection)
+        if (picked.selector.isBlank() || picked.selector.contains(WEBVIEW_FORMAT_ID)) return@mapNotNull null
+        if (!seenSelectors.add(picked.selector)) return@mapNotNull null
+        DownloadOption(picked.selector, "${picked.height ?: ceiling}p", picked.bytes)
+    }
+    val audioOption = FormatSelector.select(formats, Int.MAX_VALUE, audioOnly = true).selection?.let { selection ->
+        val picked = selectionSummary(selection)
+        if (picked.selector.isBlank() || picked.selector.contains(WEBVIEW_FORMAT_ID)) null
+        else DownloadOption(picked.selector, "Audio only", picked.bytes)
+    }
+    return videoOptions + listOfNotNull(audioOption)
+}
+
+private data class SelectionSummary(val selector: String, val height: Int?, val bytes: Long?)
+
+private fun selectionSummary(selection: FormatSelection): SelectionSummary = when (selection) {
+    is FormatSelection.Single -> SelectionSummary(selection.format.formatId, selection.format.height, selection.format.filesizeBytes)
+    // The engine's own `-f video+audio` selector syntax merges the pair via ffmpeg -- exactly the
+    // muxed-download case DESIGN.md calls out, with no extra plumbing here.
+    is FormatSelection.Paired -> {
+        val vb = selection.video.filesizeBytes
+        val ab = selection.audio.filesizeBytes
+        val bytes = if (vb == null && ab == null) null else (vb ?: 0L) + (ab ?: 0L)
+        SelectionSummary("${selection.video.formatId}+${selection.audio.formatId}", selection.video.height, bytes)
+    }
 }

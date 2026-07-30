@@ -3,6 +3,7 @@ package com.fyiplayer.app.player
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
@@ -46,17 +47,37 @@ fun currentStreamVolumePercent(context: Context): Int {
  * says so explicitly, on purpose — inferring it from inset visibility is what CLAUDE.md's
  * pitfalls call out as always getting it wrong.
  *
- * ponytail: no orientation lock to the stream's own aspect ratio here, unlike the reference this
- * was ported from. That needs `android:configChanges` declared on the Activity so a rotation
- * doesn't recreate it mid-fullscreen (which would immediately re-run this with the composable's
- * now-reset `fullscreen` state and undo itself) — `AndroidManifest.xml` is out of this task's
- * scope to edit, and guessing at that interaction with no device to verify it on is worse than
- * just hiding the bars. Add the orientation lock once the manifest change lands alongside it.
+ * Orientation starts at the sensor default (either rotation) on entry and returns to unspecified
+ * on exit; [applyAspectOrientation] narrows it to match the stream once the decoder reports real
+ * dimensions. `AndroidManifest.xml`'s `configChanges` on the activity is what keeps that rotation
+ * from recreating the Activity mid-fullscreen (which would reset the composable's fullscreen
+ * state and undo this).
  */
 fun setFullscreen(activity: Activity, fullscreen: Boolean) {
+    activity.requestedOrientation = if (fullscreen) {
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR
+    } else {
+        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
     val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
     insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     if (fullscreen) insetsController.hide(WindowInsetsCompat.Type.systemBars()) else insetsController.show(WindowInsetsCompat.Type.systemBars())
+}
+
+/**
+ * Narrows fullscreen orientation to the stream's own aspect ratio: a portrait video (taller than
+ * wide) locks portrait so it fills the screen edge to edge instead of letterboxing inside a
+ * forced landscape frame; a landscape video locks landscape; unknown or square (0 or equal
+ * dimensions — the decoder hasn't reported yet) leaves [setFullscreen]'s sensor default alone.
+ * No-op outside fullscreen.
+ */
+fun applyAspectOrientation(activity: Activity, fullscreen: Boolean, videoWidth: Int, videoHeight: Int) {
+    if (!fullscreen || videoWidth <= 0 || videoHeight <= 0 || videoWidth == videoHeight) return
+    activity.requestedOrientation = if (videoHeight > videoWidth) {
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    } else {
+        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    }
 }
 
 /** Keeps the screen on while [keepOn] (i.e. while actually playing). Callers clear this on

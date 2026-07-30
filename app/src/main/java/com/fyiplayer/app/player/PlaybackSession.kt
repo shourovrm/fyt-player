@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import com.fyiplayer.app.core.ExtractionError
@@ -46,6 +47,10 @@ data class PlayerState(
     val speed: Float = 1f,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val shuffled: Boolean = false,
+    // Real decoder-reported frame size, 0 until the first frame. Fullscreen orientation locks to
+    // this once known, instead of forcing landscape on a portrait video (see applyAspectOrientation).
+    val videoWidth: Int = 0,
+    val videoHeight: Int = 0,
 )
 
 /**
@@ -477,6 +482,10 @@ object PlaybackSession {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.update { it.copy(isPlaying = isPlaying) }
             tickPosition(isPlaying)
+        }
+
+        override fun onVideoSizeChanged(videoSize: VideoSize) {
+            _state.update { it.copy(videoWidth = videoSize.width, videoHeight = videoSize.height) }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {

@@ -1,15 +1,19 @@
 package com.fyiplayer.app.source.youtube
 
+import com.fyiplayer.app.core.ChannelTab
 import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Listing
+import com.fyiplayer.app.core.ListingPage
 import com.fyiplayer.app.core.SearchPage
 import com.fyiplayer.app.core.SeekThumbnails
+import com.fyiplayer.app.core.TAB_UNAVAILABLE_PREFIX
 import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
 import com.fyiplayer.app.engine.runEngine
 import java.net.URI
+import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
 
 private const val PAGE_SIZE = 20
@@ -17,6 +21,45 @@ private val HOSTS = setOf("youtube.com", "m.youtube.com", "www.youtube.com", "mu
 private const val RELATED_LIMIT = 12
 // yt-dlp extractor-args shape: max_comments=<total>,<max-parents>,<max-replies>,<replies-per-thread>.
 private const val REPLIES_PER_THREAD = 20
+
+// Path segments this adapter itself appends -- stripped off first so re-tabbing a URL that
+// already carries one (e.g. detail()'s "$channelUrl/videos" for related videos) doesn't double up.
+private val CHANNEL_TAB_SEGMENTS = setOf("videos", "shorts", "playlists", "courses", "streams", "search")
+
+private fun ChannelTab.pathSegment(): String = when (this) {
+    ChannelTab.VIDEOS -> "videos"
+    ChannelTab.SHORTS -> "shorts"
+    ChannelTab.PLAYLISTS -> "playlists"
+    ChannelTab.COURSES -> "courses"
+    ChannelTab.LIVE -> "streams" // verified live: /streams is the URL, "streams tab" is the error text
+}
+
+/** Strips a trailing slash and any tab segment this adapter already appended. */
+internal fun channelBaseUrl(channelUrl: String): String {
+    val trimmed = channelUrl.trimEnd('/')
+    val last = trimmed.substringAfterLast('/')
+    return if (last in CHANNEL_TAB_SEGMENTS) trimmed.substringBeforeLast('/') else trimmed
+}
+
+internal fun channelTabUrl(channelUrl: String, tab: ChannelTab): String =
+    "${channelBaseUrl(channelUrl)}/${tab.pathSegment()}"
+
+internal fun channelSearchUrl(channelUrl: String, query: String): String =
+    "${channelBaseUrl(channelUrl)}/search?query=${URLEncoder.encode(query, "UTF-8")}"
+
+// Engine text is "This channel does not have a <tab> tab" (verified live for courses/streams).
+// mapEngineError funnels anything it doesn't otherwise classify into Unsupported and keeps the
+// original message on the cause -- that's what this matches against, never the redacted message.
+private val NO_SUCH_TAB = Regex("""does not have a .+ tab""")
+
+internal fun isTabUnavailable(e: ExtractionError): Boolean {
+    val raw = (e as? ExtractionError.Unsupported)?.cause?.message ?: return false
+    return NO_SUCH_TAB.containsMatchIn(raw.lowercase())
+}
+
+/** Own message, never the engine's raw text -- that text can echo the channel URL. */
+internal fun tabUnavailableError(tab: ChannelTab): ExtractionError.Unsupported =
+    ExtractionError.Unsupported("$TAB_UNAVAILABLE_PREFIX this channel has no ${tab.pathSegment()} tab")
 
 /**
  * YouTube adapter. Everything -- search, listings, detail, storyboards -- comes out of the
@@ -48,11 +91,42 @@ class YoutubeSource : VideoSource {
     override suspend fun homepage(page: String?): SearchPage =
         throw ExtractionError.Unsupported("YouTube no longer publishes a public trending feed")
 
-    // providesShorts stays false (default): the engine has no reliable generic shorts feed URL to
-    // browse without live-site verification this task cannot perform. Honest gap over a fake feed.
+    // providesShorts stays false (default) and shorts() stays Unsupported (default): YouTube
+    // publishes no global shorts feed to back a page-level shorts() call (verified live -- a
+    // per-channel shorts *tab* works, see channelTab(url, ChannelTab.SHORTS) below, but that's a
+    // different contract with a channel to scope it). The Shorts screen composes its feed from
+    // channelTab(SHORTS) across subscribed channels instead (ui/ShortsViewModel.kt), the same way
+    // Home composes its feed from watch history rather than a source-level homepage() call.
 
     override suspend fun listing(listing: Listing, page: String?): SearchPage =
         flatPlaylistPage(listing.key, page)
+
+    override suspend fun channelTab(channelUrl: String, tab: ChannelTab, page: String?): SearchPage =
+        try {
+            flatPlaylistPage(channelTabUrl(channelUrl, tab), page)
+        } catch (e: ExtractionError.Unsupported) {
+            throw if (isTabUnavailable(e)) tabUnavailableError(tab) else e
+        }
+
+    override suspend fun channelContainers(channelUrl: String, tab: ChannelTab, page: String?): ListingPage {
+        val offset = page?.toIntOrNull() ?: 0
+        val out = try {
+            runEngine(
+                channelTabUrl(channelUrl, tab),
+                "--flat-playlist", "-J", "--no-warnings",
+                "--playlist-start", (offset + 1).toString(),
+                "--playlist-end", (offset + PAGE_SIZE).toString(),
+            )
+        } catch (e: ExtractionError.Unsupported) {
+            throw if (isTabUnavailable(e)) tabUnavailableError(tab) else e
+        }
+        val items = parseChannelPlaylistsJson(out, id)
+        val nextPage = if (items.size >= PAGE_SIZE) (offset + PAGE_SIZE).toString() else null
+        return ListingPage(items = items, nextPage = nextPage)
+    }
+
+    override suspend fun searchChannel(channelUrl: String, query: String, page: String?): SearchPage =
+        flatPlaylistPage(channelSearchUrl(channelUrl, query), page)
 
     override suspend fun detail(ref: VideoRef): VideoDetail {
         val out = runEngine(ref.pageUrl, "-J", "--no-playlist", "--no-warnings")

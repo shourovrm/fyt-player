@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {
+      "id": "PLabc111",
+      "title": "Full Season",
+      "url": "https://www.youtube.com/playlist?list=PLabc111"
+    },
+    {
+      "id": "PLabc222",
+      "title": "No explicit url, built from id"
+    },
+    {
+      "title": "Missing id, should be skipped"
+    },
+    "not-even-an-object"
+  ]
+}

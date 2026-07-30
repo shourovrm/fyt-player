@@ -1,7 +1,5 @@
 package com.fyiplayer.app.ui
 
-import com.fyiplayer.app.core.VideoRef
-
 /**
  * Pure decisions behind the shorts pager, kept out of the composable file so they're
  * JVM-testable without a real player, a real pager, or a device.
@@ -19,11 +17,4 @@ internal fun shortsNavAction(page: Int, index: Int): ShortsNavAction = when {
     page == index + 1 -> ShortsNavAction.NEXT
     page == index - 1 -> ShortsNavAction.PREVIOUS
     else -> ShortsNavAction.JUMP
-}
-
-/** Appends [incoming] to [existing], deduped by page URL -- the same clip can legitimately
- *  reappear across paging rounds when a source's own feed shifts underneath it mid-scroll. */
-internal fun appendDeduped(existing: List<VideoRef>, incoming: List<VideoRef>): List<VideoRef> {
-    val seen = existing.mapTo(HashSet()) { it.pageUrl }
-    return existing + incoming.filter { seen.add(it.pageUrl) }
 }

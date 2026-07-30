@@ -1,48 +1,42 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure-function coverage for Home's watched-channels feed -- no Android, no network. */
+/** Pure-function coverage for Home's subscriptions feed -- no Android, no network. */
 class HomeFeedTest {
 
-    private fun ref(id: String, uploaderUrl: String? = "https://y/@$id", sourceId: String = "youtube") = VideoRef(
+    private fun ref(id: String, sourceId: String = "youtube") = VideoRef(
         sourceId = sourceId,
         pageUrl = "https://y/watch?v=$id",
         remoteId = id,
         title = id,
         uploader = id,
-        uploaderUrl = uploaderUrl,
     )
 
-    @Test fun `recentDistinctChannels keeps most-recent order and dedupes`() {
-        // newest-first, as WatchHistoryDao.observeAll() hands it back
-        val history = listOf(
-            ref("v1", uploaderUrl = "https://y/@a"),
-            ref("v2", uploaderUrl = "https://y/@b"),
-            ref("v3", uploaderUrl = "https://y/@a"), // repeat of @a, already seen -- dropped
-            ref("v4", uploaderUrl = "https://y/@c"),
-        )
-        val channels = recentDistinctChannels(history)
-        assertEquals(listOf("https://y/@a", "https://y/@b", "https://y/@c"), channels.map { it.uploaderUrl })
+    private fun listing(id: String) = Listing("youtube", Listing.Kind.CHANNEL, "https://y/@$id", id)
+
+    @Test fun `capChannels keeps subscription order and caps at the given size`() {
+        val subs = (1..10).map { listing("c$it") }
+        val capped = capChannels(subs, cap = MAX_FEED_CHANNELS)
+        assertEquals(MAX_FEED_CHANNELS, capped.size)
+        assertEquals(subs.take(MAX_FEED_CHANNELS), capped)
     }
 
-    @Test fun `recentDistinctChannels skips rows with no channel url`() {
-        val history = listOf(ref("v1", uploaderUrl = null), ref("v2", uploaderUrl = "https://y/@b"))
-        assertEquals(listOf("https://y/@b"), recentDistinctChannels(history).map { it.uploaderUrl })
+    @Test fun `capChannels default cap is 8`() {
+        assertEquals(8, MAX_FEED_CHANNELS)
     }
 
-    @Test fun `recentDistinctChannels caps at the given size`() {
-        val history = (1..10).map { ref("v$it", uploaderUrl = "https://y/@c$it") }
-        val channels = recentDistinctChannels(history, cap = MAX_FEED_CHANNELS)
-        assertEquals(MAX_FEED_CHANNELS, channels.size)
-        assertEquals(listOf("https://y/@c1", "https://y/@c2", "https://y/@c3", "https://y/@c4"), channels.map { it.uploaderUrl })
+    @Test fun `capChannels on no subscriptions yields no channels`() {
+        assertTrue(capChannels(emptyList()).isEmpty())
     }
 
-    @Test fun `recentDistinctChannels on empty history yields no channels`() {
-        assertTrue(recentDistinctChannels(emptyList()).isEmpty())
+    @Test fun `capChannels under the cap returns everything unchanged`() {
+        val subs = listOf(listing("a"), listing("b"))
+        assertEquals(subs, capChannels(subs))
     }
 
     @Test fun `interleave round-robins uneven channel lists without crashing`() {
@@ -51,6 +45,14 @@ class HomeFeedTest {
         val c = emptyList<VideoRef>()
         val merged = interleave(listOf(a, b, c))
         assertEquals(listOf("a1", "b1", "a2", "a3"), merged.map { it.remoteId })
+    }
+
+    @Test fun `interleave round-robins across the full 8-channel cap`() {
+        val bySource = (1..8).map { i -> (1..i).map { ref("s${i}v$it") } }
+        val merged = interleave(bySource)
+        assertEquals(bySource.sumOf { it.size }, merged.size)
+        // round 0 pulls one item from every one of the 8 channels, in channel order
+        assertEquals((1..8).map { "s${it}v1" }, merged.take(8).map { it.remoteId })
     }
 
     @Test fun `interleave of nothing is nothing`() {
@@ -68,5 +70,12 @@ class HomeFeedTest {
     @Test fun `excludeWatched against an empty watched set keeps everything`() {
         val candidates = listOf(ref("a"), ref("b"))
         assertEquals(candidates, excludeWatched(candidates, emptySet()))
+    }
+
+    @Test fun `no subscriptions means no channels to fetch and an empty feed`() {
+        val channels = capChannels(emptyList())
+        assertTrue(channels.isEmpty())
+        // mirrors HomeViewModel.refreshFeed's early-return path: nothing to interleave, no crash
+        assertTrue(interleave(emptyList()).isEmpty())
     }
 }

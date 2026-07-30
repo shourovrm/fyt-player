@@ -2,35 +2,27 @@ package com.fyiplayer.app.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.SourceRegistry
-import com.fyiplayer.app.core.VideoSource
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.flow.collect
 
@@ -38,6 +30,11 @@ import kotlinx.coroutines.flow.collect
  * Vertical full-screen pager (DESIGN.md §5): one short-form clip per page, swipe up to advance.
  * Playback goes through the one process-scoped [PlaybackSession] -- this file owns no player and
  * no resolver of its own, only the pager <-> session bookkeeping.
+ *
+ * The feed itself is composed here, not by any [com.fyiplayer.app.core.VideoSource]: YouTube
+ * publishes no global shorts feed (source/youtube/YoutubeSource.kt), so [ShortsViewModel] unions
+ * the shorts tab of every subscribed channel instead -- see [ShortsFeed.kt], same shape as
+ * [HomeFeed.kt]'s watch-history feed.
  *
  * See [FullBleedBox] for how this copes with `AppScaffold` consuming system-bar insets for the
  * whole app.
@@ -55,41 +52,49 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
     val app = rememberFyiApp()
     val vm: ShortsViewModel = viewModel()
     val enabledIds by app.prefs.enabledSources.collectAsStateWithLifecycle(initialValue = emptySet())
-    val sources = remember(enabledIds) { SourceRegistry.shortsSourcesFor(enabledIds) }
+    // Every enabled, browsable source -- not shortsSourcesFor: no source needs to opt into a global
+    // shorts feed anymore, the feed is composed per subscribed channel regardless.
+    val sources = remember(enabledIds) { SourceRegistry.browseSourcesFor(enabledIds) }
 
-    LaunchedEffect(sources) {
-        vm.reset()
-        if (sources.isNotEmpty()) vm.loadMore(sources)
-    }
+    LaunchedEffect(sources) { vm.loadFeedIfNeeded(sources) }
 
+    val feed = vm.feed
     when {
-        // Honest gap, not a blank screen: today no registered source opts into shorts (see
-        // source/youtube/YoutubeSource.kt's providesShorts comment) so this is the common case.
         sources.isEmpty() -> EmptyStateScreen(
             title = "Shorts",
-            message = "No enabled source provides short-form clips yet.",
+            message = "Enable a source in Settings to start browsing.",
         )
-        vm.items.isEmpty() && vm.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // Items first: the pager is the ONLY branch that may reach ShortsPager, so it can never be
+        // composed with an empty list (rememberPagerState would coerce into an empty range).
+        feed.items.isNotEmpty() -> ShortsPager(vm = vm, onOpenDetail = onOpenDetail)
+        !feed.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-        vm.items.isEmpty() && vm.error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    vm.error.orEmpty(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(24.dp),
-                )
-                TextButton(onClick = { vm.loadMore(sources) }) { Text("Retry") }
-            }
-        }
-        vm.items.isEmpty() -> EmptyStateScreen(title = "Shorts", message = "No short-form clips available right now.")
-        else -> ShortsPager(vm = vm, sources = sources, onOpenDetail = onOpenDetail)
+        // Onboarding, not an error: nothing has gone wrong, there's just nothing to build a feed from yet.
+        feed.loaded && !feed.hasSubscriptions -> EmptyStateScreen(
+            title = "Shorts",
+            message = "Your Shorts feed is built from the channels you subscribe to. Subscribe to a channel to see its shorts here.",
+        )
+        // A fetch failure is NOT evidence that a channel posts no shorts — say which happened.
+        feed.loaded && feed.items.isEmpty() && feed.failedChannels > 0 -> EmptyStateScreen(
+            title = "Shorts",
+            message = if (feed.channelsWithoutShorts == 0) {
+                "Couldn't load shorts from your subscriptions. Check your connection and try again."
+            } else {
+                "Couldn't load shorts from ${feed.failedChannels} of your subscriptions. " +
+                    "The rest post no shorts."
+            },
+        )
+        else -> EmptyStateScreen(
+            title = "Shorts",
+            message = "None of your subscribed channels post Shorts.",
+        )
     }
 }
 
 @Composable
-private fun ShortsPager(vm: ShortsViewModel, sources: List<VideoSource>, onOpenDetail: (String) -> Unit) {
-    val items = vm.items
+private fun ShortsPager(vm: ShortsViewModel, onOpenDetail: (String) -> Unit) {
+    val items = vm.feed.items
     val playerState by PlaybackSession.state.collectAsState()
     val pagerState = rememberPagerState(initialPage = vm.pagerPage.coerceIn(0, items.size - 1)) { items.size }
 
@@ -130,12 +135,8 @@ private fun ShortsPager(vm: ShortsViewModel, sources: List<VideoSource>, onOpenD
         if (idx in items.indices && pagerState.currentPage != idx) pagerState.animateScrollToPage(idx)
     }
 
-    // Endless paging: request the next round as the user nears the loaded tail, same threshold
-    // shape as ResultsListColumn's.
-    val nearEnd by remember(items.size) { derivedStateOf { pagerState.currentPage >= items.size - 3 } }
-    LaunchedEffect(nearEnd, vm.loading) {
-        if (nearEnd && !vm.loading && vm.feedState.hasMore(sources)) vm.loadMore(sources)
-    }
+    // No endless paging: the feed is one round per subscribed channel (HomeFeed.kt's shape), not
+    // a continuation token per source -- refreshFeed()/loadFeedIfNeeded() cover Shorts' whole feed.
 
     FullBleedBox {
         VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
