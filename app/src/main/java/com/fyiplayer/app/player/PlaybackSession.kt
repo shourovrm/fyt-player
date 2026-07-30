@@ -333,7 +333,10 @@ object PlaybackSession {
             player.setMediaSource(MediaItemFactory.create(item.selection))
             player.prepare()
             player.playWhenReady = true
-            retriedIndex = null
+            // retriedIndex is deliberately NOT cleared here. This runs on the re-resolve that a
+            // failed item triggered, so clearing it would re-arm the retry for the same item and
+            // a host that rejects every fresh URL (403) would loop forever. It is cleared only
+            // when the user genuinely moves to another item.
             window = listOf(i)
             currentFormats = item.resolved.formats
             _state.update {

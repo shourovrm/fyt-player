@@ -1,0 +1,31 @@
+{
+  "comment_count": 3,
+  "comments": [
+    {
+      "id": "c1",
+      "author": "Top Commenter",
+      "text": "Great video!",
+      "like_count": 42,
+      "author_thumbnail": "https://example.invalid/avatar1.jpg",
+      "author_is_uploader": false,
+      "is_favorited": true,
+      "_time_text": "2 days ago",
+      "parent": "root"
+    },
+    {
+      "id": "c1-r1",
+      "author": "The Creator",
+      "text": "Thanks!",
+      "like_count": 10,
+      "author_thumbnail": "https://example.invalid/avatar2.jpg",
+      "author_is_uploader": true,
+      "is_favorited": false,
+      "_time_text": "1 day ago",
+      "parent": "c1"
+    },
+    {
+      "text": "Missing id, should be skipped",
+      "author": "Ghost"
+    }
+  ]
+}

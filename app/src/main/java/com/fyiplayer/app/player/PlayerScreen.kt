@@ -35,7 +35,8 @@ private fun friendlyMessage(e: ExtractionError): String = when (e) {
     is ExtractionError.Network -> "No connection. Check your network and retry."
     is ExtractionError.ContentUnavailable -> "This video is no longer available."
     is ExtractionError.AccessChallenge -> "Unavailable: this page requires a login, CAPTCHA, or age check."
-    is ExtractionError.Expired -> "Stream link expired. Retrying..."
+    // Never claim a retry here: by the time this renders, the one permitted re-resolve is spent.
+    is ExtractionError.Expired -> "Stream link expired."
     is ExtractionError.Unsupported -> "Can't play this video right now."
 }
 

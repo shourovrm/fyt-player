@@ -123,6 +123,23 @@ data class VideoDetail(
     val viewCount: Long? = null,
 )
 
+/**
+ * One comment or reply on a video. Display-only: author and text are never written to the
+ * database, a log, or an export -- only [VideoRef.pageUrl] is a persisted identity.
+ */
+data class Comment(
+    val id: String,
+    val author: String,
+    val text: String,
+    val likeCount: Long? = null,
+    val timeText: String? = null,
+    /** Parent comment's id, or null for a top-level comment. */
+    val parentId: String? = null,
+    val isUploader: Boolean = false,
+    val isHearted: Boolean = false,
+    val authorAvatarUrl: String? = null,
+)
+
 /** One platform. Listing and URL recognition only — media resolution is [StreamResolver]'s job. */
 interface VideoSource {
     val id: String
@@ -171,6 +188,14 @@ interface VideoSource {
      * and that tile simply gets no preview.
      */
     fun previewThumbnails(ref: VideoRef): SeekThumbnails? = null
+
+    /** True when this source can fetch comments, so callers never probe-and-catch. */
+    val providesComments: Boolean get() = false
+
+    /** Comments for [ref], flat (threading is [Comment.parentId]). Slow -- fetched on demand from
+     *  the UI, never as part of [detail]. */
+    suspend fun comments(ref: VideoRef, max: Int = 60): List<Comment> =
+        throw ExtractionError.Unsupported("$displayName has no comments")
 }
 
 /**

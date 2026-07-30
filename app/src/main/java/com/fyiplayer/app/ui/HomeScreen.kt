@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -16,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,9 +47,10 @@ import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
 
 /**
- * Home (browse) and Search share this screen: a blank query browses each enabled source's own
- * homepage feed, a non-blank query searches it instead. With exactly one source enabled today the
- * tab row is skipped entirely (DESIGN.md §5) rather than showing a lone, pointless "All" pill.
+ * Home (browse) and Search share this screen: a blank query shows [HomeFeedSection] (newest
+ * uploads from watched channels), a non-blank query searches every enabled source instead. With
+ * exactly one source enabled today the search tab row is skipped entirely (DESIGN.md §5) rather
+ * than showing a lone, pointless "All" pill.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,37 +65,39 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
 
     val isSearching = vm.query.isNotBlank()
-    val activeMap = if (isSearching) vm.searchResults else vm.homeResults
 
     val tabIds = remember(browseSources) { listOf(ALL_TAB_ID) + browseSources.map { it.id } }
     LaunchedEffect(tabIds) { vm.selectedTab = resolveSelectedTab(vm.selectedTab, tabIds) }
-    // Kick off each enabled source's homepage feed once, the first time it's seen in browse mode.
+    // Home's feed builds from watch history, not a per-source fetch -- load it once, the first
+    // time a blank query is on screen.
     LaunchedEffect(browseSources, isSearching) {
-        if (!isSearching) browseSources.forEach { src -> if (vm.homeResults[src.id] == null) vm.loadHome(src, null) }
+        if (!isSearching) vm.loadFeedIfNeeded(browseSources)
     }
 
     val feeding = if (vm.selectedTab == ALL_TAB_ID) browseSources else browseSources.filter { it.id == vm.selectedTab }
-    val feedingResults = feeding.map { activeMap[it.id] ?: TabResult(it.displayName) }
-    val items = if (vm.selectedTab == ALL_TAB_ID) {
-        interleave(feeding.map { activeMap[it.id]?.items ?: emptyList() })
+    val feedingResults = feeding.map { vm.searchResults[it.id] ?: TabResult(it.displayName) }
+    val searchItems = if (vm.selectedTab == ALL_TAB_ID) {
+        interleave(feeding.map { vm.searchResults[it.id]?.items ?: emptyList() })
     } else {
         feedingResults.firstOrNull()?.items ?: emptyList()
     }
-    val initialLoading = items.isEmpty() && feedingResults.any { it.loading }
+    val initialLoading = searchItems.isEmpty() && feedingResults.any { it.loading }
     val isLoadingMore = !initialLoading && feedingResults.any { it.loading }
     val hasMore = feedingResults.any { it.canContinue }
     val allExhausted = feeding.isNotEmpty() && feedingResults.all { it.exhausted }
     val errorRows = feeding.zip(feedingResults).mapNotNull { (src, res) ->
         when {
             res.blocked -> ErrorRow(src.displayName, res.error ?: "Unavailable", onRetry = null)
-            res.error != null -> ErrorRow(src.displayName, res.error, onRetry = { vm.retryTab(src, isSearching) })
+            res.error != null -> ErrorRow(src.displayName, res.error, onRetry = { vm.retryTab(src) })
             else -> null
         }
     }
 
+    // Playback queue is whichever list is actually on screen -- the search results, or Home's feed.
+    val displayedItems = if (isSearching) searchItems else vm.feed.items
     fun playAndOpen(ref: VideoRef) {
-        val index = items.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
-        PlaybackSession.play(items, index)
+        val index = displayedItems.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
+        PlaybackSession.play(displayedItems, index)
         onOpenDetail(ref)
     }
 
@@ -108,6 +114,11 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
                 onSearch = { vm.runSearch(vm.query, browseSources) },
                 modifier = Modifier.weight(1f),
             )
+            if (!isSearching) {
+                IconButton(onClick = { vm.refreshFeed(browseSources) }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh feed", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
         when {
             browseSources.isEmpty() -> {
@@ -122,7 +133,7 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
                     onDelete = { vm.deleteSearchHistoryEntry(it) },
                 )
             }
-            else -> {
+            isSearching -> {
                 if (tabIds.size > 1) {
                     ScrollableTabRow(selectedTabIndex = tabIds.indexOf(vm.selectedTab).coerceAtLeast(0), edgePadding = 12.dp) {
                         tabIds.forEach { id ->
@@ -145,18 +156,17 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
                             skeletonRows = 6,
                         )
                     }
-                    items.isEmpty() && errorRows.isEmpty() -> {
-                        val message = if (isSearching) "No results for “${vm.query}”." else "Nothing to show yet."
+                    searchItems.isEmpty() && errorRows.isEmpty() -> {
                         Box(Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
+                            Text("No results for “${vm.query}”.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
                         }
                     }
                     else -> {
                         ResultsListColumn(
-                            items = items,
+                            items = searchItems,
                             errors = errorRows,
                             hasMore = hasMore,
-                            onLoadMore = { vm.continueTab(feeding, isSearching) },
+                            onLoadMore = { vm.continueTab(feeding) },
                             onClick = ::playAndOpen,
                             onLongPress = { actionSheetRef = it },
                             listState = listState,
@@ -167,10 +177,74 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
                     }
                 }
             }
+            else -> HomeFeedSection(
+                feed = vm.feed,
+                onClick = ::playAndOpen,
+                onLongPress = { actionSheetRef = it },
+                listState = listState,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 
     actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
+}
+
+/**
+ * Home's default view: newest uploads from channels the user has actually watched, filling in
+ * per-channel as each fetch returns (never one spinner blocked on the slowest channel). Three
+ * honest states beyond the list itself: first load, first-run empty (no watch history to build
+ * from yet), and "watched, but nothing new right now" -- neither empty case reads as an error.
+ */
+@Composable
+private fun HomeFeedSection(
+    feed: FeedState,
+    onClick: (VideoRef) -> Unit,
+    onLongPress: (VideoRef) -> Unit,
+    listState: LazyListState,
+    modifier: Modifier = Modifier,
+) {
+    when {
+        feed.loading && feed.items.isEmpty() -> {
+            ResultsListColumn(
+                items = emptyList(),
+                hasMore = false,
+                onLoadMore = {},
+                onClick = onClick,
+                onLongPress = onLongPress,
+                listState = listState,
+                modifier = modifier,
+                skeletonRows = 6,
+            )
+        }
+        feed.items.isEmpty() -> {
+            val message = if (feed.hasHistory) {
+                "No new videos from the channels you watch right now."
+            } else {
+                "Your feed builds from the channels you watch. Search for something to get started."
+            }
+            Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    message,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        }
+        else -> {
+            ResultsListColumn(
+                items = feed.items,
+                hasMore = false,
+                onLoadMore = {},
+                onClick = onClick,
+                onLongPress = onLongPress,
+                listState = listState,
+                modifier = modifier,
+                isLoadingMore = feed.loading,
+            )
+        }
+    }
 }
 
 @Composable

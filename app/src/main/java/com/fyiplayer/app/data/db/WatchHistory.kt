@@ -17,6 +17,8 @@ data class WatchHistoryEntity(
     val durationSeconds: Int?,
     val thumbnailUrl: String?,
     val watchedAt: Long,
+    /** Uploader's canonical channel URL -- lets Home rebuild "channels you watch" without guessing. */
+    val uploaderUrl: String? = null,
 )
 
 @Dao
