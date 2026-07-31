@@ -74,6 +74,9 @@ internal data class FeedState(
     val loading: Boolean = false,
     val loaded: Boolean = false,
     val hasSubscriptions: Boolean = false,
+    /** Channels whose fetch FAILED. Kept apart from "no new uploads" because reporting a failure
+     *  as "nothing new" tells the user something we have no evidence for. */
+    val failedChannels: Int = 0,
 )
 
 /** Each channel is a separate multi-second engine call. These are deliberate subscriptions though
@@ -124,3 +127,19 @@ internal fun applyError(current: TabResult, requestedPage: String?, error: Extra
 /** The source has no feed for this at all -- permanent, not retryable. */
 internal fun applyUnsupported(current: TabResult): TabResult =
     current.copy(loading = false, error = null, unsupported = true, nextPage = null, loaded = true)
+
+/**
+ * Per-channel fetch result, shared by the Home and Shorts feeds. A failure is deliberately NOT
+ * collapsed into "this channel has nothing" -- telling the user a channel posts nothing when the
+ * fetch actually failed is a claim we have no evidence for.
+ */
+internal sealed interface ChannelFetchOutcome {
+    data class Ok(val items: List<VideoRef>) : ChannelFetchOutcome
+    object NoContent : ChannelFetchOutcome
+    object Failed : ChannelFetchOutcome
+}
+
+/** Items from a successful fetch; a missing tab or a failure contributes nothing. */
+internal fun itemsOf(outcome: ChannelFetchOutcome): List<VideoRef> =
+    (outcome as? ChannelFetchOutcome.Ok)?.items.orEmpty()
+

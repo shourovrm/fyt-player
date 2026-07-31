@@ -31,12 +31,7 @@ internal data class ShortsFeedState(
     val failedChannels: Int = 0,
 )
 
-/** Per-channel result. A failure is deliberately NOT collapsed into "no shorts". */
-internal sealed interface ChannelShortsOutcome {
-    data class Ok(val items: List<VideoRef>) : ChannelShortsOutcome
-    object NoShortsTab : ChannelShortsOutcome
-    object Failed : ChannelShortsOutcome
-}
+
 
 /**
  * One channel's shorts tab, already-watched excluded and capped. Neither failure mode fails the
@@ -46,7 +41,7 @@ internal sealed interface ChannelShortsOutcome {
 internal suspend fun fetchChannelShorts(
     watched: Set<String>,
     fetch: suspend () -> SearchPage,
-): ChannelShortsOutcome {
+): ChannelFetchOutcome {
     val page = try {
         fetch()
     } catch (e: CancellationException) {
@@ -54,18 +49,14 @@ internal suspend fun fetchChannelShorts(
     } catch (e: ExtractionError.Unsupported) {
         // The source marks a missing tab with this prefix; anything else Unsupported is a failure.
         return if (e.message?.startsWith(TAB_UNAVAILABLE_PREFIX) == true) {
-            ChannelShortsOutcome.NoShortsTab
+            ChannelFetchOutcome.NoContent
         } else {
-            ChannelShortsOutcome.Failed
+            ChannelFetchOutcome.Failed
         }
     } catch (e: Exception) {
         // Error CLASS only, never the message — an engine message can echo the channel URL.
         runCatching { android.util.Log.d("ShortsFeed", "channel fetch failed: ${e::class.simpleName}") }
-        return ChannelShortsOutcome.Failed
+        return ChannelFetchOutcome.Failed
     }
-    return ChannelShortsOutcome.Ok(excludeWatched(page.items, watched).take(FEED_ITEMS_PER_CHANNEL))
+    return ChannelFetchOutcome.Ok(excludeWatched(page.items, watched).take(FEED_ITEMS_PER_CHANNEL))
 }
-
-/** Items from a successful channel; a missing tab or a failure contributes nothing. */
-internal fun itemsOf(outcome: ChannelShortsOutcome): List<VideoRef> =
-    (outcome as? ChannelShortsOutcome.Ok)?.items.orEmpty()
