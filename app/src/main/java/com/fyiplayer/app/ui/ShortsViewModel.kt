@@ -65,8 +65,8 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
             val watched = historyRepo.observe().first().mapTo(HashSet()) { it.pageUrl }
             // Mutated only from this coroutine's children, all on the Main dispatcher
             // (viewModelScope's default) -- same shape as HomeViewModel.refreshFeed.
-            val outcomes = MutableList<ChannelShortsOutcome>(channels.size) {
-                ChannelShortsOutcome.Ok(emptyList())
+            val outcomes = MutableList<ChannelFetchOutcome>(channels.size) {
+                ChannelFetchOutcome.Ok(emptyList())
             }
             val jobs = channels.mapIndexed { i, channel ->
                 launch {
@@ -77,7 +77,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                         runCatching {
                             android.util.Log.d("ShortsFeed", "no source for sourceId='${channel.sourceId}'")
                         }
-                        ChannelShortsOutcome.Failed
+                        ChannelFetchOutcome.Failed
                     } else {
                         fetchChannelShorts(watched) { src.channelTab(channel.key, ChannelTab.SHORTS) }
                     }
@@ -90,8 +90,8 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                 loading = false,
                 loaded = true,
                 hasSubscriptions = true,
-                channelsWithoutShorts = outcomes.count { it is ChannelShortsOutcome.NoShortsTab },
-                failedChannels = outcomes.count { it is ChannelShortsOutcome.Failed },
+                channelsWithoutShorts = outcomes.count { it is ChannelFetchOutcome.NoContent },
+                failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed },
             )
         }
     }

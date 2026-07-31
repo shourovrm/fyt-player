@@ -218,10 +218,14 @@ private fun HomeFeedSection(
             )
         }
         feed.items.isEmpty() -> {
-            val message = if (feed.hasSubscriptions) {
-                "No new uploads from your subscriptions right now."
-            } else {
-                "Your feed is empty. Search for a channel, open it, and subscribe to build it."
+            val message = when {
+                !feed.hasSubscriptions ->
+                    "Your feed is empty. Search for a channel, open it, and subscribe to build it."
+                // A failed fetch is not evidence that there is nothing new — say which happened.
+                feed.failedChannels > 0 ->
+                    "Couldn't load uploads from ${feed.failedChannels} of your subscriptions. " +
+                        "Check your connection and pull refresh."
+                else -> "No new uploads from your subscriptions right now."
             }
             Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(

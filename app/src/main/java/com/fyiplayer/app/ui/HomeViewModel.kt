@@ -88,24 +88,49 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // Mutated only from this coroutine's children, all on the Main dispatcher (viewModelScope's
             // default) -- each child only suspends inside source.listing(), never races another child's
             // write to its own index.
-            val perChannel = MutableList<List<VideoRef>>(channels.size) { emptyList() }
+            val outcomes = MutableList<ChannelFetchOutcome>(channels.size) {
+                ChannelFetchOutcome.Ok(emptyList())
+            }
             val jobs = channels.mapIndexed { i, channel ->
                 launch {
-                    val src = byId[channel.sourceId] ?: return@launch
+                    val src = byId[channel.sourceId]
+                    if (src == null) {
+                        // Our own lookup failing is a defect, not "this channel has nothing new".
+                        runCatching {
+                            android.util.Log.d("HomeFeed", "no source for sourceId='${channel.sourceId}'")
+                        }
+                        outcomes[i] = ChannelFetchOutcome.Failed
+                        feed = feed.copy(items = interleave(outcomes.map(::itemsOf)))
+                        return@launch
+                    }
                     val page = try {
                         src.listing(channel)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
+                        runCatching {
+                            android.util.Log.d("HomeFeed", "channel fetch failed: ${e::class.simpleName}")
+                        }
                         null
                     }
-                    perChannel[i] = excludeWatched(page?.items.orEmpty(), watched).take(FEED_ITEMS_PER_CHANNEL)
+                    outcomes[i] = if (page == null) {
+                        ChannelFetchOutcome.Failed
+                    } else {
+                        ChannelFetchOutcome.Ok(
+                            excludeWatched(page.items, watched).take(FEED_ITEMS_PER_CHANNEL),
+                        )
+                    }
                     // Append as each channel returns rather than waiting for the slowest one.
-                    feed = feed.copy(items = interleave(perChannel))
+                    feed = feed.copy(items = interleave(outcomes.map(::itemsOf)))
                 }
             }
             jobs.joinAll()
-            feed = feed.copy(loading = false, loaded = true, hasSubscriptions = true)
+            feed = feed.copy(
+                loading = false,
+                loaded = true,
+                hasSubscriptions = true,
+                failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed },
+            )
         }
     }
 

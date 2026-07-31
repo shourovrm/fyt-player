@@ -43,23 +43,23 @@ class ShortsFeedTest {
         assertEquals(listOf("new1"), fresh.map { it.remoteId })
     }
 
-    @Test fun `a missing shorts tab reports NoShortsTab, not a failure`() = runBlocking {
+    @Test fun `a missing shorts tab reports NoContent, not a failure`() = runBlocking {
         val result = fetchChannelShorts(watched = emptySet()) {
             throw ExtractionError.Unsupported("$TAB_UNAVAILABLE_PREFIX this channel has no shorts tab")
         }
-        assertEquals(ChannelShortsOutcome.NoShortsTab, result)
+        assertEquals(ChannelFetchOutcome.NoContent, result)
     }
 
     // The distinction that matters: a fetch failure must never be reported to the user as
     // "this channel posts no shorts", which is a claim we have no evidence for.
-    @Test fun `a network failure reports Failed, not NoShortsTab`() = runBlocking {
+    @Test fun `a network failure reports Failed, not NoContent`() = runBlocking {
         val result = fetchChannelShorts(watched = emptySet()) { throw ExtractionError.Network("timed out") }
-        assertEquals(ChannelShortsOutcome.Failed, result)
+        assertEquals(ChannelFetchOutcome.Failed, result)
     }
 
     @Test fun `an unsupported error without the tab marker is a failure, not a missing tab`() = runBlocking {
         val result = fetchChannelShorts(watched = emptySet()) { throw ExtractionError.Unsupported("engine broke") }
-        assertEquals(ChannelShortsOutcome.Failed, result)
+        assertEquals(ChannelFetchOutcome.Failed, result)
     }
 
     @Test fun `fetchChannelShorts excludes watched and caps to the per-channel limit`() = runBlocking {

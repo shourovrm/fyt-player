@@ -98,8 +98,19 @@ class YoutubeSource : VideoSource {
     // channelTab(SHORTS) across subscribed channels instead (ui/ShortsViewModel.kt), the same way
     // Home composes its feed from watch history rather than a source-level homepage() call.
 
-    override suspend fun listing(listing: Listing, page: String?): SearchPage =
-        flatPlaylistPage(listing.key, page)
+    /**
+     * A bare channel URL does NOT list videos — the engine returns the channel's TABS as playlist
+     * entries ("… - Videos", "… - Shorts"), which carry no video id and are correctly skipped by
+     * the mapper, so the caller silently gets nothing. Channels must be asked for their videos tab
+     * explicitly. A playlist URL is already a flat list and is passed through untouched.
+     */
+    override suspend fun listing(listing: Listing, page: String?): SearchPage {
+        val url = when (listing.kind) {
+            Listing.Kind.CHANNEL -> channelTabUrl(listing.key, ChannelTab.VIDEOS)
+            Listing.Kind.PLAYLIST -> listing.key
+        }
+        return flatPlaylistPage(url, page)
+    }
 
     override suspend fun channelTab(channelUrl: String, tab: ChannelTab, page: String?): SearchPage =
         try {
