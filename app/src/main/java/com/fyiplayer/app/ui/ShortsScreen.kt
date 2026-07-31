@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
@@ -15,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -23,29 +26,30 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.SourceRegistry
+import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.flow.collect
 
 /**
- * Vertical full-screen pager (DESIGN.md §5): one short-form clip per page, swipe up to advance.
+ * The Shorts tab: a thumbnail grid first, not an immediately-playing pager. Tapping a tile opens
+ * the full-screen vertical pager (DESIGN.md §5) at that tile, swipe still moves between clips,
+ * and back returns to the grid at the same scroll position. Grid vs. pager is local state on
+ * [ShortsViewModel] rather than a second nav route -- the NavHost lives in `AppShell.kt`, out of
+ * this task's allowed files -- so [BackHandler] below intercepts the system back button only
+ * while the pager is showing.
+ *
  * Playback goes through the one process-scoped [PlaybackSession] -- this file owns no player and
- * no resolver of its own, only the pager <-> session bookkeeping.
+ * no resolver of its own, only the grid/pager <-> session bookkeeping.
  *
  * The feed itself is composed here, not by any [com.fyiplayer.app.core.VideoSource]: YouTube
  * publishes no global shorts feed (source/youtube/YoutubeSource.kt), so [ShortsViewModel] unions
  * the shorts tab of every subscribed channel instead -- see [ShortsFeed.kt], same shape as
  * [HomeFeed.kt]'s watch-history feed.
  *
- * See [FullBleedBox] for how this copes with `AppScaffold` consuming system-bar insets for the
- * whole app.
- *
- * NOT fixed here, reported instead (out of this task's allowed files): `AppScaffold`'s
- * `isFullPlayerRoute` only matches `detail/...`, so on the Shorts route it still mounts the mini
- * player + queue bar underneath this screen's bottom-nav slot. Both they and this screen's active
- * page call [com.fyiplayer.app.player.SharedVideoSurface] -- "last attacher wins" per that file's
- * own doc -- so the shared surface can get fought over between the mini bar and the pager exactly
- * the way the Gotcha already on file for the detail route describes. `isFullPlayerRoute` needs
- * `Routes.SHORTS` added alongside `detail/` to close this.
+ * See [FullBleedBox] for how the full-screen pager copes with `AppScaffold` consuming system-bar
+ * insets for the whole app. `AppScaffold.isFullPlayerRoute` already keeps the mini player and
+ * queue bar off the whole Shorts route (grid included), so the pager's active page is never
+ * fighting anything else for the one shared video surface.
  */
 @Composable
 fun ShortsScreen(onOpenDetail: (String) -> Unit) {
@@ -58,6 +62,13 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
 
     LaunchedEffect(sources) { vm.loadFeedIfNeeded(sources) }
 
+    // Hoisted above the grid/pager branch below, not inside it: a `remember` inside a
+    // conditionally-composed branch is torn down every time that branch stops composing, which
+    // would reset the grid's scroll position on every trip into the pager and back.
+    val gridState = rememberLazyGridState()
+    var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
+    BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false }
+
     val feed = vm.feed
     when {
         sources.isEmpty() -> EmptyStateScreen(
@@ -66,7 +77,19 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
         )
         // Items first: the pager is the ONLY branch that may reach ShortsPager, so it can never be
         // composed with an empty list (rememberPagerState would coerce into an empty range).
-        feed.items.isNotEmpty() -> ShortsPager(vm = vm, onOpenDetail = onOpenDetail)
+        feed.items.isNotEmpty() -> if (vm.showPlayer) {
+            ShortsPager(vm = vm, onOpenDetail = onOpenDetail)
+        } else {
+            ShortsGrid(
+                items = feed.items,
+                gridState = gridState,
+                onOpenPlayer = { index ->
+                    vm.pagerPage = clampGridIndex(index, feed.items.size)
+                    vm.showPlayer = true
+                },
+                onLongPress = { actionSheetRef = it },
+            )
+        }
         !feed.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
@@ -90,6 +113,9 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
             message = "None of your subscribed channels post Shorts.",
         )
     }
+
+    // Grid long-press -> the same shared action sheet every other result row in the app opens.
+    actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
 }
 
 @Composable

@@ -32,8 +32,13 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
     private var feedJob: Job? = null
 
     /** Which page the pager last settled on -- restored as the pager's `initialPage` so leaving
-     *  and returning to the tab doesn't snap back to the first clip. */
+     *  and returning to the tab doesn't snap back to the first clip, and also what a grid tap
+     *  sets before switching [showPlayer] on. */
     var pagerPage: Int by mutableStateOf(0)
+
+    /** Grid (false) or full-screen pager (true). Hoisted here rather than local composable state
+     *  so it -- like [pagerPage] -- survives leaving and returning to the tab. */
+    var showPlayer: Boolean by mutableStateOf(false)
 
     /** Source ids the cached feed was built for, so enabling/disabling a source rebuilds it. */
     private var loadedForSourceIds: Set<String>? = null
