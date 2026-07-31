@@ -18,3 +18,15 @@ internal fun shortsNavAction(page: Int, index: Int): ShortsNavAction = when {
     page == index - 1 -> ShortsNavAction.PREVIOUS
     else -> ShortsNavAction.JUMP
 }
+
+/** A grid-tile tap becomes the pager's `initialPage`. Clamped so a stale index -- the feed
+ *  shrank between the tap and this composing, e.g. a refresh landed mid-gesture -- starts the
+ *  pager somewhere valid instead of `rememberPagerState` coercing into an empty range. */
+internal fun clampGridIndex(index: Int, itemCount: Int): Int =
+    if (itemCount <= 0) 0 else index.coerceIn(0, itemCount - 1)
+
+/** position/duration -> the full-screen progress bar's 0..1 fill. A short publishes no duration
+ *  and the session may not have measured one from the player yet, so an unknown/zero duration
+ *  must never divide -- guard it to an empty bar instead of a crash or a garbage fraction. */
+internal fun shortsProgressFraction(positionMs: Long, durationMs: Long): Float =
+    if (durationMs <= 0L) 0f else (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)

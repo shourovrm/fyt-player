@@ -67,6 +67,23 @@ started and stopped before any agent wrote a file — nothing partial to recover
 
 ## Gotchas
 
+- A feed that reads its enabled-source set from DataStore sees an EMPTY set on the first
+  composition. Loading then and latching `loaded = true` is why Home and Shorts both silently
+  stayed empty. Guard on `sources.isEmpty()` and re-load when the source set actually changes.
+- A bare channel URL does not list videos — the engine returns the channel's TABS as playlist
+  entries. Channels must be asked for `/videos` explicitly (`channelTabUrl`).
+- Downloads need `--newline`, or the engine rewrites one progress line with `\r` and the callback
+  never sees a complete line: progress sits at 0% forever.
+- The engine writes a bare `NA` (invalid JSON) for eta/speed on the first progress tick. The
+  parser rewrites `: NA` to `: null` before decoding.
+- `Toast` from a coroutine on the process scope (`Dispatchers.Default`) crashes: no Looper. Always
+  go through `showToast`, which posts to the main looper.
+- Heavy testing from one IP triggers YouTube's "Sign in to confirm you're not a bot" wall. The app
+  correctly classifies it as `AccessChallenge` and stops. It is not a bug, and it is not to be
+  worked around with cookies. Wait it out.
+- Per-channel errors must never be collapsed into "this channel has nothing" — a fetch failure and
+  an empty channel are different facts (`ChannelFetchOutcome.Ok/NoContent/Failed`).
+
 - No device attached to `adb`; end-to-end device verification is outstanding for every wave so far.
 - `AndroidManifest.xml` declares a service only in the phase that adds its class — a declaration
   pointing at a missing class is a runtime crash, not a build failure.
