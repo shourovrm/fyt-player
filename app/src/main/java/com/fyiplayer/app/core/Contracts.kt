@@ -130,7 +130,14 @@ sealed class ExtractionError(message: String, cause: Throwable? = null) : Except
 const val TAB_UNAVAILABLE_PREFIX = "tab-unavailable: "
 
 /** A named listing a source can navigate to: a channel, or a playlist. */
-data class Listing(val sourceId: String, val kind: Kind, val key: String, val title: String) {
+data class Listing(
+    val sourceId: String,
+    val kind: Kind,
+    val key: String,
+    val title: String,
+    /** Cover/avatar for a listing row, when the listing already carried one. Display only. */
+    val thumbnailUrl: String? = null,
+) {
     enum class Kind { CHANNEL, PLAYLIST }
 }
 

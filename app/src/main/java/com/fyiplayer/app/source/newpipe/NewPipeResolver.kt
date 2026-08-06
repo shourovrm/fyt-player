@@ -1,13 +1,11 @@
 package com.fyiplayer.app.source.newpipe
 
 import com.fyiplayer.app.core.CaptionTrack
-import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
 import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.engine.UrlScopedResolver
-import java.io.IOException
 import java.net.URI
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -15,15 +13,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.MediaFormat as NpMediaFormat
 import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.exceptions.AgeRestrictedContentException
-import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException
-import org.schabi.newpipe.extractor.exceptions.ExtractionException
-import org.schabi.newpipe.extractor.exceptions.GeographicRestrictionException
-import org.schabi.newpipe.extractor.exceptions.PaidContentException
-import org.schabi.newpipe.extractor.exceptions.ParsingException
-import org.schabi.newpipe.extractor.exceptions.PrivateContentException
-import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
-import org.schabi.newpipe.extractor.exceptions.SignInConfirmNotBotException
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -148,29 +137,4 @@ internal fun captionMimeType(format: NpMediaFormat?): String? = when (format) {
     NpMediaFormat.TTML -> "application/ttml+xml"
     NpMediaFormat.SRT -> "application/x-subrip"
     else -> null
-}
-
-/**
- * One when-chain, most specific first: several of these types extend [ContentNotAvailableException]
- * (itself a [ParsingException]), so order -- not type hierarchy -- decides the bucket.
- */
-internal fun mapNewPipeError(e: Exception): ExtractionError = when (e) {
-    is ReCaptchaException,
-    is AgeRestrictedContentException,
-    is PaidContentException,
-    is GeographicRestrictionException,
-    is SignInConfirmNotBotException,
-    -> ExtractionError.AccessChallenge("access challenge")
-
-    is PrivateContentException,
-    is ContentNotAvailableException,
-    -> ExtractionError.ContentUnavailable("content unavailable")
-
-    is IOException -> ExtractionError.Network("network error", e)
-
-    is ParsingException,
-    is ExtractionException,
-    -> ExtractionError.Unsupported("platform changed", e)
-
-    else -> ExtractionError.Unsupported("unknown newpipe failure", e)
 }
