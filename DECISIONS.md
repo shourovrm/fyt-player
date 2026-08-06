@@ -2,7 +2,18 @@
 
 ## Current state
 
-Signed arm64-v8a release APK builds; 94 JVM unit tests green. Compose + Material 3, single Activity.
+Signed arm64-v8a release APK builds; 203 JVM unit tests green. Compose + Material 3, single Activity.
+
+2026-08-06 wave: NewPipeExtractor v0.26.4 is tier-0 of the resolver chain for YouTube watch/shorts
+URLs (`source/newpipe/`, fast path, no Python spin-up); yt-dlp engine chain is the fallback and
+still owns downloads and all listing/search. Background playback works: `PlaybackSession.play()`
+starts `PlaybackService` (media3 MediaSessionService), notification/lockscreen/Bluetooth controls,
+`Prefs.backgroundPlayback` honored reactively (pause on ON_STOP when off). Captions: `Resolved.
+captions` → `SingleSampleMediaSource` merged per track, off by default, CC button + `CaptionSheet`
+picker, selection survives quality switch. Edge-to-edge chrome (scaffold background behind status
+bar); shorts pager full-bleed via `FullscreenChrome` with a real seekbar; mini player on the shorts
+grid. Detail page has a Like/Save/Download/Share/Queue action row; video/shorts cells carry a
+`Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only
@@ -28,7 +39,7 @@ And: library (likes / playlists / history, multi-select, resume bars), playlist 
 reorder, the download queue + foreground service + downloads screen, the shorts pager, and library
 backup (HTML + embedded JSON, export and import over SAF).
 
-Nothing has run on a device. The shorts pager has no feed behind it — see Tried / rejected.
+Earlier waves were device-verified on a Nothing A059 (Android 16); the 2026-08-06 wave is not yet.
 
 Home feed rebuilt: YouTube's public trending/explore feeds are dead (confirmed live — both
 redirect to youtube.com home and the engine reports the playlist gone), so `homepage()` now
@@ -46,24 +57,15 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
-Resume point: HEAD is wave 3, working tree clean, release build + 61 tests green. Wave 4 was
-started and stopped before any agent wrote a file — nothing partial to recover.
-
-- Wave 4, three parallel workstreams on disjoint files:
-  - Library — `ui/Library*`, `ui/Playlist*`, `ui/SavePlaylistSheet.kt`. Likes + playlists + history
-    tabs, multi-select, resume bars from `PositionsRepository.observeAll()`. Keep the wired
-    signatures `LibraryScreen(onOpenDetail, onOpenPlaylist)` and `PlaylistDetailScreen(id, onOpenDetail)`.
-  - Downloads — new `download/` package, `ui/DownloadsScreen.kt`, plus the `dataSync` service
-    declaration in the manifest. Must park a running row as resumable on the Android 15 foreground
-    timeout, and mux the separate video + audio pair with ffmpeg or a "1080p" download silently
-    yields a 360p file.
-  - Shorts + backup — `ui/Shorts*`, new `data/backup/`, `settings/BackupSettings.kt`, and the
-    `providesShorts` decision in `source/youtube/`. Backup is one HTML file with the machine copy
-    in a `<script type="application/json">` block; additive and idempotent on import.
-- Wave 5: clean build, tests, whole-branch review, arm64 release APK copied to repo root.
-- Still outstanding at every wave: nothing has run on a device. No `adb` device was attached.
-- Not built and not scheduled: engine self-update (`EngineUpdater`). Extractors rot, so this
-  matters before the app is usable long-term. Verified API for it is noted in Gotchas.
+- Device verification of the 2026-08-06 wave is PENDING (user does it): NewPipe resolve speed +
+  fallback, background play notification visibility (Android 13+ media-session exemption assumed,
+  unverified), lockscreen/Bluetooth, caption rendering, shorts fullscreen/seek, action row,
+  edge-to-edge on every route, meta lines.
+- NewPipe scope is watch/shorts extraction only — listings/search/comments still yt-dlp. Migrate
+  listing calls later if extraction proves itself on device.
+- Older open items from review: positions never saved (resume bars empty), signed thumbnail URLs
+  persisted for Likes/PlaylistItems, download/like/share unreachable from Channel/Listing screens,
+  shuffle desync, backup `unescapeForScript` round-trip.
 
 ## Gotchas
 
@@ -84,7 +86,6 @@ started and stopped before any agent wrote a file — nothing partial to recover
 - Per-channel errors must never be collapsed into "this channel has nothing" — a fetch failure and
   an empty channel are different facts (`ChannelFetchOutcome.Ok/NoContent/Failed`).
 
-- No device attached to `adb`; end-to-end device verification is outstanding for every wave so far.
 - `AndroidManifest.xml` declares a service only in the phase that adds its class — a declaration
   pointing at a missing class is a runtime crash, not a build failure.
 - Release APK is ~66 MB at skeleton size; the engine ships a Python runtime. `abiFilters` is pinned
@@ -143,6 +144,19 @@ started and stopped before any agent wrote a file — nothing partial to recover
   param — they only ever act on `searchResults` today. Re-add per-source browse tabs only if a
   future platform actually implements `homepage()`.
 
+- XML layout comments must not contain `--` (broke the resource compile once).
+- material3 `Slider`'s `thumb`/`track` slots are `ExperimentalMaterial3Api` — annotate or it's a
+  compile error, not a warning, in this project.
+- Leaf media source factories (`ProgressiveMediaSource`, `HlsMediaSource`) IGNORE
+  `MediaItem.subtitleConfigurations`; only `DefaultMediaSourceFactory` reads them. Sideloaded
+  captions on the hand-built `MergingMediaSource` need one `SingleSampleMediaSource` per track
+  merged into an outer `MergingMediaSource`.
+- Media-session notifications are exempt from the Android 13+ POST_NOTIFICATIONS runtime prompt,
+  so no permission flow exists — if the notification ever fails to show on a device, revisit this
+  assumption first.
+- Shorts grid and pager are ONE nav route (`Routes.SHORTS`) toggled by `ShortsViewModel.showPlayer`;
+  fullscreen gating keys on `FullscreenChrome.active`, not the route string.
+
 ## Tried / rejected
 
 - YouTube `/feed/trending` and `/feed/explore` as Home's source — dead. Both redirect to
@@ -191,3 +205,14 @@ started and stopped before any agent wrote a file — nothing partial to recover
   `AppScaffold.FullscreenChrome` so the nav bar and system-bar padding drop too. `PlaybackSession`
   gained `videoWidth`/`videoHeight` off `onVideoSizeChanged`; fullscreen orientation locks to
   match once known, so a portrait video no longer gets force-landscaped into a letterbox.
+- 2026-08-06 | NewPipeExtractor v0.26.4 as tier-0 resolver, yt-dlp fallback | On-device yt-dlp costs
+  3-15 s per resolve (Python spin-up + pure-Python JS); NewPipe does the same job in well under 1 s.
+  Fall through only on Unsupported/Network; AccessChallenge/ContentUnavailable stay hard stops.
+- 2026-08-06 | Captions off by default, selection per session | Matches the mockup and avoids
+  surprising data use; choice survives quality switches, resets per new video.
+- 2026-08-06 | Detail action row replaces long-press-only actions on the detail page | Long-press
+  sheet stays for list rows; the row reuses its extracted `VideoActions` logic.
+- 2026-08-06 | Meta line is text-only (option A) | No avatar fetch per visible row — the no-I/O
+  rule for list items decides this, not taste. `shortAge()` transforms platform text, never dates.
+- 2026-08-06 | POST_NOTIFICATIONS runtime prompt skipped | Media-session notifications are exempt;
+  a permission dialog would be pure friction. Assumption flagged in Gotchas for device test.

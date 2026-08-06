@@ -73,6 +73,7 @@ fun PlayerScreen(
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showJumpGrid by remember { mutableStateOf(false) }
+    var showCaptionSheet by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var seekThumbs by remember { mutableStateOf<SeekThumbnails?>(null) }
 
@@ -229,8 +230,6 @@ fun PlayerScreen(
                         onDownload = onDownload?.let { cb -> { interact(); cb() } },
                         onQuality = { interact(); showQualitySheet = true },
                         onSpeed = { interact(); showSpeedSheet = true },
-                        onPreviewGrid = { interact(); showJumpGrid = true },
-                        canPreviewGrid = seekThumbs != null && state.durationMs > 0,
                         modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
                     )
                     ControlBar(
@@ -238,6 +237,10 @@ fun PlayerScreen(
                         seekThumbs = seekThumbs,
                         fullscreen = fullscreen,
                         onToggleFullscreen = { interact(); onToggleFullscreen() },
+                        captionsAvailable = state.availableCaptions.isNotEmpty(),
+                        onOpenCaptions = { interact(); showCaptionSheet = true },
+                        canPreviewGrid = seekThumbs != null && state.durationMs > 0,
+                        onOpenPreviewGrid = { interact(); showJumpGrid = true },
                         modifier = Modifier.align(Alignment.BottomStart),
                     )
                 }
@@ -255,6 +258,14 @@ fun PlayerScreen(
                         current = state.speed,
                         onSelect = { PlaybackSession.setSpeed(it); showSpeedSheet = false },
                         onDismiss = { showSpeedSheet = false },
+                    )
+                }
+                if (showCaptionSheet) {
+                    CaptionSheet(
+                        tracks = state.availableCaptions,
+                        selectedLanguage = state.selectedCaptionLanguage,
+                        onSelect = { PlaybackSession.selectCaption(it); showCaptionSheet = false },
+                        onDismiss = { showCaptionSheet = false },
                     )
                 }
                 val thumbs = seekThumbs
