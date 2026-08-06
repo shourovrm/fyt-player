@@ -31,6 +31,11 @@ class PlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, PlaybackSession.exoPlayer)
             .apply { openApp?.let(::setSessionActivity) }
             .build()
+            // addSession, not just onGetSession: this service is STARTED (never bound), and
+            // onGetSession only runs on a controller bind. Without registering the session here,
+            // media3's notification manager never attaches — no media notification, no foreground
+            // promotion, ever (observed on device: startForegroundCount stayed 0 while playing).
+            .also(::addSession)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
