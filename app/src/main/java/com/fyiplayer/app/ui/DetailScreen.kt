@@ -1,21 +1,28 @@
 package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,14 +35,23 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
@@ -43,6 +59,7 @@ import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.HistoryRepository
+import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -202,6 +219,7 @@ fun DetailScreen(
                         )
                     }
                 }
+                item { VideoActionRow(rememberVideoActions(shownRef)) }
                 val description = detail.description
                 if (!description.isNullOrBlank()) {
                     item {
@@ -281,6 +299,108 @@ fun DetailScreen(
     }
 
     actionSheetRef?.let { target -> VideoActionSheet(target, onDismiss = { actionSheetRef = null }) }
+}
+
+/**
+ * Like / Save / Download / Share / Queue, directly under the title -- the same handlers
+ * [VideoActionSheet]'s long-press sheet uses ([VideoActions], `ui/VideoActionSheet.kt`), just laid
+ * out as a permanent row instead of a sheet. Like is the only button with an active look (accent +
+ * filled icon); it's read from [VideoActions.likedFlow], not a one-shot check, so a toggle from
+ * elsewhere (or from this row itself) is never stale.
+ */
+@Composable
+private fun VideoActionRow(actions: VideoActions, modifier: Modifier = Modifier) {
+    val liked by actions.likedFlow.collectAsState(initial = false)
+    var showPlaylistPicker by remember(actions.ref.pageUrl) { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    Row(modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+        ActionButton(label = "Like", active = liked, onClick = { actions.toggleLike(liked) }) { color ->
+            Icon(
+                if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = null, tint = color, modifier = Modifier.size(20.dp),
+            )
+        }
+        ActionButton(label = "Save", onClick = { showPlaylistPicker = true }) { color -> SaveGlyph(tint = color) }
+        ActionButton(label = "Download", onClick = { actions.startDownload() }) { color -> DownloadTrayGlyph(tint = color) }
+        ActionButton(label = "Share", onClick = { actions.share() }) { color ->
+            Icon(Icons.Filled.Share, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        }
+        ActionButton(label = "Queue", onClick = { PlaybackSession.enqueue(actions.ref) }) { color ->
+            Icon(Icons.Filled.Add, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        }
+    }
+
+    if (showPlaylistPicker) {
+        PlaylistPickerDialog(ref = actions.ref, playlists = actions.playlists, onDismiss = { showPlaylistPicker = false })
+    }
+    actions.downloadPicker?.let { state ->
+        DownloadQualityDialog(
+            state = state,
+            onSelect = { option: DownloadOption -> actions.confirmDownload(option) { message -> showToast(context, message) } },
+            onDismiss = { actions.dismissDownloadPicker() },
+        )
+    }
+}
+
+/** One column of the action row: icon over a 10.5sp-class label, ink2 idle / accent when [active]. */
+@Composable
+private fun RowScope.ActionButton(
+    label: String,
+    active: Boolean = false,
+    onClick: () -> Unit,
+    icon: @Composable (Color) -> Unit,
+) {
+    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier = Modifier.weight(1f).clickable(onClick = onClick).padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        icon(color)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+/** `material-icons-core` has neither a bookmark nor a download glyph (CLAUDE.md's own gotcha);
+ *  drawn by hand the same way the player's Pause/Skip/Fullscreen glyphs solve the same gap
+ *  (`player/PlayerOverlays.kt`). */
+@Composable
+private fun SaveGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val path = Path().apply {
+            moveTo(w * 0.22f, h * 0.06f)
+            lineTo(w * 0.78f, h * 0.06f)
+            lineTo(w * 0.78f, h * 0.95f)
+            lineTo(w * 0.5f, h * 0.72f)
+            lineTo(w * 0.22f, h * 0.95f)
+            close()
+        }
+        drawPath(path, tint, style = Stroke(width = w * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+@Composable
+private fun DownloadTrayGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = w * 0.09f
+        drawLine(tint, Offset(w * 0.5f, h * 0.08f), Offset(w * 0.5f, h * 0.6f), stroke, cap = StrokeCap.Round)
+        val arrow = Path().apply {
+            moveTo(w * 0.26f, h * 0.42f)
+            lineTo(w * 0.5f, h * 0.68f)
+            lineTo(w * 0.74f, h * 0.42f)
+        }
+        drawPath(arrow, tint, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawLine(tint, Offset(w * 0.14f, h * 0.88f), Offset(w * 0.86f, h * 0.88f), stroke, cap = StrokeCap.Round)
+    }
 }
 
 private fun formatCount(n: Long): String = NumberFormat.getIntegerInstance().format(n)

@@ -2,7 +2,11 @@
 <!-- PlayerView reads surface_type only from an AttributeSet at construction, and its code default
      is a plain SurfaceView. A texture surface is what lets the one shared view be reparented
      between the full player and the mini bar without flicker, so it has to come from real
-     compiled XML — an AttributeSet built in memory is not accepted by the view constructor. -->
+     compiled XML — an AttributeSet built in memory is not accepted by the view constructor.
+
+     No player_layout_id override here, so PlayerView inflates media3-ui's own default
+     exo_player_view.xml, which already includes a visible SubtitleView (id exo_subtitles);
+     captions render with no extra attribute once a text track is selected (PlaybackSession). -->
 <androidx.media3.ui.PlayerView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"

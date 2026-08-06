@@ -180,25 +180,65 @@ fun SkipGlyph(forward: Boolean, tint: Color, size: Dp = 24.dp, modifier: Modifie
 
 /** Four corner brackets — `material-icons-core` has no Fullscreen/FullscreenExit glyph either.
  *  [fullscreen] false draws brackets at the corners with arms pointing inward (enter fullscreen);
- *  true draws them near the centre with arms pointing outward (exit fullscreen). */
+ *  true draws them near the centre with arms pointing outward (exit fullscreen). [size] is a
+ *  parameter (like [PauseGlyph]/[SkipGlyph]) so the slimmer control-bar icon cluster can draw it
+ *  smaller than the original 20dp. */
 @Composable
-fun FullscreenGlyph(fullscreen: Boolean, tint: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(20.dp)) {
+fun FullscreenGlyph(fullscreen: Boolean, tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(size)) {
+        // this.size (DrawScope's own canvas-px Size), not the outer Dp parameter -- same name,
+        // shadowed, so it must be qualified (matches SkipGlyph/PauseGlyph just above).
         val stroke = 2.dp.toPx()
-        val arm = size.minDimension * 0.32f
-        val inset = if (fullscreen) size.minDimension * 0.30f else size.minDimension * 0.08f
+        val arm = this.size.minDimension * 0.32f
+        val inset = if (fullscreen) this.size.minDimension * 0.30f else this.size.minDimension * 0.08f
         val armSign = if (fullscreen) -1f else 1f
         val corners = listOf(
             Offset(inset, inset) to Offset(1f, 1f),
-            Offset(size.width - inset, inset) to Offset(-1f, 1f),
-            Offset(inset, size.height - inset) to Offset(1f, -1f),
-            Offset(size.width - inset, size.height - inset) to Offset(-1f, -1f),
+            Offset(this.size.width - inset, inset) to Offset(-1f, 1f),
+            Offset(inset, this.size.height - inset) to Offset(1f, -1f),
+            Offset(this.size.width - inset, this.size.height - inset) to Offset(-1f, -1f),
         )
         corners.forEach { (origin, dir) ->
             val ax = dir.x * armSign * arm
             val ay = dir.y * armSign * arm
             drawLine(tint, origin, Offset(origin.x + ax, origin.y), stroke, cap = StrokeCap.Round)
             drawLine(tint, origin, Offset(origin.x, origin.y + ay), stroke, cap = StrokeCap.Round)
+        }
+    }
+}
+
+/** Rounded rect + two text-line ticks — neither `material-icons-core` nor the extended set is on
+ *  this app's classpath, and there is no built-in "CC" glyph either way. [dim] is the disabled
+ *  look the control bar uses when the current item has no caption tracks at all. */
+@Composable
+fun CaptionsGlyph(tint: Color, dim: Boolean = false, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    val color = if (dim) tint.copy(alpha = 0.4f) else tint
+    Box(
+        modifier = modifier
+            .size(width = size, height = size * 0.72f)
+            .border(1.5.dp, color, RoundedCornerShape(3.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(size * 0.12f)) {
+            Spacer(Modifier.width(size * 0.26f).height(1.5.dp).background(color))
+            Spacer(Modifier.width(size * 0.26f).height(1.5.dp).background(color))
+        }
+    }
+}
+
+/** 2x2 grid of rounded squares — plain [Box]es, not a hand-drawn [Canvas] path, since four squares
+ *  need no path math. Opens the storyboard preview grid ([JumpGridSheet]) from the control bar. */
+@Composable
+fun PreviewGridGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+    val cell = size * 0.42f
+    val gap = size * 0.16f
+    Column(modifier = modifier.size(size), verticalArrangement = Arrangement.spacedBy(gap)) {
+        repeat(2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                repeat(2) {
+                    Spacer(Modifier.size(cell).background(tint, RoundedCornerShape(1.5.dp)))
+                }
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
@@ -34,98 +33,131 @@ import com.fyiplayer.app.download.DownloadQueue
 import com.fyiplayer.app.download.EnqueueOutcome
 import com.fyiplayer.app.download.ResolveOutcome
 import com.fyiplayer.app.player.PlaybackSession
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /**
- * Long-press action sheet shared by every result row. Queue actions call straight into
- * [PlaybackSession] -- the one player seam this layer may touch; everything else goes through the
- * matching repository. Opened once per user press, never per visible row, so the one-shot "is this
- * liked" read here is not the per-list-item I/O Rule 6 forbids.
+ * Like/save/download/share state and handlers shared by the long-press sheet ([VideoActionSheet])
+ * and the video-page action row (`ui/DetailScreen.kt`) -- one implementation so both surfaces
+ * toggle the same repositories the same way. Owned by the caller's composition via
+ * [rememberVideoActions], keyed on [ref]'s page URL.
+ *
+ * `appScope`, not the composition scope, backs every write: every caller here dismisses its own UI
+ * (sheet close, dialog close) right on top of the write, and a composition-scoped launch would be
+ * cancelled by that disposal before the download enqueue or like toggle actually lands.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+class VideoActions internal constructor(
+    val ref: VideoRef,
+    /** Continuous, not a one-shot read -- a toggle from the sheet must show up in the row (and
+     *  vice versa) without leaving and re-entering the page. */
+    val likedFlow: Flow<Boolean>,
+    val playlists: PlaylistRepository,
+    private val scope: CoroutineScope,
+    private val likes: LikesRepository,
+    private val downloads: DownloadQueue,
+    private val context: Context,
+) {
+    var downloadPicker by mutableStateOf<DownloadPickerState?>(null)
+        private set
+
+    fun toggleLike(currentlyLiked: Boolean) {
+        scope.launch { if (currentlyLiked) likes.unlike(ref.pageUrl) else likes.like(ref) }
+    }
+
+    fun share() {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            // Only the canonical page URL is ever put on the share sheet -- never a signed media
+            // URL (project rule: persist/share canonical page URLs only).
+            putExtra(Intent.EXTRA_TEXT, ref.pageUrl)
+            putExtra(Intent.EXTRA_TITLE, ref.title)
+        }
+        context.startActivity(Intent.createChooser(send, "Share link"))
+    }
+
+    /** Every download asks which size, every time -- never a silent fall-back to the playback
+     *  resolution preference. Resolving takes seconds, so this runs on [scope]: the caller's own
+     *  dialog may still be showing when it lands, but if it isn't, nothing was written yet --
+     *  resolving alone touches no row. */
+    fun startDownload() {
+        downloadPicker = DownloadPickerState.Resolving
+        scope.launch {
+            downloadPicker = when (val outcome = downloads.resolveOptions(ref)) {
+                is ResolveOutcome.Ready -> DownloadPickerState.Options(outcome.options)
+                is ResolveOutcome.Failed -> DownloadPickerState.Error(outcome.message)
+            }
+        }
+    }
+
+    fun confirmDownload(option: DownloadOption, onMessage: (String) -> Unit) {
+        scope.launch {
+            val outcome = downloads.start(ref, option)
+            onMessage(
+                when (outcome) {
+                    is EnqueueOutcome.Queued -> "Download queued"
+                    is EnqueueOutcome.Failed -> outcome.message
+                },
+            )
+        }
+        downloadPicker = null
+    }
+
+    fun dismissDownloadPicker() {
+        downloadPicker = null
+    }
+}
+
 @Composable
-fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
+fun rememberVideoActions(ref: VideoRef): VideoActions {
     val app = rememberFyiApp()
     val context = LocalContext.current
-    // Process scope, not rememberCoroutineScope: every action here dismisses the sheet, and
-    // disposal cancels a composition scope mid-write -- the multi-second download enqueue never
-    // survived long enough to write its row.
-    val scope = app.appScope
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val downloads = remember(context) { DownloadQueue.get(context) }
+    return remember(ref.pageUrl) {
+        VideoActions(ref, likes.observeIsLiked(ref.pageUrl), playlists, app.appScope, likes, downloads, context)
+    }
+}
 
-    var liked by remember(ref.pageUrl) { mutableStateOf<Boolean?>(null) }
-    LaunchedEffect(ref.pageUrl) { liked = likes.observeIsLiked(ref.pageUrl).first() }
-    var showPlaylistPicker by remember { mutableStateOf(false) }
-    // Own state, not folded into the sheet's dismissal: the sheet itself stays open underneath
-    // this while it resolves/lists/errors, so the user can still Cancel out without losing the
-    // rest of the action list.
-    var downloadPicker by remember(ref.pageUrl) { mutableStateOf<DownloadPickerState?>(null) }
+/** Long-press action sheet shared by every result row. Queue actions call straight into
+ *  [PlaybackSession] -- the one player seam this layer may touch; everything else goes through
+ *  [VideoActions], same as the video-page action row. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
+    val actions = rememberVideoActions(ref)
+    val liked by actions.likedFlow.collectAsState(initial = false)
+    var showPlaylistPicker by remember(ref.pageUrl) { mutableStateOf(false) }
+    val context = LocalContext.current
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 16.dp)) {
             SheetAction("Play next") { PlaybackSession.playNext(ref); onDismiss() }
             SheetAction("Add to queue") { PlaybackSession.enqueue(ref); onDismiss() }
             SheetAction("Add to playlist") { showPlaylistPicker = true }
-            SheetAction(if (liked == true) "Unlike" else "Like") {
-                scope.launch { if (liked == true) likes.unlike(ref.pageUrl) else likes.like(ref) }
-                onDismiss()
-            }
-            SheetAction("Share") {
-                val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    // Only the canonical page URL is ever put on the share sheet -- never a
-                    // signed media URL (project rule: persist/share canonical page URLs only).
-                    putExtra(Intent.EXTRA_TEXT, ref.pageUrl)
-                    putExtra(Intent.EXTRA_TITLE, ref.title)
-                }
-                context.startActivity(Intent.createChooser(send, "Share link"))
-                onDismiss()
-            }
-            SheetAction("Download") {
-                // Every download asks which size, every time -- never a silent fall-back to the
-                // playback resolution preference. Resolving takes seconds, so this runs on the
-                // process scope: the sheet (and this state) may still be showing when it lands,
-                // but if it isn't, nothing was written yet -- resolving alone touches no row.
-                downloadPicker = DownloadPickerState.Resolving
-                scope.launch {
-                    downloadPicker = when (val outcome = downloads.resolveOptions(ref)) {
-                        is ResolveOutcome.Ready -> DownloadPickerState.Options(outcome.options)
-                        is ResolveOutcome.Failed -> DownloadPickerState.Error(outcome.message)
-                    }
-                }
-            }
+            SheetAction(if (liked) "Unlike" else "Like") { actions.toggleLike(liked); onDismiss() }
+            SheetAction("Share") { actions.share(); onDismiss() }
+            SheetAction("Download") { actions.startDownload() }
         }
     }
 
     if (showPlaylistPicker) {
         PlaylistPickerDialog(
             ref = ref,
-            playlists = playlists,
+            playlists = actions.playlists,
             onDismiss = { showPlaylistPicker = false; onDismiss() },
         )
     }
 
-    downloadPicker?.let { state ->
+    actions.downloadPicker?.let { state ->
         DownloadQualityDialog(
             state = state,
             onSelect = { option: DownloadOption ->
-                // Same process-scope reasoning as the resolve above: this write must survive the
-                // sheet closing right underneath it.
-                scope.launch {
-                    val outcome = downloads.start(ref, option)
-                    val message = when (outcome) {
-                        is EnqueueOutcome.Queued -> "Download queued"
-                        is EnqueueOutcome.Failed -> outcome.message
-                    }
-                    showToast(context, message)
-                }
-                downloadPicker = null
+                actions.confirmDownload(option) { message -> showToast(context, message) }
                 onDismiss()
             },
-            onDismiss = { downloadPicker = null },
+            onDismiss = { actions.dismissDownloadPicker() },
         )
     }
 }
@@ -139,9 +171,10 @@ private fun SheetAction(label: String, onClick: () -> Unit) {
 }
 
 /** Existing playlists to add to, or create a new one inline. Read once when the dialog opens --
- *  not on the scroll path. */
+ *  not on the scroll path. Not private: also used by the video-page action row's Save button
+ *  (`ui/DetailScreen.kt`, same package). */
 @Composable
-private fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss: () -> Unit) {
+fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss: () -> Unit) {
     // Process scope: picking a playlist dismisses this dialog, and disposal would cancel the
     // write before it lands.
     val scope = rememberFyiApp().appScope
