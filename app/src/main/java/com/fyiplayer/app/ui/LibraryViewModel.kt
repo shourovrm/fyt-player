@@ -7,10 +7,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.repo.FollowedPlaylistRepository
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.data.repo.PositionsRepository
+import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -18,7 +20,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
-enum class LibraryTab { LIKES, PLAYLISTS, HISTORY }
+enum class LibraryTab { LIKES, PLAYLISTS, HISTORY, CHANNELS }
 
 /** Playlist card shape for the Playlists tab: name + count + first item's thumbnail, already
  *  joined so the row draws from one map lookup instead of a per-row query (rule 6). */
@@ -36,6 +38,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val playlists = PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao())
     val history = HistoryRepository(app.database.watchHistoryDao())
     val positions = PositionsRepository(app.database.playbackPositionDao())
+    val subscriptions = SubscriptionRepository(app.database.subscriptionDao())
+    val followedPlaylists = FollowedPlaylistRepository(app.database.followedPlaylistDao())
 
     var tab: LibraryTab by mutableStateOf(LibraryTab.LIKES)
         private set
@@ -50,6 +54,11 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggle(ref: VideoRef) {
         selection = selection.toggled(ref.pageUrl)
+    }
+
+    /** Channels/Playlists tabs select by row key (channel URL / namespaced playlist key), not VideoRef. */
+    fun toggleKey(key: String) {
+        selection = selection.toggled(key)
     }
 
     fun clearSelection() {
@@ -75,4 +84,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+
+    /** The Playlists tab's actual row list: local playlists plus followed remote ones, merged by
+     *  [mergePlaylistRows] (pure, unit-tested in LibrarySelectionTest). */
+    internal val playlistRows: Flow<List<PlaylistRow>> =
+        combine(playlistCards, followedPlaylists.observeAll()) { locals, followed -> mergePlaylistRows(locals, followed) }
 }

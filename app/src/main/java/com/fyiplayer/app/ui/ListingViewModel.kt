@@ -6,10 +6,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.repo.FollowedPlaylistRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -18,6 +20,8 @@ import kotlinx.coroutines.launch
  *  small [AndroidViewModel] (not folded into [HomeViewModel]) so switching listings never touches
  *  Home's own paging state, and so it survives nav-back/config-change the same way Home does. */
 class ListingViewModel(application: Application) : AndroidViewModel(application) {
+    private val followedPlaylists = FollowedPlaylistRepository((application as FyiApp).database.followedPlaylistDao())
+
     var items: List<VideoRef> by mutableStateOf(emptyList())
         private set
     var nextPage: String? by mutableStateOf(null)
@@ -41,6 +45,12 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun retry(listing: Listing) = load(listing, nextPage)
+
+    /** Idempotent: the page URL primary key on the followed-playlists table makes a repeat tap a
+     *  no-op instead of a duplicate row. */
+    fun follow(listing: Listing) {
+        viewModelScope.launch { followedPlaylists.follow(listing) }
+    }
 
     fun loadMore(listing: Listing) {
         val page = nextPage ?: return

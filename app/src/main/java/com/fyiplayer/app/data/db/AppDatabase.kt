@@ -32,6 +32,23 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/** v3 -> v4: follow a remote playlist without adding its videos to a local one. New table,
+ *  additive -- never fall back to destructive migration, that wipes a user's library. */
+private val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS followed_playlists (
+                pageUrl TEXT NOT NULL PRIMARY KEY,
+                sourceId TEXT NOT NULL,
+                title TEXT NOT NULL,
+                addedAt INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+    }
+}
+
 @Database(
     entities = [
         WatchHistoryEntity::class,
@@ -43,8 +60,9 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
         CookieEntity::class,
         DownloadEntity::class,
         SubscriptionEntity::class,
+        FollowedPlaylistEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -57,13 +75,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cookieDao(): CookieDao
     abstract fun downloadDao(): DownloadDao
     abstract fun subscriptionDao(): SubscriptionDao
+    abstract fun followedPlaylistDao(): FollowedPlaylistDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fyi-player.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
                 .also { instance = it }
         }

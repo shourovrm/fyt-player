@@ -65,7 +65,10 @@ fun AppShell(navController: NavHostController) {
         popExitTransition = { ExitTransition.None },
     ) {
         composable(Routes.HOME) {
-            HomeScreen(onOpenDetail = { navController.openDetail(it) })
+            HomeScreen(
+                onOpenDetail = { navController.openDetail(it) },
+                onOpenListing = { navController.openListing(it) },
+            )
         }
         composable(Routes.SHORTS) {
             ShortsScreen(onOpenDetail = { navController.openDetail(it) })
@@ -74,6 +77,7 @@ fun AppShell(navController: NavHostController) {
             LibraryScreen(
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenPlaylist = { navController.openPlaylist(it) },
+                onOpenListing = { navController.openListing(it) },
             )
         }
         composable(Routes.DOWNLOADS) {
