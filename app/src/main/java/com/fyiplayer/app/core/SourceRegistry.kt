@@ -8,8 +8,9 @@ package com.fyiplayer.app.core
  * nothing, and that keeps every predicate here pure and JVM-testable.
  */
 object SourceRegistry {
-    /** Populated by each platform module as it lands. */
-    val all: List<VideoSource> = listOf(com.fyiplayer.app.source.youtube.YoutubeSource())
+    /** Populated by each platform module as it lands. YouTube is NewPipeExtractor-backed; id stays
+     *  "youtube" so persisted subscriptions/history/likes rows and page URLs keep resolving. */
+    val all: List<VideoSource> = listOf(com.fyiplayer.app.source.newpipe.NewPipeYoutubeSource())
 
     /**
      * Sources that never appear as a Home tab or a search target, even when enabled — a
