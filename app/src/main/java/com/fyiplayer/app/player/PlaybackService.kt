@@ -1,5 +1,7 @@
 package com.fyiplayer.app.player
 
+import android.app.PendingIntent
+import android.content.Intent
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -17,7 +19,18 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        mediaSession = MediaSession.Builder(this, PlaybackSession.exoPlayer).build()
+        // Tapping the notification/lockscreen art must land somewhere; launcher intent is the
+        // only Activity this app has.
+        val openApp = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(
+                this, 0,
+                it.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        }
+        mediaSession = MediaSession.Builder(this, PlaybackSession.exoPlayer)
+            .apply { openApp?.let(::setSessionActivity) }
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
