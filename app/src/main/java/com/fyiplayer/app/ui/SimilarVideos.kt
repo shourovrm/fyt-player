@@ -103,16 +103,9 @@ internal fun LazyListScope.similarVideosSection(
     onClick: (VideoRef) -> Unit,
     onLongPress: (VideoRef) -> Unit,
 ) {
-    item {
-        // Honest label: search hits on this video's own topic, never a claim to be the
-        // platform's own recommendation feed (which the extraction engine doesn't expose).
-        Text(
-            "Similar -- search matches on this video's topic, not the platform's recommendations",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-        )
-    }
+    // No permanent explainer caption here: the tab label already says "Similar", and honesty
+    // about what this list actually is lives in the empty/error states below, not a standing
+    // banner above every result.
     when {
         loading && results.isEmpty() -> item {
             Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {

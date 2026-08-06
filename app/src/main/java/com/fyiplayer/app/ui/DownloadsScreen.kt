@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
@@ -41,8 +43,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.fyiplayer.app.data.repo.DownloadItem
@@ -83,10 +88,7 @@ fun DownloadsScreen() {
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (rows.isEmpty()) {
-                    EmptyStateScreen(
-                        title = "Nothing queued",
-                        message = "Long-press a video and choose Download to add it here.",
-                    )
+                    DownloadsEmptyState()
                 } else {
                     LazyColumn(
                         Modifier.fillMaxSize(),
@@ -146,6 +148,34 @@ fun DownloadsScreen() {
                 confirmClearCompleted = false
             },
             onDismiss = { confirmClearCompleted = false },
+        )
+    }
+}
+
+/** The only empty state on this screen -- no placeholder rows, since there's nothing "loading"
+ *  about an empty queue. The glyph is a text character, not an Icon: material-icons-core has no
+ *  download-tray shape (same gap [GlyphButton] below works around). */
+@Composable
+private fun DownloadsEmptyState() {
+    val extras = MaterialTheme.fyiExtras
+    Column(
+        Modifier.fillMaxSize().padding(top = 70.dp, start = 32.dp, end = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("⬇", style = MaterialTheme.typography.titleMedium, color = extras.ink3)
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("No downloads yet", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Videos you download appear here and play offline.",
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp),
+            color = extras.ink3,
+            textAlign = TextAlign.Center,
         )
     }
 }

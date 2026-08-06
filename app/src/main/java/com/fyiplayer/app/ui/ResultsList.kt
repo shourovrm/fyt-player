@@ -41,8 +41,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
  * Shared results-list rendering: Home and Listing both funnel into this instead of duplicating
@@ -153,14 +155,16 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
         }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
             Text(ref.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-            val meta = listOfNotNull(ref.uploader, ref.viewCountText).joinToString(" · ")
+            // Channel · views · age, non-null parts only -- a listing that carried none of these
+            // renders no meta line at all rather than a row of dangling separators.
+            val meta = listOfNotNull(ref.uploader, ref.viewCountText, shortAge(ref.uploadedText)).joinToString(" · ")
             if (meta.isNotBlank()) {
                 Text(
                     meta,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = MaterialTheme.fyiExtras.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }

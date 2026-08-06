@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.VideoRef
 
@@ -73,13 +75,28 @@ private fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
                 .fillMaxSize()
                 .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f))),
         )
-        Text(
-            ref.title,
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
-        )
+        Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
+            Text(
+                ref.title,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            // Compact form: channel · views (no " views" suffix -- the cell is narrow) · short age.
+            // Video rows keep the full "views" word (ResultsList.kt); shorts cells don't have room.
+            val meta = listOfNotNull(ref.uploader, ref.viewCountText?.removeSuffix(" views"), shortAge(ref.uploadedText))
+                .joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(
+                    meta,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
     }
 }
