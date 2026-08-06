@@ -75,4 +75,13 @@ class QueueMathTest {
     @Test fun `shuffle order of size zero is empty`() {
         assertEquals(emptyList<Int>(), QueueMath.shuffleOrder(0, seed = 1L))
     }
+
+    // Decision logic PlaybackSession.enqueue() leans on (see its doc): a queue that had run out
+    // (nextIndex null, repeat off, at the tail) gets a real next index again the moment it grows.
+    // enqueue() re-derives via this exact call after appending, instead of trusting a window built
+    // against the old, shorter queue -- that stale-window trust was the actual "Queue does nothing" bug.
+    @Test fun `an exhausted queue has a next index again once it grows`() {
+        assertNull(QueueMath.nextIndex(1, 2, RepeatMode.OFF))
+        assertEquals(2, QueueMath.nextIndex(1, 3, RepeatMode.OFF))
+    }
 }
