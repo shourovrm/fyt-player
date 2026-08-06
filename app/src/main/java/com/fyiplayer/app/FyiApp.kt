@@ -10,12 +10,14 @@ import com.fyiplayer.app.engine.EngineGate
 import com.fyiplayer.app.engine.EngineResolver
 import com.fyiplayer.app.engine.WebViewResolver
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.source.newpipe.NewPipeResolver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 
 /**
  * Process-scoped wiring. Everything here outlives every screen: playback must survive navigation,
@@ -29,8 +31,15 @@ class FyiApp : Application() {
     val prefs: Prefs by lazy { Prefs(this) }
     val database: AppDatabase by lazy { AppDatabase.get(this) }
 
-    /** The one resolver seam: engine first, read-only headless capture second. */
-    val resolver: ChainResolver by lazy { ChainResolver(EngineResolver(), WebViewResolver(this)) }
+    // Shared by NewPipeResolver only -- distinct from MediaItemFactory's playback client, a
+    // different concern (metadata fetch vs. media datasource).
+    private val newPipeHttpClient: OkHttpClient by lazy { OkHttpClient() }
+
+    /** The one resolver seam: NewPipeExtractor fast path for YouTube watch/shorts, engine next,
+     *  read-only headless capture last. */
+    val resolver: ChainResolver by lazy {
+        ChainResolver(EngineResolver(), WebViewResolver(this), NewPipeResolver(newPipeHttpClient))
+    }
 
     // Format selection runs on the player thread and cannot suspend, so the two preference flows
     // are mirrored into plain fields and the ceiling is picked per call by connection type.
