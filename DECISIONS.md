@@ -45,7 +45,9 @@ And: library (likes / playlists / history, multi-select, resume bars), playlist 
 reorder, the download queue + foreground service + downloads screen, the shorts pager, and library
 backup (HTML + embedded JSON, export and import over SAF).
 
-Earlier waves were device-verified on a Nothing A059 (Android 16); the 2026-08-06 wave is not yet.
+Device-verified on a Nothing A059 (Android 16) through the 2026-08-06 wave: home feed meta lines,
+shorts grid thumbnails+meta, Channels tab, background-play notification/lockscreen, captions
+(bottom), channel page + subscribe, edge-to-edge, 60s+ playback with no FGS crash.
 
 Home feed rebuilt: YouTube's public trending/explore feeds are dead (confirmed live — both
 redirect to youtube.com home and the engine reports the playlist gone), so `homepage()` now
@@ -63,15 +65,14 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
-- Device verification of the 2026-08-06 wave is PENDING (user does it): NewPipe resolve speed +
-  fallback, background play notification visibility (Android 13+ media-session exemption assumed,
-  unverified), lockscreen/Bluetooth, caption rendering, shorts fullscreen/seek, action row,
-  edge-to-edge on every route, meta lines.
-- NewPipe scope is watch/shorts extraction only — listings/search/comments still yt-dlp. Migrate
-  listing calls later if extraction proves itself on device.
+- User-side verification pending on the newest wave: queue-after-exhaustion on device, channel
+  Videos/Shorts play-selected/play-all, followed playlists end-to-end (follow → Library → open →
+  remove), playlist tab thumbnails, unsubscribe flow.
+- Search channel rows: `toChannelRef` maps subscriber count into viewCountText as a stopgap; a
+  typed channel result (Contracts-level) would let the row render properly and drop the URL
+  heuristic in HomeScreen.
 - Older open items from review: positions never saved (resume bars empty), signed thumbnail URLs
-  persisted for Likes/PlaylistItems, download/like/share unreachable from Channel/Listing screens,
-  shuffle desync, backup `unescapeForScript` round-trip.
+  persisted for Likes/PlaylistItems, shuffle desync, backup `unescapeForScript` round-trip.
 
 ## Gotchas
 
