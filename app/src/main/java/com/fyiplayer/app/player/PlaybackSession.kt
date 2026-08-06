@@ -2,18 +2,24 @@ package com.fyiplayer.app.player
 
 import android.content.Context
 import android.content.Intent
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import android.os.Looper
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.text.TextRenderer
+import androidx.media3.exoplayer.text.TextOutput
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
@@ -129,7 +135,43 @@ object PlaybackSession {
         this.maxHeight = maxHeight
         appContext = context.applicationContext
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-        player = ExoPlayer.Builder(appContext).build().apply {
+        // Sideloaded captions ride SingleSampleMediaSource, which hands the renderer RAW subtitle
+        // samples — media3's "legacy decoding" path, disabled by default since 1.4. Without this
+        // opt-in, selecting any caption kills playback with IllegalStateException ("can't handle
+        // application/ttml+xml samples"), which the UI then mislabels as a network failure.
+        val renderersFactory = object : DefaultRenderersFactory(appContext) {
+            override fun buildTextRenderers(
+                context: Context,
+                output: TextOutput,
+                outputLooper: Looper,
+                extensionRendererMode: Int,
+                out: ArrayList<Renderer>,
+            ) {
+                // The platform's caption files embed their own region positioning, which lands
+                // cues at the TOP of the surface. Stripping position/line/anchor per cue drops
+                // every track to SubtitleView's default placement: bottom-centered.
+                val bottomAnchored = TextOutput { cueGroup ->
+                    output.onCues(
+                        CueGroup(
+                            cueGroup.cues.map {
+                                it.buildUpon()
+                                    .setLine(Cue.DIMEN_UNSET, Cue.LINE_TYPE_FRACTION)
+                                    .setLineAnchor(Cue.TYPE_UNSET)
+                                    .setPosition(Cue.DIMEN_UNSET)
+                                    .setPositionAnchor(Cue.TYPE_UNSET)
+                                    .setSize(Cue.DIMEN_UNSET)
+                                    .build()
+                            },
+                            cueGroup.presentationTimeUs,
+                        ),
+                    )
+                }
+                super.buildTextRenderers(context, bottomAnchored, outputLooper, extensionRendererMode, out)
+                out.filterIsInstance<TextRenderer>()
+                    .forEach { it.experimentalSetLegacyDecodingEnabled(true) }
+            }
+        }
+        player = ExoPlayer.Builder(appContext, renderersFactory).build().apply {
             // audio focus and becoming-noisy belong on the player, not the media session
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -170,7 +212,13 @@ object PlaybackSession {
         // PlaybackService.onGetSession just hands back the session over this same player, so
         // starting it here (idempotent if already running) is enough for lockscreen/Bluetooth
         // controls and the notification to exist for the rest of this queue's lifetime.
-        ContextCompat.startForegroundService(appContext, Intent(appContext, PlaybackService::class.java))
+        // Plain startService, NOT startForegroundService: the latter arms the OS's
+        // must-call-startForeground timer, but media3 only promotes the service to foreground
+        // once a session is actually engaged (playWhenReady + READY/BUFFERING) — if resolution
+        // is still running when the timer fires, the system kills the whole app
+        // (ForegroundServiceDidNotStartInTimeException, seen on device). play() is always
+        // called with the app in the foreground, so startService is permitted.
+        appContext.startService(Intent(appContext, PlaybackService::class.java))
         queue = refs
         order = null
         index = QueueMath.clamp(startIndex, refs.size)
