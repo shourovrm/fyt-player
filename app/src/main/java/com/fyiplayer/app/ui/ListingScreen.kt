@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
@@ -62,10 +63,16 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                     },
                 )
             } else {
+                val context = LocalContext.current
                 TopAppBar(
                     title = { Text(listing.title.ifBlank { "Listing" }, maxLines = 1) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
                     actions = {
+                        if (listing.kind == Listing.Kind.PLAYLIST) {
+                            IconButton(onClick = { vm.follow(listing); showToast(context, "Added to playlists") }) {
+                                Icon(Icons.Filled.Add, contentDescription = "Add to playlists")
+                            }
+                        }
                         if (vm.items.isNotEmpty()) {
                             IconButton(onClick = { PlaybackSession.play(vm.items, 0) }) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = "Play all")

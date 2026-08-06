@@ -1,10 +1,13 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 private fun ref(url: String) = VideoRef(sourceId = "yt", pageUrl = url, remoteId = url, title = url)
+
+private fun listing(key: String) = Listing(sourceId = "yt", kind = Listing.Kind.PLAYLIST, key = key, title = key)
 
 class LibrarySelectionTest {
 
@@ -45,5 +48,26 @@ class LibrarySelectionTest {
         val items = listOf("a", "b", "c")
         assertEquals(items, moved(items, from = 0, delta = -1))
         assertEquals(items, moved(items, from = 2, delta = 1))
+    }
+
+    @Test fun `merged playlist rows put locals before followed`() {
+        val locals = listOf(PlaylistCard(1, "Local", 3, null))
+        val followed = listOf(listing("https://example.com/playlist"))
+        val rows = mergePlaylistRows(locals, followed)
+        assertEquals(
+            listOf(PlaylistRow.Local(locals[0]), PlaylistRow.Followed(followed[0])),
+            rows,
+        )
+    }
+
+    @Test fun `merged playlist rows key locals and followed in separate id spaces`() {
+        val locals = listOf(PlaylistCard(1, "Local", 0, null))
+        val followed = listOf(listing("1")) // deliberately colliding with the local id
+        val rows = mergePlaylistRows(locals, followed)
+        assertEquals(setOf("local:1", "followed:1"), rows.map { it.key }.toSet())
+    }
+
+    @Test fun `empty locals and followed merge to an empty list`() {
+        assertEquals(emptyList<PlaylistRow>(), mergePlaylistRows(emptyList(), emptyList()))
     }
 }

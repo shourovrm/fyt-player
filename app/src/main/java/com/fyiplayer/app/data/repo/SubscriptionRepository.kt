@@ -19,6 +19,8 @@ class SubscriptionRepository(private val dao: SubscriptionDao) {
 
     fun observeCount(): Flow<Int> = dao.observeCount()
 
+    suspend fun unsubscribe(channelUrl: String) = dao.unsubscribe(channelUrl)
+
     /** What a subscribe button actually needs: flip current state in one call. */
     suspend fun toggle(channelUrl: String, sourceId: String, title: String) {
         if (dao.isSubscribed(channelUrl).first()) {
