@@ -31,10 +31,13 @@
 
         <!-- services are declared by the phase that adds them: playback (mediaPlayback),
              downloads (dataSync). A declaration without its class is a runtime crash. -->
+        <!-- exported=true is required here, not a hole: media button routing (headset/Bluetooth,
+             Assistant, the system media session) binds to this service via the
+             androidx.media3.session.MediaSessionService action, which needs a cross-process bind. -->
         <service
             android:name=".player.PlaybackService"
             android:foregroundServiceType="mediaPlayback"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>

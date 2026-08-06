@@ -1,6 +1,11 @@
 package com.fyiplayer.app.player
 
 import android.content.Context
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -9,11 +14,13 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.StreamResolver
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.prefs.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +29,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -44,6 +53,10 @@ data class PlayerState(
     val error: ExtractionError? = null,
     val selectedHeight: Int? = null,
     val availableHeights: List<Int> = emptyList(),
+    // Captions default OFF (Contracts.kt's CaptionTrack carries no selection flag, and `init`
+    // disables the text renderer to match) -- null means Off, same as [CaptionSheet]'s own model.
+    val availableCaptions: List<CaptionTrack> = emptyList(),
+    val selectedCaptionLanguage: String? = null,
     val speed: Float = 1f,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val shuffled: Boolean = false,
@@ -74,6 +87,11 @@ object PlaybackSession {
     private lateinit var resolver: StreamResolver
     private lateinit var maxHeight: () -> Int
     private lateinit var scope: CoroutineScope
+    private lateinit var appContext: Context
+
+    // Mirror of Prefs.backgroundPlayback: the ON_STOP callback below needs a synchronous read,
+    // and re-reads reactively so flipping the setting applies without an app restart.
+    @Volatile private var backgroundPlaybackAllowed = true
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -90,6 +108,9 @@ object PlaybackSession {
     // The current item's raw formats, kept private — see PlayerState's doc. Only heights derived
     // from this ever reach [PlayerState.availableHeights].
     private var currentFormats: List<MediaFormat> = emptyList()
+    // Same item's caption tracks, re-attached to every rebuilt MediaSource (selectQuality included)
+    // -- see MediaItemFactory.create's doc for why the merge has to happen on every rebuild.
+    private var currentCaptions: List<CaptionTrack> = emptyList()
     private var loadJob: Job? = null
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
@@ -106,8 +127,9 @@ object PlaybackSession {
         if (::player.isInitialized) return
         this.resolver = resolver
         this.maxHeight = maxHeight
+        appContext = context.applicationContext
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-        player = ExoPlayer.Builder(context.applicationContext).build().apply {
+        player = ExoPlayer.Builder(appContext).build().apply {
             // audio focus and becoming-noisy belong on the player, not the media session
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -118,19 +140,44 @@ object PlaybackSession {
             )
             setHandleAudioBecomingNoisy(true)
             addListener(playerListener)
+            // Captions off by default (project requirement): a subtitle track carries no
+            // selection/default flag (MediaItemFactory), but text tracks with no flag can still be
+            // auto-picked by locale heuristics -- disabling the renderer outright is the only
+            // deterministic "off".
+            trackSelectionParameters = trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build()
         }
+        // A second Prefs instance is fine: preferencesDataStore's delegate is keyed on the
+        // (shared) applicationContext, so this and FyiApp's Prefs share one underlying store.
+        Prefs(appContext).backgroundPlayback
+            .onEach { backgroundPlaybackAllowed = it }
+            .launchIn(scope)
+        // Setting OFF means "don't keep playing when backgrounded" -- honour that on the one
+        // process-wide lifecycle signal for foreground/background, not per-Activity (a rotation
+        // or navigating between screens must not look like backgrounding).
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP && !backgroundPlaybackAllowed) player.pause()
+            }
+        )
     }
 
     private fun ensureInit() = check(::player.isInitialized) { "PlaybackSession.init() was not called" }
 
     fun play(refs: List<VideoRef>, startIndex: Int) {
         ensureInit()
+        // PlaybackService.onGetSession just hands back the session over this same player, so
+        // starting it here (idempotent if already running) is enough for lockscreen/Bluetooth
+        // controls and the notification to exist for the rest of this queue's lifetime.
+        ContextCompat.startForegroundService(appContext, Intent(appContext, PlaybackService::class.java))
         queue = refs
         order = null
         index = QueueMath.clamp(startIndex, refs.size)
         prepared = null
         retriedIndex = null
         currentFormats = emptyList()
+        currentCaptions = emptyList()
         // a fresh state must seed isPlaying from the player: onIsPlayingChanged only fires on a
         // change, and skipping between two already-playing items would otherwise never fire it.
         // speed is seeded too: it's a player-level setting that survives across queues.
@@ -248,7 +295,7 @@ object PlaybackSession {
         val resumeAt = player.currentPosition
         prepared = null
         window = listOf(index)
-        player.setMediaSource(MediaItemFactory.create(selection))
+        player.setMediaSource(MediaItemFactory.create(selection, queue.getOrNull(index), currentCaptions))
         player.prepare()
         player.seekTo(resumeAt)
         player.playWhenReady = true
@@ -256,8 +303,31 @@ object PlaybackSession {
             is FormatSelection.Single -> selection.format.height
             is FormatSelection.Paired -> selection.video.height
         }
-        _state.update { it.copy(selectedHeight = newHeight) }
+        // Same item, different rendition -- the caption pick survives (carryOverCaptionSelection),
+        // unlike every other reload path below, which starts a genuinely different item at Off.
+        val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = true)
+        applyCaptionSelection(language)
+        _state.update { it.copy(selectedHeight = newHeight, selectedCaptionLanguage = language) }
         prefetchNext()
+    }
+
+    /** Selects a text track by language, or null for Off. [availableCaptions] already lists what
+     *  the current item published, so the caller (CaptionSheet) always passes back one of those or
+     *  null -- this never guesses at a track the player has no source for. */
+    fun selectCaption(track: CaptionTrack?) {
+        ensureInit()
+        applyCaptionSelection(track?.languageCode)
+        _state.update { it.copy(selectedCaptionLanguage = track?.languageCode) }
+    }
+
+    /** Mutates the player's own [androidx.media3.common.TrackSelectionParameters] -- language-code
+     *  matching, not a track-index override, is what survives [selectQuality] rebuilding the
+     *  MediaSource with a fresh (re-indexed) subtitle track group. */
+    private fun applyCaptionSelection(languageCode: String?) {
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, languageCode == null)
+            .setPreferredTextLanguage(languageCode)
+            .build()
     }
 
     fun setRepeatMode(mode: RepeatMode) {
@@ -301,9 +371,12 @@ object PlaybackSession {
         queue = emptyList(); order = null; index = -1
         window = emptyList(); prepared = null; retriedIndex = null
         currentFormats = emptyList()
+        currentCaptions = emptyList()
         player.stop()
         player.clearMediaItems()
         _state.value = PlayerState()
+        // nothing left to play: drop the notification/session instead of leaving a stale one up
+        appContext.stopService(Intent(appContext, PlaybackService::class.java))
     }
 
     fun release() {
@@ -335,7 +408,7 @@ object PlaybackSession {
         window = emptyList()
         loadJob = scope.launch {
             val item = resolveItem(i, ref) ?: return@launch
-            player.setMediaSource(MediaItemFactory.create(item.selection))
+            player.setMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
             player.prepare()
             player.playWhenReady = true
             // retriedIndex is deliberately NOT cleared here. This runs on the re-resolve that a
@@ -344,10 +417,15 @@ object PlaybackSession {
             // when the user genuinely moves to another item.
             window = listOf(i)
             currentFormats = item.resolved.formats
+            currentCaptions = item.resolved.captions
+            // A different item always starts captions at Off, never whatever the previous item had.
+            val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = false)
+            applyCaptionSelection(language)
             _state.update {
                 it.copy(
                     current = ref, index = i, queueSize = queue.size, queue = queue, error = null,
                     selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
+                    availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                     isPlaying = player.isPlaying,
                 )
             }
@@ -364,10 +442,11 @@ object PlaybackSession {
         } catch (e: ExtractionError) {
             if (i == index) {
                 currentFormats = emptyList()
+                currentCaptions = emptyList()
                 _state.update {
                     it.copy(
                         current = ref, index = i, queueSize = queue.size, queue = queue,
-                        error = e, availableHeights = emptyList(),
+                        error = e, availableHeights = emptyList(), availableCaptions = emptyList(),
                     )
                 }
             }
@@ -378,11 +457,12 @@ object PlaybackSession {
         if (selection == null) {
             if (i == index) {
                 currentFormats = emptyList()
+                currentCaptions = emptyList()
                 _state.update {
                     it.copy(
                         current = ref, index = i, queueSize = queue.size, queue = queue,
                         error = ExtractionError.Unsupported(result.reason ?: "no playable format"),
-                        availableHeights = emptyList(),
+                        availableHeights = emptyList(), availableCaptions = emptyList(),
                     )
                 }
             }
@@ -409,7 +489,7 @@ object PlaybackSession {
             if (index != startedAt || window.size != 1 || window[0] != index) return@launch
             prepared = item
             window = window + n
-            player.addMediaSource(MediaItemFactory.create(item.selection))
+            player.addMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
         }
     }
 
@@ -419,10 +499,15 @@ object PlaybackSession {
         retriedIndex = null
         val ref = queue.getOrNull(item.queueIndex) ?: return
         currentFormats = item.resolved.formats
+        currentCaptions = item.resolved.captions
+        // A different item, same as startAt -- captions reset to Off, never carried over.
+        val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = false)
+        applyCaptionSelection(language)
         _state.update {
             it.copy(
                 current = ref, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
                 selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
+                availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                 // seed from the player: an advance between two already-playing items never fires
                 // onIsPlayingChanged, so a value left at the previous default would stick.
                 isPlaying = player.isPlaying,
@@ -527,3 +612,10 @@ object PlaybackSession {
 
 /** A signed URL that aged out comes back as one of these; re-resolve rather than retry it. */
 private val EXPIRED_HTTP_CODES = setOf(401, 403, 410)
+
+/** What a caption pick becomes across a MediaSource rebuild: kept for [isSameItem] (same video,
+ *  different rendition -- [PlaybackSession.selectQuality]), reset to Off for every other reload
+ *  (a genuinely different item, which always starts captions at Off). Pure and player-free so this
+ *  policy is unit-testable without ExoPlayer. */
+internal fun carryOverCaptionSelection(previous: String?, isSameItem: Boolean): String? =
+    previous.takeIf { isSameItem }
