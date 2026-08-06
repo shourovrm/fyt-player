@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,10 +24,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -190,12 +192,14 @@ internal fun ShortsPage(
         )
 
         if (isActive) {
-            val fraction = shortsProgressFraction(playerState.positionMs, playerState.durationMs)
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp),
-                color = Color.White,
-                trackColor = Color.White.copy(alpha = 0.25f),
+            ShortsSeekBar(
+                positionMs = playerState.positionMs,
+                durationMs = playerState.durationMs,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp)
+                    .padding(bottom = 12.dp),
             )
         }
     }
@@ -240,4 +244,54 @@ private fun RailButton(onClick: () -> Unit, content: @Composable () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
+}
+
+/**
+ * A real seekbar, not decoration: 3dp track, thumb + halo drawn only while a finger is actually
+ * down (mockup ui-fixes §2) so the bar reads as a thin progress line the rest of the time. The
+ * modifier's own height is the touch target (>=20dp) even though the drawn track is 3dp -- same
+ * "big grab area, thin visual" split [player.PlayerChrome.ControlBar] uses for the full player.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ShortsSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier = Modifier) {
+    var isScrubbing by remember { mutableStateOf(false) }
+    var scrubValueMs by remember { mutableStateOf(0L) }
+    val shownMs = if (isScrubbing) scrubValueMs else positionMs
+    val fraction = shortsProgressFraction(shownMs, durationMs)
+
+    Slider(
+        value = shownMs.toFloat(),
+        valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+        onValueChange = { value ->
+            isScrubbing = true
+            scrubValueMs = value.toLong()
+        },
+        onValueChangeFinished = {
+            PlaybackSession.seekTo(scrubValueMs)
+            isScrubbing = false
+        },
+        modifier = modifier.height(20.dp),
+        thumb = {
+            if (isScrubbing) {
+                Box(
+                    Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(13.dp).clip(CircleShape).background(Color.White))
+                }
+            }
+        },
+        track = {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.28f)),
+            ) {
+                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Color.White))
+            }
+        },
+    )
 }

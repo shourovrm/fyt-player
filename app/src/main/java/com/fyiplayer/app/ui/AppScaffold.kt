@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -18,25 +17,31 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.fyiplayer.app.player.asActivity
 
 /**
  * The one shared shell: owns the [NavHostController] (so the bottom nav and the [NavHost][
@@ -76,11 +81,25 @@ fun AppScaffold(
     // A tab switch must never leave the bar stranded off-screen on a destination that never scrolls.
     LaunchedEffect(route) { barVisible = true }
 
+    // Status-bar icon contrast: the app theme normally, but forced light over a full-bleed video
+    // (Detail's own fullscreen zoom or the Shorts pager, both flagged by FullscreenChrome) where
+    // the content underneath is unpredictable and may not contrast with the theme's own icons.
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val view = LocalView.current
+    SideEffect {
+        val window = view.context.asActivity()?.window ?: return@SideEffect
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars =
+            !FullscreenChrome.active && !isDarkTheme
+    }
+
     Scaffold(
-        // A fullscreen player must reach the screen edges — skip the app-wide inset padding
-        // while FullscreenChrome.active, rather than letting it stop the video short.
-        modifier = if (FullscreenChrome.active) modifier else modifier.windowInsetsPadding(WindowInsets.systemBars),
-        contentWindowInsets = WindowInsets(0), // already applied (and consumed) by the modifier above
+        // Full-bleed always: an outer inset-padding modifier here would push the Scaffold's own
+        // background (and everything in it) down below the status bar, leaving the raw window
+        // background showing through as a dead strip above the app. contentWindowInsets below
+        // insets the *content* instead, so the background paints behind the status bar and the
+        // icons drawn over it while the app surface still starts in the right place.
+        modifier = modifier,
+        contentWindowInsets = if (FullscreenChrome.active) WindowInsets(0) else WindowInsets.systemBars,
         bottomBar = {
             // One Column: queue bar + mini player sit above the nav bar and are part of the
             // Scaffold's bottom inset, so content is never hidden under them.
@@ -134,16 +153,22 @@ private const val NAV_HIDE_SLOP_PX = 3f
  * Routes that own the shared video surface themselves. There is exactly one `PlayerView` and the
  * last composable to attach it wins, so mounting the mini bar over one of these would steal the
  * surface out from under the screen currently playing into it.
+ *
+ * Detail always qualifies — its pinned header is the surface for as long as the route is on
+ * screen, fullscreen-zoomed or not. Shorts is one route for both the thumbnail grid and the
+ * full-screen pager (`ShortsScreen.kt`'s own `showPlayer` toggle, not a nav route), so only
+ * [FullscreenChrome.active] — which the pager sets true for exactly its own lifetime — tells them
+ * apart here; the grid wants the mini player and queue bar back, same as any other listing route.
  */
 private fun isFullPlayerRoute(route: String?): Boolean =
-    route?.startsWith("detail/") == true || route == Routes.SHORTS
+    route?.startsWith("detail/") == true || (route == Routes.SHORTS && FullscreenChrome.active)
 
 /**
- * Is a player currently fullscreen? Set by `DetailScreen`'s own fullscreen state — same package,
- * so no `player/` import is needed there — and read here to drop the nav bar and the app-wide
- * system-bar padding for exactly as long as fullscreen lasts. A narrow, explicitly-named seam
- * rather than inferring it from inset visibility, which DESIGN.md's pitfalls call out as always
- * getting it wrong.
+ * Is a full-bleed video surface on screen right now? Set by `DetailScreen`'s own fullscreen zoom
+ * and by the Shorts pager (`ShortsScreen.kt`) — both same package, so no `player/` import is
+ * needed there — and read here to drop the nav bar and the app-wide system-bar padding for
+ * exactly as long as that lasts. A narrow, explicitly-named seam rather than inferring it from
+ * inset visibility, which DESIGN.md's pitfalls call out as always getting it wrong.
  */
 internal object FullscreenChrome {
     var active by mutableStateOf(false)

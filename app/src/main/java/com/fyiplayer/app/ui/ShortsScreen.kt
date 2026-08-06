@@ -2,18 +2,13 @@ package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,10 +41,10 @@ import kotlinx.coroutines.flow.collect
  * the shorts tab of every subscribed channel instead -- see [ShortsFeed.kt], same shape as
  * [HomeFeed.kt]'s watch-history feed.
  *
- * See [FullBleedBox] for how the full-screen pager copes with `AppScaffold` consuming system-bar
- * insets for the whole app. `AppScaffold.isFullPlayerRoute` already keeps the mini player and
- * queue bar off the whole Shorts route (grid included), so the pager's active page is never
- * fighting anything else for the one shared video surface.
+ * The pager reuses [FullscreenChrome] — the same seam `DetailScreen`'s fullscreen zoom uses — so
+ * `AppScaffold` drops the nav bar and its system-bar inset padding for exactly as long as the
+ * pager is showing, and hides the mini player/queue bar too (`AppScaffold.isFullPlayerRoute`).
+ * The grid gets both back the moment `showPlayer` flips false, same as any other listing route.
  */
 @Composable
 fun ShortsScreen(onOpenDetail: (String) -> Unit) {
@@ -124,6 +119,14 @@ private fun ShortsPager(vm: ShortsViewModel, onOpenDetail: (String) -> Unit) {
     val playerState by PlaybackSession.state.collectAsState()
     val pagerState = rememberPagerState(initialPage = vm.pagerPage.coerceIn(0, items.size - 1)) { items.size }
 
+    // This composable's own lifetime IS "the pager is showing" -- ShortsScreen only reaches this
+    // branch while vm.showPlayer is true. Same DisposableEffect shape as DetailScreen's fullscreen
+    // toggle: restored false on every exit path, including leaving the Shorts tab entirely.
+    DisposableEffect(Unit) {
+        FullscreenChrome.active = true
+        onDispose { FullscreenChrome.active = false }
+    }
+
     // Start (or resync) the shared session on this feed. A returning composition -- nav back from
     // Detail with nothing else having taken the player -- finds the same queue already loaded and
     // is a no-op; a fresh page loaded by paging is appended, never re-played from the top.
@@ -164,36 +167,18 @@ private fun ShortsPager(vm: ShortsViewModel, onOpenDetail: (String) -> Unit) {
     // No endless paging: the feed is one round per subscribed channel (HomeFeed.kt's shape), not
     // a continuation token per source -- refreshFeed()/loadFeedIfNeeded() cover Shorts' whole feed.
 
-    FullBleedBox {
-        VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            val ref = items[page]
-            // Read state.index (collected above), not a mirrored copy: which page is "live" must
-            // never lag a frame behind the session or the wrong clip's title flashes.
-            ShortsPage(
-                ref = ref,
-                isActive = page == playerState.index,
-                playerState = playerState,
-                onOpenDetail = { RefCache.put(ref); onOpenDetail(ref.pageUrl) },
-            )
-        }
-    }
-}
-
-/**
- * `AppScaffold` pads the *entire* Scaffold for system-bar insets once, at its own outermost
- * modifier -- by the time this composes, the parent Box has already excluded the status-bar strip
- * from its constraints. `Modifier.size()` would just get coerced straight back into those
- * (DESIGN.md §8); `requiredSize()` is what actually lets this child exceed the parent and paint
- * under the status bar instead. Only the top is compensated: the bottom edge is left at the
- * Scaffold's own content boundary, which sits above its bottom nav bar -- see the KDoc on
- * [ShortsScreen] above for why going further than that needs a change this task could not make.
- */
-@Composable
-private fun FullBleedBox(content: @Composable () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val topInset = WindowInsets.systemBars.asPaddingValues().calculateTopPadding()
-        Box(Modifier.requiredSize(maxWidth, maxHeight + topInset).offset(y = -topInset)) {
-            content()
-        }
+    // FullscreenChrome.active (set above) is what makes AppScaffold stop consuming system-bar
+    // insets for this frame, so fillMaxSize here really does reach every edge -- no manual inset
+    // math needed on this end.
+    VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+        val ref = items[page]
+        // Read state.index (collected above), not a mirrored copy: which page is "live" must
+        // never lag a frame behind the session or the wrong clip's title flashes.
+        ShortsPage(
+            ref = ref,
+            isActive = page == playerState.index,
+            playerState = playerState,
+            onOpenDetail = { RefCache.put(ref); onOpenDetail(ref.pageUrl) },
+        )
     }
 }
