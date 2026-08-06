@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
@@ -54,7 +55,7 @@ import com.fyiplayer.app.player.PlaybackSession
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
+fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Unit) {
     val app = rememberFyiApp()
     val vm: HomeViewModel = viewModel()
     val listState = rememberLazyListState()
@@ -96,6 +97,13 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit) {
     // Playback queue is whichever list is actually on screen -- the search results, or Home's feed.
     val displayedItems = if (isSearching) searchItems else vm.feed.items
     fun playAndOpen(ref: VideoRef) {
+        // A YouTube search can return channel rows shaped as a VideoRef (NewPipeYoutubeSource's
+        // toChannelRef): no duration, pageUrl is the channel page, not a watch URL. detail() has
+        // no idea what to do with that -- route to the channel screen instead of a dead-end resolve.
+        if (isChannelPageUrl(ref.pageUrl)) {
+            onOpenListing(Listing(sourceId = ref.sourceId, kind = Listing.Kind.CHANNEL, key = ref.pageUrl, title = ref.title, thumbnailUrl = ref.thumbnailUrl))
+            return
+        }
         val index = displayedItems.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
         PlaybackSession.play(displayedItems, index)
         onOpenDetail(ref)
@@ -267,6 +275,18 @@ private fun SearchHistorySuggestions(entries: List<String>, onPick: (String) -> 
             }
         }
     }
+}
+
+/** True only for a URL shape YouTube actually uses for a channel page (/channel/UC…, /@handle,
+ *  /c/Name, /user/Name). Conservative on purpose: anything else -- including a parse failure --
+ *  stays on the video path, since a wrongly-guessed channel would send a real video into a listing
+ *  screen instead of playing it, which is the worse failure of the two. */
+internal fun isChannelPageUrl(pageUrl: String): Boolean {
+    val uri = runCatching { java.net.URI(pageUrl) }.getOrNull() ?: return false
+    val host = uri.host?.lowercase() ?: return false
+    if (!host.endsWith("youtube.com")) return false
+    val path = uri.path ?: return false
+    return path.startsWith("/channel/") || path.startsWith("/@") || path.startsWith("/c/") || path.startsWith("/user/")
 }
 
 /** Search-first top bar: one 48dp filled search pill. */

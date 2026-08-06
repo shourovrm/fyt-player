@@ -326,9 +326,10 @@ private fun VideoActionRow(actions: VideoActions, modifier: Modifier = Modifier)
         ActionButton(label = "Share", onClick = { actions.share() }) { color ->
             Icon(Icons.Filled.Share, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
         }
-        ActionButton(label = "Queue", onClick = { PlaybackSession.enqueue(actions.ref) }) { color ->
-            Icon(Icons.Filled.Add, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-        }
+        ActionButton(
+            label = "Queue",
+            onClick = { PlaybackSession.enqueue(actions.ref); showToast(context, "Added to queue") },
+        ) { color -> Icon(Icons.Filled.Add, contentDescription = null, tint = color, modifier = Modifier.size(20.dp)) }
     }
 
     if (showPlaylistPicker) {

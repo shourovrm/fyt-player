@@ -1,15 +1,21 @@
 package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -87,6 +93,13 @@ fun ChannelScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onOpenList
                     onClose = { selection = emptySet() },
                     onSelectAll = { selection = selectAllOrNone(currentVideos, selection) },
                     actions = {
+                        // Whole loaded tab, ignoring selection -- distinct from the FAB's "Play"
+                        // (selected only). Same icon/semantics as the non-selecting top bar's own
+                        // "Play all" button further down this file.
+                        IconButton(onClick = {
+                            if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0)
+                            selection = emptySet()
+                        }) { Icon(Icons.Filled.PlayArrow, contentDescription = "Play all") }
                         IconButton(onClick = {
                             selectedInOrder(currentVideos, selection).forEach { PlaybackSession.enqueue(it) }
                             selection = emptySet()
@@ -243,11 +256,26 @@ private fun ContainerTabBody(state: ContainerTabState, onOpen: (Listing) -> Unit
         }
         else -> LazyColumn(Modifier.fillMaxSize()) {
             items(state.items, key = { it.key }) { item ->
-                Text(
-                    item.title.ifBlank { "Untitled" },
-                    modifier = Modifier.fillMaxWidth().clickable { onOpen(item) }.padding(horizontal = 16.dp, vertical = 14.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                Row(
+                    Modifier.fillMaxWidth().clickable { onOpen(item) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Same idiom as ResultsList.kt's ResultRow: grey placeholder box when the
+                    // source didn't publish a thumbnail, never a blank gap.
+                    Box(
+                        Modifier.size(64.dp).clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        if (item.thumbnailUrl != null) {
+                            AsyncImage(model = item.thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                    Text(
+                        item.title.ifBlank { "Untitled" },
+                        modifier = Modifier.padding(start = 12.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
             }
             if (state.nextPage != null) {
                 item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(12.dp)) { Text("Load more") } }

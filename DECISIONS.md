@@ -4,9 +4,15 @@
 
 Signed arm64-v8a release APK builds; 203 JVM unit tests green. Compose + Material 3, single Activity.
 
-2026-08-06 wave: NewPipeExtractor v0.26.4 is tier-0 of the resolver chain for YouTube watch/shorts
-URLs (`source/newpipe/`, fast path, no Python spin-up); yt-dlp engine chain is the fallback and
-still owns downloads and all listing/search. Background playback works: `PlaybackSession.play()`
+2026-08-06 wave: NewPipeExtractor v0.26.4 is BOTH tier-0 of the resolver chain AND the YouTube
+VideoSource (`source/newpipe/NewPipeYoutubeSource`, id stays "youtube"): search, channel tabs,
+playlists, detail, comments, seek thumbnails, shorts (providesShorts=true now). yt-dlp keeps
+downloads, searchChannel (delegated — NewPipe has no channel-scoped search) and resolver fallback.
+Paging via PageToken (JSON-serialized NewPipe Page). List cells now carry real
+views/age/uploader (device-verified). Library gained a Channels tab (subscriptions, multi-select
+unsubscribe) and followed remote playlists (schema v4, `followed_playlists`, merged into the
+Playlists tab). Search channel rows navigate to the channel screen. Queue append works after
+queue exhaustion and toasts feedback. Background playback works: `PlaybackSession.play()`
 starts `PlaybackService` (media3 MediaSessionService), notification/lockscreen/Bluetooth controls,
 `Prefs.backgroundPlayback` honored reactively (pause on ON_STOP when off). Captions: `Resolved.
 captions` → `SingleSampleMediaSource` merged per track, off by default, CC button + `CaptionSheet`
@@ -151,9 +157,17 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   `MediaItem.subtitleConfigurations`; only `DefaultMediaSourceFactory` reads them. Sideloaded
   captions on the hand-built `MergingMediaSource` need one `SingleSampleMediaSource` per track
   merged into an outer `MergingMediaSource`.
-- Media-session notifications are exempt from the Android 13+ POST_NOTIFICATIONS runtime prompt,
-  so no permission flow exists — if the notification ever fails to show on a device, revisit this
-  assumption first.
+- The POST_NOTIFICATIONS "media session exemption" does NOT hold in practice: this OEM keeps an
+  unrequested app at importance=NONE and the media card never shows. MainActivity requests the
+  permission once at launch. Verified on device both ways.
+- A STARTED (never bound) MediaSessionService must call addSession() itself — onGetSession only
+  fires on a controller bind, and without registration media3's notification manager never
+  attaches: no notification, no foreground promotion (startForegroundCount stays 0).
+- Start PlaybackService with startService, never startForegroundService: media3 promotes to
+  foreground itself once a session is engaged; the manual FGS contract killed the whole app
+  (ForegroundServiceDidNotStartInTimeException) whenever promotion hadn't happened yet.
+- enqueue() must call prefetchNext() like every other queue mutator — without it, anything queued
+  after the queue exhausted (player parked in STATE_ENDED) silently never played.
 - Shorts grid and pager are ONE nav route (`Routes.SHORTS`) toggled by `ShortsViewModel.showPlayer`;
   fullscreen gating keys on `FullscreenChrome.active`, not the route string.
 
@@ -216,3 +230,12 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   rule for list items decides this, not taste. `shortAge()` transforms platform text, never dates.
 - 2026-08-06 | POST_NOTIFICATIONS runtime prompt skipped | Media-session notifications are exempt;
   a permission dialog would be pure friction. Assumption flagged in Gotchas for device test.
+- 2026-08-06 | NewPipe is the YouTube VideoSource, yt-dlp keeps downloads + searchChannel | Listings
+  now carry views/upload-age/uploader (yt-dlp flat listings never did); resolve + listing latency
+  drops from seconds to sub-second. sourceId stays "youtube" so persisted rows keep resolving.
+- 2026-08-06 | Followed remote playlists = bookmark row, not item copy | A follow stores only the
+  canonical playlist page URL + title; opening it re-fetches live. Copying items would go stale
+  and duplicate paging logic.
+- 2026-08-06 | Caption cues stripped of embedded positioning at the renderer | Platform TTML/VTT
+  regions rendered at the TOP of the surface; SubtitleView's default (bottom-centered) is what
+  users expect. One TextOutput wrapper, format-independent.

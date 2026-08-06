@@ -134,7 +134,7 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 16.dp)) {
             SheetAction("Play next") { PlaybackSession.playNext(ref); onDismiss() }
-            SheetAction("Add to queue") { PlaybackSession.enqueue(ref); onDismiss() }
+            SheetAction("Add to queue") { PlaybackSession.enqueue(ref); showToast(context, "Added to queue"); onDismiss() }
             SheetAction("Add to playlist") { showPlaylistPicker = true }
             SheetAction(if (liked) "Unlike" else "Like") { actions.toggleLike(liked); onDismiss() }
             SheetAction("Share") { actions.share(); onDismiss() }

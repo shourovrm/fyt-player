@@ -255,6 +255,14 @@ object PlaybackSession {
         if (queue.isEmpty()) { play(listOf(ref), 0); return }
         queue = queue + ref
         publishQueueState()
+        // Root cause of "Queue does nothing": every other mutator (playNext/move/removeAt) calls
+        // prefetchNext() after touching `queue`, so it re-derives from the grown list. This one
+        // didn't. Most visible when the old queue had already run out (nextIndex was null, player
+        // sat in STATE_ENDED with nothing scheduled) -- appending never re-checked, so playback
+        // just stayed stopped forever. prefetchNext() re-derives via QueueMath.nextIndex against
+        // the live queue and, once it resolves, calls player.addMediaSource -- ExoPlayer resumes
+        // out of ENDED on its own once a next period exists and playWhenReady is still true.
+        prefetchNext()
     }
 
     /** Advance one item. Reuses the prefetched slot when it's still the right one, so the common
