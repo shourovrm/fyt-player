@@ -7,6 +7,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
@@ -129,7 +130,12 @@ fun AppScaffold(
             }
         },
     ) { inner ->
-        Box(Modifier.fillMaxSize().padding(inner).nestedScroll(nestedScrollConnection)) {
+        // consumeWindowInsets: without it, screens with their own nested Scaffold/TopAppBar apply
+        // the status-bar inset a second time — a status-bar-height dead gap above their app bar.
+        Box(
+            Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner)
+                .nestedScroll(nestedScrollConnection),
+        ) {
             content(navController)
         }
     }
