@@ -421,6 +421,27 @@ object PlaybackSession {
         if (affectsWindow) prefetchNext()
     }
 
+    /** Drops every queue entry except the one currently playing -- the queue bar's ×/"Clear".
+     *  Closing the queue dismisses upcoming items, never the current video: queue ≠ player, so
+     *  playback is never interrupted. Only the prefetched-next player slot (if any) is torn down;
+     *  the current item's MediaSource is untouched. */
+    fun clearQueue() {
+        ensureInit()
+        val current = queue.getOrNull(index)
+        if (current == null) { clear(); return } // nothing playing: same as a full clear
+        dropPrefetchedWindowSlot() // removes the prefetched slot from the player, if one exists
+        queue = listOf(current)
+        order = null
+        index = 0
+        window = listOf(0) // queue just got reindexed to a single item at 0
+        retriedIndex = null // tied to the old index numbering, now meaningless
+        // The shuffle order indexed the old queue, so it had to go; say so, or the button keeps
+        // claiming shuffle is on over a queue that no longer has one.
+        _state.update { it.copy(shuffled = false) }
+        publishQueueState()
+        prefetchNext() // no-op on a 1-item queue, but every mutator ends with this -- see class doc
+    }
+
     fun clear() {
         ensureInit()
         loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()

@@ -89,8 +89,9 @@ internal fun ControlBar(
                 },
                 // Custom track/thumb slots (material3 1.4's Slider supports both) draw the exact
                 // 2.5dp/10dp the slimmer chrome calls for -- SliderDefaults' own Track/Thumb have no
-                // parameter for a track this thin. The 24dp row height keeps the touch target
-                // bigger than the drawn line, same idea as the original 48dp row had.
+                // parameter for a track this thin. Drag hit-testing is Slider's own layout bounds,
+                // not the thumb's, so a 24dp row let fingers slip off (reported: released easily) --
+                // 40dp modifier height grabs a real touch target while track/thumb stay visually thin.
                 track = {
                     Box(
                         Modifier
@@ -108,15 +109,18 @@ internal fun ControlBar(
                     }
                 },
                 thumb = {
-                    Box(
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                    )
+                    // 28dp box is the grab target; the 10dp fill inside is all that's drawn.
+                    Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                    }
                 },
                 modifier = Modifier
-                    .height(24.dp)
+                    .height(40.dp)
                     .onGloballyPositioned { sliderWidthPx = it.size.width },
             )
             if (isScrubbing) {

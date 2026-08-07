@@ -22,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,6 +86,15 @@ fun QueueBar(modifier: Modifier = Modifier) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(24.dp),
         )
+        // Close = clear: dropping to a 1-item queue makes this bar's own guard (queueSize <= 1)
+        // hide it, which is the intended dismiss affordance. Never touches playback -- queue ≠ player.
+        IconButton(onClick = { PlaybackSession.clearQueue() }, modifier = Modifier.size(24.dp)) {
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = "Close queue",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 
     if (expanded) {
@@ -94,11 +104,19 @@ fun QueueBar(modifier: Modifier = Modifier) {
         // the ones around the current position.
         LaunchedEffect(state.index) { listState.scrollToItem(state.index.coerceAtLeast(0)) }
         ModalBottomSheet(onDismissRequest = { expanded = false }, sheetState = sheetState) {
-            Text(
-                "Queue — ${state.index + 1} of ${state.queueSize}",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Queue — ${state.index + 1} of ${state.queueSize}",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { PlaybackSession.clearQueue(); expanded = false }) {
+                    Text("Clear")
+                }
+            }
             LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp)) {
                 itemsIndexed(state.queue, key = { _, ref -> ref.pageUrl }) { i, ref ->
                     Row(
