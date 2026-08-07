@@ -63,7 +63,13 @@ import com.fyiplayer.app.player.PlaybackSession
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChannelScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Unit, onBack: () -> Unit) {
+fun ChannelScreen(
+    listing: Listing,
+    onOpenDetail: (VideoRef) -> Unit,
+    onOpenListing: (Listing) -> Unit,
+    onOpenShorts: (List<VideoRef>, Int) -> Unit,
+    onBack: () -> Unit,
+) {
     val vm: ChannelViewModel = viewModel()
     LaunchedEffect(listing) { vm.ensureChannel(listing) }
 
@@ -81,8 +87,14 @@ fun ChannelScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onOpenList
 
     fun playAndOpen(ref: VideoRef) {
         val index = currentVideos.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
-        PlaybackSession.play(currentVideos, index)
-        onOpenDetail(ref)
+        // Shorts are vertical clips: open the swipe pager, not the landscape detail player.
+        val sel = vm.selected
+        if (sel is ChannelUiTab.Content && sel.tab == ChannelTab.SHORTS) {
+            onOpenShorts(currentVideos, index)
+        } else {
+            PlaybackSession.play(currentVideos, index)
+            onOpenDetail(ref)
+        }
     }
 
     Scaffold(

@@ -15,10 +15,14 @@ import kotlinx.serialization.json.Json
 
 private val jsonCodec = Json { ignoreUnknownKeys = true }
 
-/** Tier 1 of the resolver chain: the engine's own info JSON, no markup parsing anywhere. */
-class EngineResolver : StreamResolver {
+/** Tier 1 of the resolver chain: the engine's own info JSON, no markup parsing anywhere.
+ *  [cookieFor] returns the user's own session cookie for a page URL (or null) — the engine can
+ *  pass an age wall with the account the user actually signed in with. Never logged. */
+class EngineResolver(private val cookieFor: (String) -> String? = { null }) : StreamResolver {
     override suspend fun resolve(ref: VideoRef): Resolved {
-        val out = runEngine(ref.pageUrl, "-J", "--no-playlist", "--no-warnings")
+        val cookie = cookieFor(ref.pageUrl)
+        val paired = if (cookie == null) emptyList() else listOf("--add-header" to "Cookie: $cookie")
+        val out = runEngine(ref.pageUrl, "-J", "--no-playlist", "--no-warnings", paired = paired)
         return parseInfoJson(out, ref, System.currentTimeMillis())
     }
 }

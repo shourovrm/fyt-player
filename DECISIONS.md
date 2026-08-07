@@ -78,6 +78,18 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
+- **Age-gate wave (next): swap extractor to local PipePipeExtractor** (`~/repos/PipePipe`,
+  composite build via `includeBuild` + dependency substitution, PipePipe's own client does
+  exactly this). Confirmed on device: signed-in age-gated videos hard-fail on upstream NewPipe
+  (AccessChallenge), cookied yt-dlp (`--add-header Cookie:`) fails too (Unsupported after ~13 s),
+  WebView tier captures only an unplayable SABR/segment URL. PipePipe's fix: logged-in ->
+  `NewPipe.setYoutubePlayerClient("tv_downgraded")`, anonymous -> `visionos`
+  (PipePipeClient `App.reconcileYoutubePlayerClient`). Port cost: fork is pre-0.24 layout — no
+  `channel.tabs.ChannelTabInfo/ChannelTabs`, no `SignInConfirmNotBotException`; ~7 files in
+  `source/newpipe/` need import/signature ports; fork may need its WebView JS-decoder seam wired.
+- 2026-08-07 shorts/guardrail wave device-verified (this session): back from either shorts pager
+  stops playback; channel Shorts tab opens the swipe pager at the tapped clip; resolve failure no
+  longer leaves the previous video playing under the guardrail.
 - 2026-08-07 wave device-verified on the Nothing A059 EXCEPT sign-in (user is testing that
   themselves): language/country (results shift region, applies live and across cold start),
   Courses tab (freeCodeCamp: two learning paths), description tab (HTML rendered, entities
@@ -191,7 +203,15 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - enqueue() must call prefetchNext() like every other queue mutator — without it, anything queued
   after the queue exhausted (player parked in STATE_ENDED) silently never played.
 - Shorts grid and pager are ONE nav route (`Routes.SHORTS`) toggled by `ShortsViewModel.showPlayer`;
-  fullscreen gating keys on `FullscreenChrome.active`, not the route string.
+  fullscreen gating keys on `FullscreenChrome.active`, not the route string. Shorts from OTHER
+  listings (channel Shorts tab) use the separate `Routes.SHORTS_PLAYER` + `ShortsPlayerRequest`
+  handoff (list can't ride a nav arg). Back from EITHER pager calls `PlaybackSession.clear()` —
+  a vertical clip must never leak into the mini player, which would reopen it in the landscape
+  detail player with no swipe navigation.
+- ChainResolver hard stops (AccessChallenge/ContentUnavailable rethrows) were LOG-SILENT — cost a
+  debugging session. They log tier + exception class now; keep it that way.
+- A resolve failure for the current item must stop + clear the player: the previous queue item
+  otherwise keeps playing under the error guardrail and auto-advances over it later.
 
 - YouTube publishes NO upload date on shorts shelf items: both `YoutubeShortsLockupInfoItemExtractor`
   and `YoutubeReelInfoItemExtractor` return null from `getTextualUploadDate()` (checked in the
@@ -300,3 +320,17 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-06 | Caption cues stripped of embedded positioning at the renderer | Platform TTML/VTT
   regions rendered at the TOP of the surface; SubtitleView's default (bottom-centered) is what
   users expect. One TextOutput wrapper, format-independent.
+- 2026-08-07 | Back from any shorts pager stops playback (`PlaybackSession.clear()`) | A vertical
+  clip surviving into the mini player reopens in the landscape detail player with no swipe nav —
+  worse than honest silence. User asked for exactly this.
+- 2026-08-07 | Channel Shorts tab opens `Routes.SHORTS_PLAYER` (reused `ShortsPager`) | Any shorts
+  listing should page with swipe up/down; refs are canonical watch URLs so the TAB context, not
+  the URL, is what identifies a short.
+- 2026-08-07 | Resolve failure stops the player and drops the stale prefetch | The old item kept
+  playing under the guardrail and later auto-advanced over it — root cause of "shows login wall
+  but starts playing after some time".
+- 2026-08-07 | Signed-in AccessChallenge retries tier1-with-cookie then tier2, rethrows ORIGINAL
+  wall | The user's own account may pass an age wall the anonymous extractor cannot; no wall is
+  dismissed anywhere. Confirmed insufficient for YouTube age-gate on device (engine ignores the
+  bare Cookie header; tier2 captures SABR segments) — kept as chain shape, real fix is the
+  PipePipeExtractor wave (see Next).

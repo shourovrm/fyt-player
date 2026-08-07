@@ -20,6 +20,9 @@ import com.fyiplayer.app.player.PlayerScreen
 object Routes {
     const val HOME = "home"
     const val SHORTS = "shorts"
+    // Full-screen swipe pager over a shorts listing that isn't the Shorts tab's own feed
+    // (channel Shorts tab); its item list rides in ShortsPlayerRequest, not the route.
+    const val SHORTS_PLAYER = "shortsPlayer"
     const val LIBRARY = "library"
     const val DOWNLOADS = "downloads"
     const val SETTINGS = "settings"
@@ -48,6 +51,13 @@ fun NavController.openListing(listing: Listing) = navigate(
 
 fun NavController.openPlaylist(id: String) = navigate("playlist/${Uri.encode(id)}")
 
+/** Opens the swipe pager over [items] starting at [index] — see [ShortsPlayerRequest]. */
+fun NavController.openShortsPlayer(items: List<VideoRef>, index: Int) {
+    ShortsPlayerRequest.items = items
+    ShortsPlayerRequest.index = index
+    navigate(Routes.SHORTS_PLAYER)
+}
+
 /**
  * The NavHost, hosted inside [AppScaffold]'s content slot so it shares one [NavHostController]
  * with the bottom nav. All four transitions are [EnterTransition.None]/[ExitTransition.None] —
@@ -72,6 +82,12 @@ fun AppShell(navController: NavHostController) {
         }
         composable(Routes.SHORTS) {
             ShortsScreen(onOpenDetail = { navController.openDetail(it) })
+        }
+        composable(Routes.SHORTS_PLAYER) {
+            ShortsPlayerScreen(
+                onOpenDetail = { navController.openDetail(it) },
+                onClose = { navController.popBackStack() },
+            )
         }
         composable(Routes.LIBRARY) {
             LibraryScreen(
@@ -133,6 +149,7 @@ fun AppShell(navController: NavHostController) {
                     listing = listing,
                     onOpenDetail = { navController.openDetail(it) },
                     onOpenListing = { navController.openListing(it) },
+                    onOpenShorts = { items, index -> navController.openShortsPlayer(items, index) },
                     onBack = { navController.popBackStack() },
                 )
             } else {
