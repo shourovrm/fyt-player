@@ -66,6 +66,7 @@ fun SeekPreviewHud(previewText: String, modifier: Modifier = Modifier) {
 
 internal val SEEK_PREVIEW_WIDTH = 112.dp
 internal val SEEK_PREVIEW_HEIGHT = 63.dp
+internal val SEEK_PREVIEW_GAP = 8.dp
 
 /**
  * One preview frame in a [width]x[height] box: either a direct still ([SeekPreviewImage.Frame])

@@ -75,7 +75,13 @@ internal fun ControlBar(
         val durationMs = state.durationMs.coerceAtLeast(1L)
         val fraction = (shownMs.toFloat() / durationMs).coerceIn(0f, 1f)
 
-        Box(modifier = Modifier.fillMaxWidth()) {
+        // Height pinned to the slider's own 40dp -- NOT left to wrap its children. The preview
+        // below is a sibling shown only while scrubbing; an unbounded Box would size itself to
+        // that preview's ~90dp natural height (Modifier.offset shifts placement, not the measured
+        // size the parent sees) the instant a drag starts. This Column is bottom-anchored in
+        // PlayerScreen, so that growth shoved the slider itself up the screen mid-drag -- the
+        // thumb jumped out from under the finger and the drag "released" (reported: several times).
+        Box(modifier = Modifier.fillMaxWidth().height(40.dp)) {
             Slider(
                 value = shownMs.toFloat(),
                 valueRange = 0f..durationMs.toFloat(),
@@ -126,12 +132,27 @@ internal fun ControlBar(
             if (isScrubbing) {
                 val density = LocalDensity.current
                 val previewWidthPx = with(density) { SEEK_PREVIEW_WIDTH.roundToPx() }
-                val liftPx = with(density) { 80.dp.roundToPx() }
-                val xPx = (fraction * sliderWidthPx - previewWidthPx / 2).toInt()
+                val gapPx = with(density) { SEEK_PREVIEW_GAP.roundToPx() }
+                // Measured, not guessed: the card drops its thumbnail box when no image is
+                // available yet (see SeekThumbnailPreview), so its real height varies -- a fixed
+                // lift only fit one of the two cases. Seeded with a close estimate so the very
+                // first scrub frame doesn't visibly pop once the real measurement lands.
+                var previewHeightPx by remember {
+                    mutableStateOf(with(density) { (SEEK_PREVIEW_HEIGHT + 24.dp).roundToPx() })
+                }
+                // Clamped to the slider's own width -- the track already spans the full available
+                // width (minus the Column's edge padding), so this keeps the card from poking past
+                // either edge instead of centering blindly on the thumb.
+                val xPx = (fraction * sliderWidthPx - previewWidthPx / 2)
+                    .toInt()
+                    .coerceIn(0, (sliderWidthPx - previewWidthPx).coerceAtLeast(0))
                 SeekThumbnailPreview(
                     image = seekThumbs?.imageFor(scrubValueMs / 1000.0),
                     timestampText = formatPosition(scrubValueMs, state.durationMs),
-                    modifier = Modifier.align(Alignment.TopStart).offset { IntOffset(xPx, -liftPx) },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset { IntOffset(xPx, -(previewHeightPx + gapPx)) }
+                        .onGloballyPositioned { previewHeightPx = it.size.height },
                 )
             }
         }
