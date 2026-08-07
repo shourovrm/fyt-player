@@ -88,9 +88,13 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Zulu timeago strings on SEARCH result rows only ("iminyaka edlule") — detail dates are
   English, settings are English/US. Somewhere the fork localizes search textualUploadDate
   wrong. Cosmetic; not yet diagnosed.
-- Downloads of age-gated videos still fail: DownloadQueue rides yt-dlp, which stays anonymous
-  (the `--add-header Cookie` attempt did NOT unlock gated resolves — engine ignores bare
-  cookie headers for auth). Would need a cookies-file export or a different download path.
+- If stutter persists after the rn/UA media shaping (user judging): the next step is a ranged
+  10 MB chunking media3 DataSource for googlevideo progressive streams — PipePipe's smooth path
+  is synthesized-DASH with bounded `range=` chunk fetches, plain open-ended progressive is only
+  its fallback. The downloader already proves chunking unlocks full speed on this network.
+- YouTube downloads now stream via the extractor chain + OkHttp + MediaMuxer
+  (`download/StreamDownloader.kt`); yt-dlp keeps every non-YouTube source. Age-gated download
+  verified end-to-end on device (h264+aac mp4, ffprobe-clean).
 - Signature/throttling decode falls back to PipePipe's REMOTE decoder API
   (`api.pipepipe.dev/decoder/decode`, sends playerId + sig params only) when no local decoder
   is registered. Wire the fork's WebView JS-decoder seam locally if that dependency bothers us.
@@ -368,3 +372,19 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   proven mechanism (its own client ships it). jitpack has no usable artifact, hence
   includeBuild. Verified on device: gated video resolves tier0 <2 s and plays; search, channel
   tabs, shorts grid, comments, home feed all live on the fork.
+- 2026-08-07 | Opening any detail page plays that video, once per nav entry | History/Library
+  rows only navigated, dead-ending at "Nothing playing"; and with something else playing the
+  page showed the wrong video. `rememberSaveable` autoplay latch = pop-back never hijacks
+  playback that legitimately moved on; mini-player tap (same ref, no error) never restarts.
+- 2026-08-07 | Media requests shaped like NewPipe's YoutubeHttpDataSource: rn counter + real
+  browser UA + TE:trailers, one OkHttp interceptor shared by playback and downloads
+  (`player/MediaHttp.kt`) | googlevideo paces unshapen clients to ~realtime; a 30 MB download
+  took 20+ minutes and playback starved. With shaping + 10 MB ranged chunks the same download
+  finished in seconds (device-verified).
+- 2026-08-07 | YouTube downloads = extractor resolve + OkHttp ranged fetch + MediaMuxer merge,
+  never yt-dlp | yt-dlp is anonymous, so gated downloads could never work; the extractor is the
+  signed-in path and MediaMuxer merges without any new dependency. Mux container follows the
+  video codec (avc/hevc->mp4, vp8/vp9->webm) with the audio swapped to a compatible codec when
+  the pairing crossed families.
+- 2026-08-07 | Similar tab tops up from continuations (cap: 2 extra pages, target 8 videos) |
+  Niche titles return mostly channels; after the video-only filter 2-3 rows looked broken.

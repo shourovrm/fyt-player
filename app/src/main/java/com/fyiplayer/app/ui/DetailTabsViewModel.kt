@@ -82,8 +82,29 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
             try {
                 // The engine exposes no related/recommended list (DECISIONS.md); this is a search
                 // on the video's own topic, honestly labelled as such in the UI.
-                val page = source.search(buildSimilarQuery(ref.title))
-                similarItems = excludeCurrent(page.items.filter(::isVideoLike), ref)
+                val query = buildSimilarQuery(ref.title)
+                val page = source.search(query)
+                val collected = excludeCurrent(page.items.filter(::isVideoLike), ref).toMutableList()
+                // Niche queries return mostly channels; a search page filtered down to 2-3 videos
+                // reads as broken. Top up from continuations, capped so a sparse query can't spin.
+                var nextPage = page.nextPage
+                var extraPages = 0
+                while (collected.size < 8 && nextPage != null && extraPages < 2) {
+                    extraPages++
+                    try {
+                        val more = source.search(query, nextPage)
+                        val seen = collected.mapTo(HashSet()) { it.pageUrl }
+                        excludeCurrent(more.items.filter(::isVideoLike), ref).forEach {
+                            if (seen.add(it.pageUrl)) collected += it
+                        }
+                        nextPage = more.nextPage
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        break // partial Similar list beats an error banner over a working one
+                    }
+                }
+                similarItems = collected
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ExtractionError) {

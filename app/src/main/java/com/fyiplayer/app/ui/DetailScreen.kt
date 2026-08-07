@@ -37,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,14 +114,16 @@ fun DetailScreen(
         onDispose { FullscreenChrome.active = false }
     }
 
-    // Opening a watch page means "play this": paths that navigate here WITHOUT starting playback
-    // (history rows, a reopened failed video) otherwise dead-end at "Nothing playing". Only two
-    // cases may take the shared surface: nothing is playing at all, or THIS video is the one
-    // sitting in a failed resolve (reopening it is the user's retry). A different video playing
-    // keeps the surface -- same rule as the mini player.
+    // Opening a watch page means "play this video": tapping into Library/History while something
+    // else plays must switch playback here, not leave the old video running underneath. Autoplay
+    // fires once per nav entry -- rememberSaveable survives back-stack restoration, so popping
+    // back to this screen after playback has moved on doesn't hijack it again. Retry is the one
+    // repeat case: THIS video sitting in a failed resolve replays on reopen.
+    var autoplayed by rememberSaveable(pageUrl) { mutableStateOf(false) }
     LaunchedEffect(pageUrl) {
         val st = PlaybackSession.state.value
-        if (st.current == null || (st.current.pageUrl == ref.pageUrl && st.error != null)) {
+        if (!autoplayed && (st.current?.pageUrl != ref.pageUrl || st.error != null)) {
+            autoplayed = true
             PlaybackSession.play(listOf(ref), 0)
         }
     }

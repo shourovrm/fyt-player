@@ -22,7 +22,9 @@ import okhttp3.OkHttpClient
  * request/format, not per client, so they go on the [DataSource.Factory], not the client.
  */
 object MediaItemFactory {
-    private val httpClient = OkHttpClient()
+    // Request-shaped for googlevideo (rn/UA/TE, see MediaHttp.kt) -- an unshapen client gets
+    // paced to roughly realtime and playback stutters on anything above SD.
+    private val httpClient = mediaHttpClient()
 
     private fun dataSourceFactory(headers: Map<String, String>): DataSource.Factory =
         // headers must be applied verbatim or the CDN rejects the request
