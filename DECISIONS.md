@@ -395,3 +395,13 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   the pairing crossed families.
 - 2026-08-07 | Similar tab tops up from continuations (cap: 2 extra pages, target 8 videos) |
   Niche titles return mostly channels; after the video-only filter 2-3 rows looked broken.
+- 2026-08-07 | Shorts "Details" opens a ModalBottomSheet over the pager, not a nav world-switch |
+  `ui/ShortsDetailsSheet.kt` reuses `DetailTabsViewModel`/`descriptionTabSection`/`CommentsSection`
+  verbatim (Description + Comments only, no Similar) with its own `source.detail(ref)` fetch,
+  ~50% screen height so the short stays visible. Tap pauses via `togglePlayPause()` (no plain
+  `pause()` on `PlaybackSession`); dismiss never auto-resumes -- existing tap-to-toggle on the
+  video surface resumes it. Description links to ANOTHER video/channel/playlist are a no-op
+  inside the sheet: `ShortsPage.onOpenDetail` is `() -> Unit`, already curried to the page's own
+  ref by `ShortsPager`, so there is no callback here that can route to an arbitrary linked target
+  without threading a new nav callback through files outside this task's scope. Same-video
+  timestamp links still seek in place (no callback needed).

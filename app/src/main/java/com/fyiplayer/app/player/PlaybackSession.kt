@@ -99,6 +99,15 @@ object PlaybackSession {
     // and re-reads reactively so flipping the setting applies without an app restart.
     @Volatile private var backgroundPlaybackAllowed = true
 
+    // Mirror of Prefs.sponsorBlock, same pattern as maxHeight: format selection/skip checks run
+    // on the player thread and cannot suspend on a DataStore read.
+    private var sponsorBlockEnabled: () -> Boolean = { false }
+    private var sponsorFetchJob: Job? = null
+    // Segments for the item currently at `index`. Never trusted after an item change until
+    // fetchSponsorSegments's own index check confirms the response is still for the right item.
+    private var sponsorSegments: List<SponsorSegment> = emptyList()
+    private var lastSkippedSegmentStart: Long? = null // guards re-seeking every tick inside a segment
+
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
@@ -129,10 +138,16 @@ object PlaybackSession {
         val height: Int?,
     )
 
-    fun init(context: Context, resolver: StreamResolver, maxHeight: () -> Int = { 1080 }) {
+    fun init(
+        context: Context,
+        resolver: StreamResolver,
+        maxHeight: () -> Int = { 1080 },
+        sponsorBlockEnabled: () -> Boolean = { false },
+    ) {
         if (::player.isInitialized) return
         this.resolver = resolver
         this.maxHeight = maxHeight
+        this.sponsorBlockEnabled = sponsorBlockEnabled
         appContext = context.applicationContext
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         // Sideloaded captions ride SingleSampleMediaSource, which hands the renderer RAW subtitle
@@ -449,6 +464,7 @@ object PlaybackSession {
         window = emptyList(); prepared = null; retriedIndex = null
         currentFormats = emptyList()
         currentCaptions = emptyList()
+        clearSponsorSegments()
         player.stop()
         player.clearMediaItems()
         _state.value = PlayerState()
@@ -457,7 +473,7 @@ object PlaybackSession {
     }
 
     fun release() {
-        loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
+        loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel(); sponsorFetchJob?.cancel()
         if (::player.isInitialized) player.release()
     }
 
@@ -483,6 +499,7 @@ object PlaybackSession {
         prefetchJob?.cancel()
         val ref = queue.getOrNull(i) ?: return
         window = emptyList()
+        clearSponsorSegments() // item is changing -- the old item's segments must not carry over
         loadJob = scope.launch {
             val item = resolveItem(i, ref) ?: return@launch
             player.setMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
@@ -495,6 +512,7 @@ object PlaybackSession {
             window = listOf(i)
             currentFormats = item.resolved.formats
             currentCaptions = item.resolved.captions
+            fetchSponsorSegments(i, ref)
             // A different item always starts captions at Off, never whatever the previous item had.
             val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = false)
             applyCaptionSelection(language)
@@ -524,6 +542,7 @@ object PlaybackSession {
                 prepared = null
                 currentFormats = emptyList()
                 currentCaptions = emptyList()
+                clearSponsorSegments()
                 _state.update {
                     it.copy(
                         current = ref, index = i, queueSize = queue.size, queue = queue,
@@ -543,6 +562,7 @@ object PlaybackSession {
                 prepared = null
                 currentFormats = emptyList()
                 currentCaptions = emptyList()
+                clearSponsorSegments()
                 _state.update {
                     it.copy(
                         current = ref, index = i, queueSize = queue.size, queue = queue,
@@ -585,6 +605,8 @@ object PlaybackSession {
         val ref = queue.getOrNull(item.queueIndex) ?: return
         currentFormats = item.resolved.formats
         currentCaptions = item.resolved.captions
+        clearSponsorSegments() // different item, same as startAt -- old item's segments must not carry over
+        fetchSponsorSegments(item.queueIndex, ref)
         // A different item, same as startAt -- captions reset to Off, never carried over.
         val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = false)
         applyCaptionSelection(language)
@@ -624,15 +646,44 @@ object PlaybackSession {
         if (!isPlaying) return
         tickerJob = scope.launch {
             while (isActive) {
+                val position = player.currentPosition.coerceAtLeast(0)
                 _state.update {
-                    it.copy(
-                        positionMs = player.currentPosition.coerceAtLeast(0),
-                        durationMs = player.duration.coerceAtLeast(0),
-                    )
+                    it.copy(positionMs = position, durationMs = player.duration.coerceAtLeast(0))
                 }
+                if (player.isPlaying) checkSponsorSkip(position)
                 delay(500)
             }
         }
+    }
+
+    /** Cancels any in-flight fetch and drops whatever segments were held -- called at every point
+     *  playback moves off the item they were fetched for, or stops outright. */
+    private fun clearSponsorSegments() {
+        sponsorFetchJob?.cancel()
+        sponsorFetchJob = null
+        sponsorSegments = emptyList()
+        lastSkippedSegmentStart = null
+    }
+
+    /** Fires a SponsorBlock lookup for the item now at [i] -- gated by the mirrored pref and only
+     *  for YouTube page URLs. The response is applied only if [index] still points at [i] when it
+     *  lands, so a slow reply can't skip in whatever plays next. */
+    private fun fetchSponsorSegments(i: Int, ref: VideoRef) {
+        if (!sponsorBlockEnabled() || ref.sourceId != "youtube") return
+        val videoId = youtubeVideoId(ref.pageUrl) ?: return
+        sponsorFetchJob = scope.launch {
+            val segments = SponsorBlock.fetchSponsorSegments(videoId)
+            if (index == i) sponsorSegments = segments
+        }
+    }
+
+    /** Seeks past a sponsor segment [positionMs] just entered, once per segment -- lastSkippedSegmentStart
+     *  guards against re-seeking every tick while sitting inside (or just past) the same segment. */
+    private fun checkSponsorSkip(positionMs: Long) {
+        val segment = sponsorSegments.firstOrNull { positionMs >= it.startMs && positionMs < it.endMs } ?: return
+        if (lastSkippedSegmentStart == segment.startMs) return
+        lastSkippedSegmentStart = segment.startMs
+        player.seekTo(segment.endMs)
     }
 
     /** Walks the cause chain for the HTTP codes that mean "this signed URL is dead", per

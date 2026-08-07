@@ -79,7 +79,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val byId = sources.associateBy { it.id }
         feed = FeedState(loading = true)
         feedJob = viewModelScope.launch {
-            val channels = capChannels(subscriptionRepo.observeAll().first())
+            val channels = capChannels(subscriptionRepo.observeFeedChannels().first())
             if (channels.isEmpty()) {
                 feed = FeedState(loaded = true, hasSubscriptions = false)
                 return@launch

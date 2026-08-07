@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -53,8 +54,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +73,7 @@ import coil.compose.AsyncImage
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PlaybackPosition
+import com.fyiplayer.app.data.repo.SubscriptionRow
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.ui.theme.fyiExtras
 import kotlinx.coroutines.launch
@@ -85,7 +93,7 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
 
     val liked by vm.likes.observe().collectAsStateWithLifecycle(initialValue = emptyList())
     val positions by vm.positions.observeAll().collectAsStateWithLifecycle(initialValue = emptyMap())
-    val channels by vm.subscriptions.observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val channels by vm.subscriptions.observeAllRows().collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddToPlaylist by remember { mutableStateOf(false) }
     var showUnsubscribeConfirm by remember { mutableStateOf(false) }
     var showUnfollowConfirm by remember { mutableStateOf(false) }
@@ -101,7 +109,7 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                     onSelectAll = {
                         vm.selection = when (vm.tab) {
                             LibraryTab.LIKES -> selectAllOrNone(liked, vm.selection)
-                            LibraryTab.CHANNELS -> selectAllOrNoneByKey(channels.map { it.key }, vm.selection)
+                            LibraryTab.CHANNELS -> selectAllOrNoneByKey(channels.map { it.listing.key }, vm.selection)
                             LibraryTab.PLAYLISTS, LibraryTab.HISTORY -> vm.selection
                         }
                     },
@@ -190,6 +198,9 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                     selecting = selecting,
                     onToggle = vm::toggleKey,
                     onOpen = onOpenListing,
+                    onToggleShowInFeed = { row ->
+                        scope.launch { vm.subscriptions.setShowInFeed(row.listing.key, !row.showInFeed) }
+                    },
                 )
             }
         }
@@ -429,18 +440,20 @@ private fun FollowedPlaylistRow(listing: Listing, selected: Boolean, onClick: ()
 
 @Composable
 private fun ChannelsTab(
-    channels: List<Listing>,
+    channels: List<SubscriptionRow>,
     selection: Set<String>,
     selecting: Boolean,
     onToggle: (String) -> Unit,
     onOpen: (Listing) -> Unit,
+    onToggleShowInFeed: (SubscriptionRow) -> Unit,
 ) {
     if (channels.isEmpty()) {
         LibraryEmptyState("No subscriptions yet", "Subscribe from a channel page and it lands here.")
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
-        items(channels, key = { it.key }) { channel ->
+        items(channels, key = { it.listing.key }) { row ->
+            val channel = row.listing
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -452,15 +465,50 @@ private fun ChannelsTab(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MonogramDisc(channel.title, size = 44.dp)
-                Text(
-                    channel.title.ifBlank { channel.key },
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 12.dp).weight(1f),
-                )
+                // Mockup: no banner, no toast, no subtitle -- a dim row + the eye glyph itself say
+                // whether a subscribed channel is feeding Home/Shorts.
+                Row(
+                    Modifier.weight(1f).alpha(if (row.showInFeed) 1f else 0.4f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MonogramDisc(channel.title, size = 44.dp)
+                    Text(
+                        channel.title.ifBlank { channel.key },
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 12.dp).weight(1f),
+                    )
+                }
+                // The glyph itself stays full-opacity even when the row dims -- it's the tap target
+                // that un-hides the channel, so it needs to read clearly either way.
+                IconButton(onClick = { onToggleShowInFeed(row) }) {
+                    EyeGlyph(slashed = !row.showInFeed, tint = MaterialTheme.colorScheme.primary)
+                }
             }
+        }
+    }
+}
+
+/** `material-icons-core` has no Visibility/VisibilityOff glyph (CLAUDE.md's own gotcha, checked
+ *  against this build's actual jar -- only ~50 icons ship in core, eye glyphs aren't among them).
+ *  Drawn by hand the same way [DetailScreen.kt]'s SaveGlyph/DownloadTrayGlyph solve the same gap. */
+@Composable
+private fun EyeGlyph(tint: Color, slashed: Boolean, modifier: Modifier = Modifier, size: Dp = 22.dp) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = w * 0.09f
+        val outline = Path().apply {
+            moveTo(w * 0.04f, h * 0.5f)
+            quadraticTo(w * 0.5f, h * 0.06f, w * 0.96f, h * 0.5f)
+            quadraticTo(w * 0.5f, h * 0.94f, w * 0.04f, h * 0.5f)
+            close()
+        }
+        drawPath(outline, tint, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawCircle(tint, radius = w * 0.15f, center = Offset(w * 0.5f, h * 0.5f))
+        if (slashed) {
+            drawLine(tint, Offset(w * 0.08f, h * 0.14f), Offset(w * 0.92f, h * 0.86f), stroke, cap = StrokeCap.Round)
         }
     }
 }

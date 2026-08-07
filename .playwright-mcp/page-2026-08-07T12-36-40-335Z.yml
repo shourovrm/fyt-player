@@ -1,0 +1,59 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "1 · Shorts “Details” → bottom sheet (option A)" [level=2] [ref=e3]
+    - generic [ref=e5]:
+      - generic [ref=e6]: ▶ short playing
+      - generic [ref=e7]:
+        - generic [ref=e8]: Did you know that Dijkstra came up with his algorithm in 20 minutes?
+        - generic [ref=e9]: freeCodeCamp.org
+      - generic [ref=e10]:
+        - generic [ref=e11]: ♡
+        - generic [ref=e12]: ＋
+        - generic [ref=e13]: ⇪
+      - generic [ref=e15]:
+        - generic [ref=e17]:
+          - generic [ref=e18]: Description
+          - generic [ref=e19]: Comments
+        - generic [ref=e20]:
+          - generic [ref=e21]: 33K views · Jun 12, 2026
+          - paragraph [ref=e22]: Edsger Dijkstra designed the shortest-path algorithm in 1956 while having coffee in Amsterdam — without pen or paper.
+          - paragraph [ref=e23]: "Full interview: youtube.com/watch?v=…"
+          - paragraph [ref=e24]: Short keeps playing behind the sheet. Swipe down or tap outside to close — you're right back to swiping shorts.
+    - generic [ref=e25]: Sheet slides over the STILL-PLAYING short. Close it → pager untouched, swipe works. Watch-page world never opens.
+  - generic [ref=e26]:
+    - heading "2 · Channels — feed visibility eye" [level=2] [ref=e27]
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]: Library
+        - generic [ref=e31]:
+          - generic [ref=e32]: Likes
+          - generic [ref=e33]: Playlists
+          - generic [ref=e34]: History
+          - generic [ref=e35]: Channels
+      - generic [ref=e36]:
+        - generic [ref=e37]: T
+        - generic [ref=e38]:
+          - text: The Diary Of A CEO
+          - generic [ref=e39]: shown in feed
+        - generic [ref=e40]: 👁
+      - generic [ref=e41]:
+        - generic [ref=e42]: F
+        - generic [ref=e43]:
+          - text: freeCodeCamp.org
+          - generic [ref=e44]: hidden from feed — channel page still works
+        - generic [ref=e45]: 🚫
+      - generic [ref=e46]:
+        - generic [ref=e47]: A
+        - generic [ref=e48]:
+          - text: AI Engineer
+          - generic [ref=e49]: shown in feed
+        - generic [ref=e50]: 👁
+      - generic [ref=e51]:
+        - generic [ref=e52]: S
+        - generic [ref=e53]:
+          - text: Squat University
+          - generic [ref=e54]: shown in feed
+        - generic [ref=e55]: 👁
+      - generic [ref=e56]: Eye toggles whether a channel's uploads appear in Home and Shorts feeds. Subscription stays; open the channel any time to watch.
+      - generic [ref=e57]: freeCodeCamp.org hidden from feeds
+    - generic [ref=e59]: Tap the eye → instant toggle + toast. Hidden rows dim. No extra menus.

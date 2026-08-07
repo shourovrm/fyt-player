@@ -17,6 +17,8 @@ import java.net.URI
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
+import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -30,6 +32,7 @@ import org.schabi.newpipe.extractor.linkhandler.ChannelTabs
 import org.schabi.newpipe.extractor.comments.CommentsInfo
 import org.schabi.newpipe.extractor.comments.CommentsInfoItem
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
+import org.schabi.newpipe.extractor.localization.DateWrapper
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.search.SearchInfo
@@ -305,7 +308,7 @@ private fun StreamInfoItem.toVideoRef(): VideoRef? {
         uploader = uploaderName,
         uploaderUrl = uploaderUrl,
         viewCountText = compactCount(viewCount)?.let { "$it views" },
-        uploadedText = textualUploadDate,
+        uploadedText = englishAge(uploadDate) ?: textualUploadDate,
     )
 }
 
@@ -328,13 +331,35 @@ private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     author = uploaderName ?: "",
     text = commentText ?: "",
     likeCount = likeCount.takeIf { it != CommentsInfoItem.NO_LIKE_COUNT }?.toLong(),
-    timeText = textualUploadDate,
+    timeText = englishAge(uploadDate) ?: textualUploadDate,
     parentId = parentId,
     // The fork's comment item carries no author==channel-owner flag; false is the honest default.
     isUploader = false,
     isHearted = isHeartedByUploader,
     authorAvatarUrl = uploaderAvatarUrl,
 )
+
+/** The fork pins YouTube extraction to Zulu (hl=zu, its always-on non-localized-titles trick), so
+ *  every TEXTUAL date arrives in Zulu ("2 izinyanga ezedlule"). The parsed [DateWrapper] is
+ *  locale-free -- format the age in English ourselves and fall back to the raw text only when
+ *  parsing failed. [now] is a parameter for tests. */
+internal fun englishAge(
+    date: DateWrapper?,
+    now: OffsetDateTime = OffsetDateTime.now(),
+): String? {
+    val then = date?.offsetDateTime() ?: return null
+    val days = ChronoUnit.DAYS.between(then, now)
+    fun unit(n: Long, word: String) = "$n $word${if (n == 1L) "" else "s"} ago"
+    return when {
+        days >= 365 -> unit(days / 365, "year")
+        days >= 30 -> unit(days / 30, "month")
+        days >= 1 -> unit(days, "day")
+        else -> {
+            val hours = ChronoUnit.HOURS.between(then, now)
+            if (hours >= 1) unit(hours, "hour") else "just now"
+        }
+    }
+}
 
 /** 1_234_567 -> "1.2M". Negative (NewPipe's "unknown count" sentinel is -1) -> null, never
  *  invented. No ".0" suffix on a round number, matching YouTube's own compacting. */

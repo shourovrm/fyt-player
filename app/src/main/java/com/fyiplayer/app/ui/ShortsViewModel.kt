@@ -62,7 +62,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         val byId = sources.associateBy { it.id }
         feed = ShortsFeedState(loading = true)
         feedJob = viewModelScope.launch {
-            val channels = capChannels(subscriptionRepo.observeAll().first())
+            val channels = capChannels(subscriptionRepo.observeFeedChannels().first())
             if (channels.isEmpty()) {
                 feed = ShortsFeedState(loaded = true, hasSubscriptions = false)
                 return@launch

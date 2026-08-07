@@ -51,19 +51,9 @@ fun ContentSettings(prefs: Prefs) {
     SettingsSection("Language & region") {
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text("Language", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "Language for titles, descriptions and dates.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             ChoiceRow(options = LANGUAGES, selected = language, onSelect = { scope.launch { prefs.setContentLanguage(it) } })
 
             Text("Country", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp))
-            Text(
-                "Region for search and trending results.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             ChoiceRow(options = COUNTRIES, selected = country, onSelect = { scope.launch { prefs.setContentCountry(it) } })
         }
     }

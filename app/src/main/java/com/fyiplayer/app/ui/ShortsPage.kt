@@ -82,6 +82,7 @@ internal fun ShortsPage(
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val liked by remember(ref.pageUrl) { likes.observeIsLiked(ref.pageUrl) }.collectAsState(initial = false)
     var showSaveSheet by remember { mutableStateOf(false) }
+    var showDetailsSheet by remember { mutableStateOf(false) }
 
     // Tap toggles play/pause. The glyph shown is which way THIS tap just requested, not the
     // player's own isPlaying (onIsPlayingChanged lands a beat later) -- and it fades on its own
@@ -169,7 +170,15 @@ internal fun ShortsPage(
                     .padding(top = 10.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color.White.copy(alpha = 0.18f))
-                    .clickable(onClick = onOpenDetail)
+                    .clickable {
+                        // Sheet over the still-mounted pager now, not a nav world-switch --
+                        // onOpenDetail (curried to this ref by ShortsPager) goes unused here but
+                        // stays wired per-param, matching the rest of this rail. Pause, don't
+                        // toggle: a second tap while already paused must not resume it under the
+                        // sheet.
+                        if (playerState.isPlaying) PlaybackSession.togglePlayPause()
+                        showDetailsSheet = true
+                    }
                     .padding(horizontal = 14.dp, vertical = 6.dp),
             )
         }
@@ -214,6 +223,11 @@ internal fun ShortsPage(
 
     if (showSaveSheet) {
         SavePlaylistSheet(refs = listOf(ref), playlists = playlists, onDismiss = { showSaveSheet = false })
+    }
+    if (showDetailsSheet) {
+        // Closing (swipe/scrim/back) just dismisses -- playback stays paused; the existing
+        // tap-to-toggle on the video surface above is how the user resumes it.
+        ShortsDetailsSheet(ref = ref, onDismiss = { showDetailsSheet = false })
     }
 }
 
