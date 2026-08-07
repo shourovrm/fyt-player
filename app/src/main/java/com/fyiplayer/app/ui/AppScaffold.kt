@@ -167,7 +167,9 @@ private const val NAV_HIDE_SLOP_PX = 3f
  * apart here; the grid wants the mini player and queue bar back, same as any other listing route.
  */
 private fun isFullPlayerRoute(route: String?): Boolean =
-    route?.startsWith("detail/") == true || (route == Routes.SHORTS && FullscreenChrome.active)
+    route?.startsWith("detail/") == true ||
+        route == Routes.SHORTS_PLAYER ||
+        (route == Routes.SHORTS && FullscreenChrome.active)
 
 /**
  * Is a full-bleed video surface on screen right now? Set by `DetailScreen`'s own fullscreen zoom

@@ -41,7 +41,17 @@ class FyiApp : Application() {
     /** The one resolver seam: NewPipeExtractor fast path for YouTube watch/shorts, engine next,
      *  read-only headless capture last. */
     val resolver: ChainResolver by lazy {
-        ChainResolver(EngineResolver(), WebViewResolver(this), NewPipeResolver(newPipeHttpClient))
+        ChainResolver(
+            // Cookies reach the engine for youtube.com pages only -- same isolation rule as
+            // NewPipeDownloader's header injection.
+            EngineResolver(cookieFor = { url ->
+                if (isYoutubeHost(url)) YoutubeAuth.cookieHeader() else null
+            }),
+            WebViewResolver(this), NewPipeResolver(newPipeHttpClient),
+            // Signed in -> an age wall may pass on the user's own session (cookied engine, then
+            // WebView sharing the login WebView's cookie jar).
+            ownSessionOnChallenge = { YoutubeAuth.cookieHeader() != null },
+        )
     }
 
     // Format selection runs on the player thread and cannot suspend, so the two preference flows
@@ -74,4 +84,10 @@ class FyiApp : Application() {
         val metered = getSystemService<ConnectivityManager>()?.isActiveNetworkMetered ?: false
         return if (metered) maxHeightMobile else maxHeightWifi
     }
+}
+
+/** Same host rule as NewPipeDownloader's header injection: youtube.com only, never CDNs. */
+private fun isYoutubeHost(url: String): Boolean {
+    val host = android.net.Uri.parse(url).host ?: return false
+    return host == "youtube.com" || host.endsWith(".youtube.com")
 }

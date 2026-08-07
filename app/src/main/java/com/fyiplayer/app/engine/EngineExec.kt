@@ -16,7 +16,13 @@ import kotlinx.coroutines.withContext
  * source adapter -- both just need "await init, run the engine, map a free-text failure" and
  * nothing else, so this is the one place that boilerplate lives.
  */
-internal suspend fun runEngine(url: String, vararg options: String): String {
+internal suspend fun runEngine(
+    url: String,
+    vararg options: String,
+    // Key-value engine options (e.g. --add-header). Added via the two-arg addOption so the value
+    // can never be mistaken for a positional URL argument, unlike flattening it into [options].
+    paired: List<Pair<String, String>> = emptyList(),
+): String {
     // The engine appends the URL after the options with no end-of-options separator, and the
     // engine's parser accepts options anywhere in its argv. An argument starting with "-" would
     // therefore be executed as an engine option rather than fetched as a URL — and a page URL can
@@ -36,7 +42,10 @@ internal suspend fun runEngine(url: String, vararg options: String): String {
         suspendCancellableCoroutine { cont ->
             cont.invokeOnCancellation { YoutubeDL.getInstance().destroyProcessById(processId) }
             try {
-                val request = YoutubeDLRequest(url).apply { options.forEach { addOption(it) } }
+                val request = YoutubeDLRequest(url).apply {
+                    options.forEach { addOption(it) }
+                    paired.forEach { (key, value) -> addOption(key, value) }
+                }
                 // Read side of the engine lock, taken and released inside this synchronous block:
                 // many extractions may overlap each other, but none may overlap a binary update,
                 // which swaps the executable out from under a running process. Held here rather

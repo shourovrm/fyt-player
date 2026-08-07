@@ -518,6 +518,10 @@ object PlaybackSession {
             resolver.resolve(ref)
         } catch (e: ExtractionError) {
             if (i == index) {
+                // the previous item must not keep playing (or auto-advance) under the error guardrail
+                player.stop()
+                player.clearMediaItems()
+                prepared = null
                 currentFormats = emptyList()
                 currentCaptions = emptyList()
                 _state.update {
@@ -533,6 +537,10 @@ object PlaybackSession {
         val selection = result.selection
         if (selection == null) {
             if (i == index) {
+                // the previous item must not keep playing (or auto-advance) under the error guardrail
+                player.stop()
+                player.clearMediaItems()
+                prepared = null
                 currentFormats = emptyList()
                 currentCaptions = emptyList()
                 _state.update {

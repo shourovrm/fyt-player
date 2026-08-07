@@ -62,7 +62,9 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
     // would reset the grid's scroll position on every trip into the pager and back.
     val gridState = rememberLazyGridState()
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
-    BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false }
+    // Back out of the pager stops playback too: a vertical clip must not keep playing into the
+    // mini player, which would reopen it in the landscape detail player with no swipe navigation.
+    BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false; PlaybackSession.clear() }
 
     val feed = vm.feed
     when {
@@ -73,7 +75,12 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
         // Items first: the pager is the ONLY branch that may reach ShortsPager, so it can never be
         // composed with an empty list (rememberPagerState would coerce into an empty range).
         feed.items.isNotEmpty() -> if (vm.showPlayer) {
-            ShortsPager(vm = vm, onOpenDetail = onOpenDetail)
+            ShortsPager(
+                items = feed.items,
+                page = vm.pagerPage,
+                onPageChange = { vm.pagerPage = it },
+                onOpenDetail = onOpenDetail,
+            )
         } else {
             ShortsGrid(
                 items = feed.items,
@@ -113,11 +120,17 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
     actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
 }
 
+/** [page]/[onPageChange] are hoisted (ShortsViewModel here, route-local state in
+ *  [ShortsPlayerScreen]) so the same pager serves both the Shorts tab and any shorts listing. */
 @Composable
-private fun ShortsPager(vm: ShortsViewModel, onOpenDetail: (String) -> Unit) {
-    val items = vm.feed.items
+internal fun ShortsPager(
+    items: List<VideoRef>,
+    page: Int,
+    onPageChange: (Int) -> Unit,
+    onOpenDetail: (String) -> Unit,
+) {
     val playerState by PlaybackSession.state.collectAsState()
-    val pagerState = rememberPagerState(initialPage = vm.pagerPage.coerceIn(0, items.size - 1)) { items.size }
+    val pagerState = rememberPagerState(initialPage = page.coerceIn(0, items.size - 1)) { items.size }
 
     // This composable's own lifetime IS "the pager is showing" -- ShortsScreen only reaches this
     // branch while vm.showPlayer is true. Same DisposableEffect shape as DetailScreen's fullscreen
@@ -135,7 +148,7 @@ private fun ShortsPager(vm: ShortsViewModel, onOpenDetail: (String) -> Unit) {
         val sessionQueue = PlaybackSession.state.value.queue
         val sameFeed = sessionQueue.isNotEmpty() && sessionQueue.first().pageUrl == items.first().pageUrl
         when {
-            !sameFeed -> PlaybackSession.play(items, vm.pagerPage.coerceIn(items.indices))
+            !sameFeed -> PlaybackSession.play(items, page.coerceIn(items.indices))
             sessionQueue.size < items.size -> items.drop(sessionQueue.size).forEach { PlaybackSession.enqueue(it) }
         }
     }
@@ -144,7 +157,7 @@ private fun ShortsPager(vm: ShortsViewModel, onOpenDetail: (String) -> Unit) {
     // whatever PlaybackSession already resolved one ahead, playAt re-resolves for a farther fling.
     LaunchedEffect(pagerState, items) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            vm.pagerPage = page
+            onPageChange(page)
             if (page !in items.indices) return@collect
             when (shortsNavAction(page, PlaybackSession.state.value.index)) {
                 ShortsNavAction.NEXT -> PlaybackSession.skipNext()

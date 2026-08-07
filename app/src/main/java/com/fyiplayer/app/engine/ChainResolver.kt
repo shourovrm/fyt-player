@@ -24,7 +24,12 @@ interface UrlScopedResolver : StreamResolver {
  * tier0 falls through to tier1 on [ExtractionError.Unsupported] or [ExtractionError.Network] --
  * one attempt, no retry. [ExtractionError.AccessChallenge] and [ExtractionError.ContentUnavailable]
  * from tier0 are honest facts about the content, not a tier-specific failure, so they are NOT
- * retried on tier1/tier2.
+ * retried on tier1/tier2 -- with one exception: when [ownSessionOnChallenge] says the user is
+ * signed in, an AccessChallenge falls through to tier1 (which attaches the user's own session
+ * cookie) and then tier2 (whose WebView shares the login WebView's cookie jar), because the
+ * account the user actually signed in with may legitimately pass an age wall the anonymous
+ * extractor cannot. Neither tier dismisses any wall; if it stands there too, the ORIGINAL
+ * AccessChallenge is rethrown so the UI reports the real reason, not a downstream timeout.
  *
  * tier1 -> tier2 behaviour is unchanged from before tier0 existed: only
  * [ExtractionError.AccessChallenge] is a hard stop there (never retried on tier2, since a WebView
@@ -35,6 +40,7 @@ class ChainResolver(
     private val tier1: StreamResolver,
     private val tier2: StreamResolver,
     private val tier0: UrlScopedResolver? = null,
+    private val ownSessionOnChallenge: () -> Boolean = { false },
 ) : StreamResolver {
 
     override suspend fun resolve(ref: VideoRef): Resolved {
@@ -42,8 +48,24 @@ class ChainResolver(
             try {
                 return tier0.resolve(ref).also { logTier("tier0") }
             } catch (e: ExtractionError.AccessChallenge) {
+                if (ownSessionOnChallenge()) {
+                    logFallthrough("tier0", e, "retrying with own session")
+                    try {
+                        return tier1.resolve(ref).also { logTier("tier1") }
+                    } catch (e1: ExtractionError) {
+                        logFallthrough("tier1", e1, "trying webview")
+                    }
+                    try {
+                        return tier2.resolve(ref).also { logTier("tier2") }
+                    } catch (e2: ExtractionError) {
+                        logHardStop("tier2", e2)
+                        throw e // the wall is the real reason, not a downstream timeout
+                    }
+                }
+                logHardStop("tier0", e)
                 throw e
             } catch (e: ExtractionError.ContentUnavailable) {
+                logHardStop("tier0", e)
                 throw e
             } catch (e: ExtractionError) {
                 logFallthrough("tier0", e, "trying tier1")
@@ -53,6 +75,7 @@ class ChainResolver(
         return try {
             tier1.resolve(ref).also { logTier("tier1") }
         } catch (e: ExtractionError.AccessChallenge) {
+            logHardStop("tier1", e)
             throw e
         } catch (e: ExtractionError) {
             logFallthrough("tier1", e, "trying webview")
@@ -74,6 +97,15 @@ private fun logTier(tier: String) {
 private fun logFallthrough(tier: String, e: ExtractionError, next: String) {
     try {
         Log.d(TAG, "$tier failed (${e::class.simpleName}), $next")
+    } catch (logError: Throwable) {
+        // no-op
+    }
+}
+
+// Hard stops rethrow silently otherwise -- invisible in logcat, which makes them brutal to debug.
+private fun logHardStop(tier: String, e: ExtractionError) {
+    try {
+        Log.d(TAG, "$tier hard stop (${e::class.simpleName})")
     } catch (logError: Throwable) {
         // no-op
     }

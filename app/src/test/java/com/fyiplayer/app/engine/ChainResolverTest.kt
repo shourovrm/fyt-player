@@ -123,6 +123,48 @@ class ChainResolverTest {
     }
 
     @Test
+    fun tier0AccessChallengeSignedIn_cookiedTier1Wins() = runBlocking {
+        val tier0 = FailingTier0(ownsUrl = true) { ExtractionError.AccessChallenge("wall") }
+        val tier1 = FakeResolver { resolved() }
+        val tier2 = FakeResolver { resolved() }
+        val chain = ChainResolver(tier1, tier2, tier0, ownSessionOnChallenge = { true })
+
+        chain.resolve(ref)
+
+        assertEquals(1, tier1.calls)
+        assertEquals(0, tier2.calls)
+    }
+
+    @Test
+    fun tier0AccessChallengeSignedIn_tier1FailureFallsToTier2() = runBlocking {
+        val tier0 = FailingTier0(ownsUrl = true) { ExtractionError.AccessChallenge("wall") }
+        val tier1 = FakeResolver { throw ExtractionError.AccessChallenge("still walled") }
+        val tier2 = FakeResolver { resolved() }
+        val chain = ChainResolver(tier1, tier2, tier0, ownSessionOnChallenge = { true })
+
+        chain.resolve(ref)
+
+        assertEquals(1, tier1.calls)
+        assertEquals(1, tier2.calls)
+    }
+
+    @Test
+    fun tier0AccessChallengeSignedIn_allFailuresRethrowOriginalWall() = runBlocking {
+        val tier0 = FailingTier0(ownsUrl = true) { ExtractionError.AccessChallenge("wall") }
+        val tier1 = FakeResolver { throw ExtractionError.Unsupported("engine gone") }
+        val tier2 = FakeResolver { throw ExtractionError.Unsupported("no media request observed") }
+        val chain = ChainResolver(tier1, tier2, tier0, ownSessionOnChallenge = { true })
+
+        try {
+            chain.resolve(ref)
+            assertTrue("expected AccessChallenge to propagate", false)
+        } catch (e: ExtractionError.AccessChallenge) {
+            assertEquals("wall", e.message) // the original wall, not a downstream failure
+        }
+        assertEquals(1, tier2.calls)
+    }
+
+    @Test
     fun tier0ContentUnavailableIsHardStop_tier1NeverCalled() = runBlocking {
         val tier0 = FailingTier0(ownsUrl = true) { ExtractionError.ContentUnavailable("gone") }
         val tier1 = FakeResolver { resolved() }
