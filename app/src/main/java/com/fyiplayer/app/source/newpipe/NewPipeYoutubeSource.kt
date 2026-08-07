@@ -25,14 +25,16 @@ import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.channel.ChannelInfo
 import org.schabi.newpipe.extractor.channel.ChannelInfoItem
-import org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo
-import org.schabi.newpipe.extractor.channel.tabs.ChannelTabs
+import org.schabi.newpipe.extractor.channel.ChannelTabInfo
+import org.schabi.newpipe.extractor.linkhandler.ChannelTabs
 import org.schabi.newpipe.extractor.comments.CommentsInfo
 import org.schabi.newpipe.extractor.comments.CommentsInfoItem
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.search.filter.Filter
+import org.schabi.newpipe.extractor.search.filter.FilterItem
 import org.schabi.newpipe.extractor.stream.Description
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
@@ -74,7 +76,10 @@ class NewPipeYoutubeSource(
     override suspend fun search(query: String, page: String?): SearchPage = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
         guarded {
-            val handler = ServiceList.YouTube.searchQHFactory.fromQuery(query, emptyList(), "")
+            // getFilterItem(0) is the registered "all" filter -- the fork's filter engine REQUIRES
+            // a registered item (an empty list throws), same default PipePipe's own client passes.
+            val factory = ServiceList.YouTube.searchQHFactory
+            val handler = factory.fromQuery(query, listOf(factory.getFilterItem(0)), emptyList())
             if (page == null) {
                 val info = SearchInfo.getInfo(ServiceList.YouTube, handler)
                 SearchPage(items = info.relatedItems.mapNotNull { it.toSearchVideoRef() }, nextPage = info.nextPage.tokenOrNull())
@@ -95,7 +100,7 @@ class NewPipeYoutubeSource(
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
                     SearchPage(items = info.relatedItems.mapNotNull { it.toStreamVideoRef() }, nextPage = info.nextPage.tokenOrNull())
                 } else {
-                    val handler = ServiceList.YouTube.channelTabLHFactory.fromQuery(channelUrl, listOf(filter), "")
+                    val handler = ServiceList.YouTube.channelTabLHFactory.fromQuery(channelUrl, listOf(tabFilter(filter)), emptyList())
                     val more = ChannelTabInfo.getMoreItems(ServiceList.YouTube, handler, page.toPage())
                     SearchPage(items = more.items.mapNotNull { it.toStreamVideoRef() }, nextPage = more.nextPage.tokenOrNull())
                 }
@@ -117,7 +122,7 @@ class NewPipeYoutubeSource(
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
                     ListingPage(items = info.relatedItems.filterIsInstance<PlaylistInfoItem>().mapNotNull { it.toPlaylistListing() }, nextPage = info.nextPage.tokenOrNull())
                 } else {
-                    val handler = ServiceList.YouTube.channelTabLHFactory.fromQuery(channelUrl, listOf(ChannelTabs.PLAYLISTS), "")
+                    val handler = ServiceList.YouTube.channelTabLHFactory.fromQuery(channelUrl, listOf(tabFilter(ChannelTabs.PLAYLISTS)), emptyList())
                     val more = ChannelTabInfo.getMoreItems(ServiceList.YouTube, handler, page.toPage())
                     ListingPage(items = more.items.filterIsInstance<PlaylistInfoItem>().mapNotNull { it.toPlaylistListing() }, nextPage = more.nextPage.tokenOrNull())
                 }
@@ -234,7 +239,8 @@ class NewPipeYoutubeSource(
      *  actually has, so an absent [filter] IS "no such tab" -- no text-sniffing an error message. */
     private fun channelTabHandler(channelUrl: String, filter: String, tab: ChannelTab): ListLinkHandler {
         val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
-        return channelInfo.tabs.find { filter in it.contentFilters } ?: throw tabUnavailableError(tab)
+        return channelInfo.tabs.find { handler -> handler.contentFilters.any { it.name == filter } }
+            ?: throw tabUnavailableError(tab)
     }
 }
 
@@ -249,6 +255,10 @@ private inline fun <T> guarded(block: () -> T): T = try {
 }
 
 private fun Page?.tokenOrNull(): String? = this?.takeIf { Page.isValid(it) }?.toToken()
+
+/** The fork's tab factories match content filters by [FilterItem.getName] only, so a bare
+ *  unregistered item carrying the tab name is the whole requirement. */
+private fun tabFilter(name: String) = FilterItem(Filter.ITEM_IDENTIFIER_UNKNOWN, name)
 
 private fun ChannelTab.contentFilter(): String? = when (this) {
     ChannelTab.VIDEOS -> ChannelTabs.VIDEOS
@@ -290,7 +300,7 @@ private fun StreamInfoItem.toVideoRef(): VideoRef? {
         pageUrl = "https://www.youtube.com/watch?v=$videoId",
         remoteId = videoId,
         title = name,
-        thumbnailUrl = thumbnails.lastOrNull()?.url,
+        thumbnailUrl = thumbnailUrl,
         durationSeconds = duration.takeIf { it >= 0 }?.toInt(),
         uploader = uploaderName,
         uploaderUrl = uploaderUrl,
@@ -306,23 +316,24 @@ private fun ChannelInfoItem.toChannelRef(): VideoRef = VideoRef(
     pageUrl = url,
     remoteId = url,
     title = name,
-    thumbnailUrl = thumbnails.lastOrNull()?.url,
+    thumbnailUrl = thumbnailUrl,
     viewCountText = compactCount(subscriberCount)?.let { "$it subscribers" },
 )
 
 private fun PlaylistInfoItem.toPlaylistListing(): Listing =
-    Listing(sourceId = SOURCE_ID, kind = Listing.Kind.PLAYLIST, key = url, title = name, thumbnailUrl = thumbnails.lastOrNull()?.url)
+    Listing(sourceId = SOURCE_ID, kind = Listing.Kind.PLAYLIST, key = url, title = name, thumbnailUrl = thumbnailUrl)
 
 private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     id = commentId,
     author = uploaderName ?: "",
-    text = commentText?.content ?: "",
+    text = commentText ?: "",
     likeCount = likeCount.takeIf { it != CommentsInfoItem.NO_LIKE_COUNT }?.toLong(),
     timeText = textualUploadDate,
     parentId = parentId,
-    isUploader = isChannelOwner,
+    // The fork's comment item carries no author==channel-owner flag; false is the honest default.
+    isUploader = false,
     isHearted = isHeartedByUploader,
-    authorAvatarUrl = uploaderAvatars.lastOrNull()?.url,
+    authorAvatarUrl = uploaderAvatarUrl,
 )
 
 /** 1_234_567 -> "1.2M". Negative (NewPipe's "unknown count" sentinel is -1) -> null, never

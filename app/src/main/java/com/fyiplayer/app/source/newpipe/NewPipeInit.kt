@@ -24,6 +24,7 @@ internal object NewPipeInit {
         synchronized(this) {
             if (initialized) return
             NewPipe.init(NewPipeDownloader(client), Localization(language), ContentCountry(country))
+            applyAuthState()
             initialized = true
         }
     }
@@ -33,5 +34,21 @@ internal object NewPipeInit {
         this.language = language
         this.country = country
         if (initialized) NewPipe.setupLocalization(Localization(language), ContentCountry(country))
+    }
+
+    /** PipePipe's own login wiring, in two parts (PipePipeClient `App.reconcileYoutubePlayerClient`
+     *  + `ServiceHelper.initServices`): the extractor reads the session from
+     *  `ServiceList.YouTube.setTokens` (its `addLoggedInHeaders` builds Cookie/SAPISIDHASH from
+     *  it), and the signed-in TVHTML5 player client is the one whose player responses honour the
+     *  account's age verification. Called on init and again by [YoutubeAuth] on every
+     *  login/logout, so both always match the session. */
+    fun updatePlayerClient() {
+        if (initialized) applyAuthState()
+    }
+
+    private fun applyAuthState() {
+        val cookie = YoutubeAuth.cookieHeader()
+        org.schabi.newpipe.extractor.ServiceList.YouTube.setTokens(cookie)
+        NewPipe.setYoutubePlayerClient(if (cookie != null) "tv_downgraded" else "visionos")
     }
 }

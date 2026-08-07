@@ -34,11 +34,13 @@ object YoutubeAuth {
         }
         prefs.edit().putString(KEY_COOKIE, cookies).apply()
         _isLoggedIn.value = true
+        NewPipeInit.updatePlayerClient() // signed in -> TVHTML5 player client, see NewPipeInit
     }
 
     fun clear() {
         prefs.edit().remove(KEY_COOKIE).apply()
         _isLoggedIn.value = false
+        NewPipeInit.updatePlayerClient()
     }
 
     // Downloader requests can race app startup; an uninitialised store means "not signed in",

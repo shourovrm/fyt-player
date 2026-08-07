@@ -78,15 +78,22 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
-- **Age-gate wave (next): swap extractor to local PipePipeExtractor** (`~/repos/PipePipe`,
-  composite build via `includeBuild` + dependency substitution, PipePipe's own client does
-  exactly this). Confirmed on device: signed-in age-gated videos hard-fail on upstream NewPipe
-  (AccessChallenge), cookied yt-dlp (`--add-header Cookie:`) fails too (Unsupported after ~13 s),
-  WebView tier captures only an unplayable SABR/segment URL. PipePipe's fix: logged-in ->
-  `NewPipe.setYoutubePlayerClient("tv_downgraded")`, anonymous -> `visionos`
-  (PipePipeClient `App.reconcileYoutubePlayerClient`). Port cost: fork is pre-0.24 layout — no
-  `channel.tabs.ChannelTabInfo/ChannelTabs`, no `SignInConfirmNotBotException`; ~7 files in
-  `source/newpipe/` need import/signature ports; fork may need its WebView JS-decoder seam wired.
+- **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
+  built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
+  (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
+  plays via tier0 in <2 s. Two REQUIRED local patches live in that OTHER repo's working tree
+  (not committed there): foojay-resolver block in its settings.gradle, and its Java toolchain
+  25 -> 21 (this machine has JDK 21; 25-bytecode also breaks the unit-test JVM). A different
+  machine needs those two patches plus the checkout at that path, or the build fails.
+- Zulu timeago strings on SEARCH result rows only ("iminyaka edlule") — detail dates are
+  English, settings are English/US. Somewhere the fork localizes search textualUploadDate
+  wrong. Cosmetic; not yet diagnosed.
+- Downloads of age-gated videos still fail: DownloadQueue rides yt-dlp, which stays anonymous
+  (the `--add-header Cookie` attempt did NOT unlock gated resolves — engine ignores bare
+  cookie headers for auth). Would need a cookies-file export or a different download path.
+- Signature/throttling decode falls back to PipePipe's REMOTE decoder API
+  (`api.pipepipe.dev/decoder/decode`, sends playerId + sig params only) when no local decoder
+  is registered. Wire the fork's WebView JS-decoder seam locally if that dependency bothers us.
 - 2026-08-07 shorts/guardrail wave device-verified (this session): back from either shorts pager
   stops playback; channel Shorts tab opens the swipe pager at the tapped clip; resolve failure no
   longer leaves the previous video playing under the guardrail.
@@ -230,6 +237,27 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - `AnnotatedString.fromHtml` needs an explicit `import androidx.compose.ui.text.fromHtml` and an
   explicit `LinkInteractionListener { }` SAM wrapper; the lambda alone fails type inference.
 
+- PipePipeExtractor (fork) API vs upstream 0.26: `ChannelTabs` lives in `linkhandler`,
+  `ChannelTabInfo` in `channel`; `AntiBotException` replaces `SignInConfirmNotBotException`;
+  thumbnails/avatars are plain `...Url` Strings again; `CommentsInfoItem.getCommentText()`
+  returns String and has NO channel-owner flag.
+- Fork search REQUIRES a registered content filter: `searchQHFactory.getFilterItem(0)` ("all").
+  An empty filter list throws a bare `RuntimeException("we have a problem here")` — invisible
+  in logcat because it maps to Unsupported; `NewPipeErrors.logged()` (class + frames, never
+  messages) exists precisely for this.
+- Channel-tab paging can pass `FilterItem(ITEM_IDENTIFIER_UNKNOWN, ChannelTabs.X)` — the tab
+  factory matches by name only. Search cannot (registry check).
+- Fork `Downloader` adds abstract `executeAsync`; `CancellableCall.setFinished()` must run on
+  EVERY exit path or the extractor's await-latch hangs the resolve. `Response` ctor wants raw
+  body bytes alongside the string (SABR reads protobuf bodies).
+- Fork login = `ServiceList.YouTube.setTokens(cookie)` + player client `tv_downgraded`
+  (anonymous: `visionos`), BOTH reapplied on login/logout (`NewPipeInit.applyAuthState`).
+  Downloader-level header injection alone does NOT log the extractor in — `addLoggedInHeaders`
+  reads only the service tokens.
+- jitpack has NO working build of the fork's current history (GitHub mirror diverged from its
+  Codeberg origin) — the composite build from the local checkout is the only supply.
+- compileSdk is 36 because the fork's okhttp 5.4 AAR demands it; targetSdk stays 35.
+
 ## Tried / rejected
 
 - YouTube `/feed/trending` and `/feed/explore` as Home's source — dead. Both redirect to
@@ -332,5 +360,11 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-07 | Signed-in AccessChallenge retries tier1-with-cookie then tier2, rethrows ORIGINAL
   wall | The user's own account may pass an age wall the anonymous extractor cannot; no wall is
   dismissed anywhere. Confirmed insufficient for YouTube age-gate on device (engine ignores the
-  bare Cookie header; tier2 captures SABR segments) — kept as chain shape, real fix is the
-  PipePipeExtractor wave (see Next).
+  bare Cookie header; tier2 captures SABR segments) — kept as chain shape, real fix landed same
+  day (next entry).
+- 2026-08-07 | Extractor swapped to PipePipeExtractor, composite-built from the local sibling
+  checkout | Upstream NewPipeExtractor has no logged-in player client, so age-gated videos can
+  never play for a signed-in user; PipePipe's `tv_downgraded` client + service tokens is the
+  proven mechanism (its own client ships it). jitpack has no usable artifact, hence
+  includeBuild. Verified on device: gated video resolves tier0 <2 s and plays; search, channel
+  tabs, shorts grid, comments, home feed all live on the fork.
