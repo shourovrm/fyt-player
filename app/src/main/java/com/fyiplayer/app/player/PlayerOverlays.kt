@@ -79,8 +79,10 @@ fun SeekPreviewHud(previewText: String, modifier: Modifier = Modifier) {
     }
 }
 
-internal val SEEK_PREVIEW_WIDTH = 112.dp
-internal val SEEK_PREVIEW_HEIGHT = 63.dp
+// 140dp ≈ NewPipe's scrub-card footprint; height floats with the tile aspect (see
+// SeekThumbnailPreview), HEIGHT below is just the 16:9 default/floor.
+internal val SEEK_PREVIEW_WIDTH = 140.dp
+internal val SEEK_PREVIEW_HEIGHT = 79.dp
 internal val SEEK_PREVIEW_GAP = 8.dp
 
 /**
@@ -113,8 +115,16 @@ fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier:
                 // Software bitmap: drawImage needs pixel access, hardware bitmaps refuse it.
                 var sheetBitmap by remember(image.sheet.url) { mutableStateOf<ImageBitmap?>(null) }
                 LaunchedEffect(image.sheet.url) {
+                    // ORIGINAL size is load-bearing: without it Coil can serve this URL from the
+                    // memory cache at whatever size some other view decoded it, and the pixel
+                    // tile math below then crops the wrong region (reported: stretched card
+                    // showing parts of two frames).
                     val result = context.imageLoader.execute(
-                        ImageRequest.Builder(context).data(image.sheet.url).allowHardware(false).build(),
+                        ImageRequest.Builder(context)
+                            .data(image.sheet.url)
+                            .size(coil.size.Size.ORIGINAL)
+                            .allowHardware(false)
+                            .build(),
                     )
                     sheetBitmap = ((result as? SuccessResult)?.drawable as? BitmapDrawable)
                         ?.bitmap?.asImageBitmap()
@@ -137,12 +147,22 @@ fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier:
 
 /** Scrub preview floating above the scrubber thumb: the frame plus its timestamp. [image] null —
  *  the sheet is still in flight, or this source publishes none — drops the frame box entirely and
- *  shows only the timestamp pill, so an early scrub reads as "3:07", never an empty grey square. */
+ *  shows only the timestamp pill, so an early scrub reads as "3:07", never an empty grey square.
+ *  The card keeps the TILE's own aspect ratio (NewPipe does the same): a portrait video's
+ *  portrait storyboard must not get squeezed into a 16:9 box. */
 @Composable
 fun SeekThumbnailPreview(image: SeekPreviewImage?, timestampText: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (image != null) {
-            SeekThumbnailTile(image, SEEK_PREVIEW_WIDTH, SEEK_PREVIEW_HEIGHT)
+            val cardHeight = when (image) {
+                is SeekPreviewImage.Tile -> {
+                    val aspect = image.sheet.tileWidth.toFloat() /
+                        image.sheet.tileHeight.coerceAtLeast(1).toFloat()
+                    (SEEK_PREVIEW_WIDTH / aspect).coerceIn(SEEK_PREVIEW_HEIGHT, 250.dp)
+                }
+                else -> SEEK_PREVIEW_HEIGHT
+            }
+            SeekThumbnailTile(image, SEEK_PREVIEW_WIDTH, cardHeight)
             Spacer(Modifier.height(4.dp))
         }
         Text(
