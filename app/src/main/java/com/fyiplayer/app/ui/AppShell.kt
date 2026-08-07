@@ -115,12 +115,13 @@ fun AppShell(navController: NavHostController) {
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
                 onBack = { navController.popBackStack() },
-                playerSurface = { _, fullscreen, onToggleFullscreen ->
+                playerSurface = { surfaceRef, fullscreen, onToggleFullscreen ->
                     PlayerScreen(
                         fullscreen = fullscreen,
                         onToggleFullscreen = onToggleFullscreen,
                         gestureBrightness = brightnessGesture,
                         gestureVolume = volumeGesture,
+                        pageRef = surfaceRef,
                     )
                 },
             )
