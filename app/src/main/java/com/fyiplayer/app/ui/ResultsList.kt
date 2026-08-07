@@ -66,6 +66,8 @@ internal fun ResultsListColumn(
     skeletonRows: Int = 0,
     /** Every feeding source is exhausted -- a real end, not a stall. */
     endOfResults: Boolean = false,
+    /** Rendered as the first list item so it scrolls away with the results (search's shorts shelf). */
+    topContent: (@Composable () -> Unit)? = null,
 ) {
     // Endless scroll: fire onLoadMore a few rows before the true bottom so scrolling never stalls.
     val shouldLoadMore by remember(listState) {
@@ -80,6 +82,7 @@ internal fun ResultsListColumn(
     }
 
     LazyColumn(state = listState, modifier = modifier, contentPadding = PaddingValues(bottom = 24.dp)) {
+        topContent?.let { item(key = "topContent") { it() } }
         errors.forEach { row -> item { ErrorRowView(row) } }
         if (items.isEmpty() && skeletonRows > 0) {
             items(skeletonRows) { SkeletonRow() }

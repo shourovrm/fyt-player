@@ -78,6 +78,7 @@ fun AppShell(navController: NavHostController) {
             HomeScreen(
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
+                onOpenShorts = { items, index -> navController.openShortsPlayer(items, index) },
             )
         }
         composable(Routes.SHORTS) {

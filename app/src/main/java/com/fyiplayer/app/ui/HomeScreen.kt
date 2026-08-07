@@ -55,7 +55,11 @@ import com.fyiplayer.app.player.PlaybackSession
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Unit) {
+fun HomeScreen(
+    onOpenDetail: (VideoRef) -> Unit,
+    onOpenListing: (Listing) -> Unit,
+    onOpenShorts: (List<VideoRef>, Int) -> Unit,
+) {
     val app = rememberFyiApp()
     val vm: HomeViewModel = viewModel()
     val listState = rememberLazyListState()
@@ -82,9 +86,24 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Uni
     } else {
         feedingResults.firstOrNull()?.items ?: emptyList()
     }
+    // Shelf above, regular rows below -- "All" tab's union already carries encounter order, so
+    // partitioning after interleave keeps the shelf in that same order for free.
+    val (shortsItems, longformItems) = partitionShorts(searchItems)
     val initialLoading = searchItems.isEmpty() && feedingResults.any { it.loading }
     val isLoadingMore = !initialLoading && feedingResults.any { it.loading }
     val hasMore = feedingResults.any { it.canContinue }
+    // Page 1 rarely carries more than a handful of shorts (no shorts-only search filter in the
+    // extractor), so keep pulling pages until the shelf is worth swiping -- bounded, so a
+    // shorts-poor query costs at most a few extra pages, not a crawl to exhaustion.
+    var autoGrowLeft by remember(vm.query, vm.selectedTab) { mutableStateOf(MAX_SHELF_AUTO_FETCHES) }
+    LaunchedEffect(isSearching, searchItems.size, hasMore, isLoadingMore) {
+        if (isSearching && shortsItems.size < MIN_SHELF_SHORTS && hasMore && !isLoadingMore &&
+            searchItems.isNotEmpty() && autoGrowLeft > 0
+        ) {
+            autoGrowLeft--
+            vm.continueTab(feeding)
+        }
+    }
     val allExhausted = feeding.isNotEmpty() && feedingResults.all { it.exhausted }
     val errorRows = feeding.zip(feedingResults).mapNotNull { (src, res) ->
         when {
@@ -94,8 +113,9 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Uni
         }
     }
 
-    // Playback queue is whichever list is actually on screen -- the search results, or Home's feed.
-    val displayedItems = if (isSearching) searchItems else vm.feed.items
+    // Playback queue is whichever list is actually on screen -- the search results (shorts
+    // excluded, they open the pager instead), or Home's feed.
+    val displayedItems = if (isSearching) longformItems else vm.feed.items
     fun playAndOpen(ref: VideoRef) {
         // A YouTube search can return channel rows shaped as a VideoRef (NewPipeYoutubeSource's
         // toChannelRef): no duration, pageUrl is the channel page, not a watch URL. detail() has
@@ -107,6 +127,12 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Uni
         val index = displayedItems.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
         PlaybackSession.play(displayedItems, index)
         onOpenDetail(ref)
+    }
+    fun openShort(ref: VideoRef) {
+        val index = shortsItems.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
+        // ponytail: pager seeded with this loaded shelf list only -- no extra shorts paging on
+        // swipe-past-end. Add real paging if the shelf ever needs to grow beyond one page's worth.
+        onOpenShorts(shortsItems, index)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -171,7 +197,7 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Uni
                     }
                     else -> {
                         ResultsListColumn(
-                            items = searchItems,
+                            items = longformItems,
                             errors = errorRows,
                             hasMore = hasMore,
                             onLoadMore = { vm.continueTab(feeding) },
@@ -181,6 +207,11 @@ fun HomeScreen(onOpenDetail: (VideoRef) -> Unit, onOpenListing: (Listing) -> Uni
                             modifier = Modifier.weight(1f),
                             isLoadingMore = isLoadingMore,
                             endOfResults = allExhausted,
+                            // Inside the list, not pinned above it: a pinned shelf would hold
+                            // ~270dp hostage for the whole scroll.
+                            topContent = if (shortsItems.isEmpty()) null else {
+                                { ShortsShelf(shortsItems, onClick = ::openShort) }
+                            },
                         )
                     }
                 }
