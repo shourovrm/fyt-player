@@ -88,10 +88,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
   built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
   (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
-  plays via tier0 in <2 s. Two REQUIRED local patches live in that OTHER repo's working tree
-  (not committed there): foojay-resolver block in its settings.gradle, and its Java toolchain
-  25 -> 21 (this machine has JDK 21; 25-bytecode also breaks the unit-test JVM). A different
-  machine needs those two patches plus the checkout at that path, or the build fails.
+  plays via tier0 in <2 s. Building needs that checkout present at that path.
 - Zulu mystery SOLVED and fixed: the fork hardcodes `Localization("zu")` for all YouTube
   extraction (`YoutubeService.getLocalization` override) — deliberate, it blocks server-side
   title translation, so "original titles" is permanently on and can never be a toggle. Textual
@@ -130,13 +127,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   results list's first item (`ResultsListColumn.topContent`), search mode only. `partitionShorts`
   splits shelf vs. regular/queue. Auto-grows to `MIN_SHELF_SHORTS` (20) by pulling up to
   `MAX_SHELF_AUTO_FETCHES` (3) extra search pages. Device-verified (shelf renders, tap opens the
-  pager, swipe navigates, ≥20 cards on a generic query). REQUIRES the third local PipePipe patch
-  below — without it search carries almost no shorts.
-- **THIRD required local patch in `~/repos/PipePipe/PipePipeExtractor` (uncommitted there, like
-  the other two):** `YoutubeSearchExtractor.collectStreamsFrom` gains `reelShelfRenderer`,
-  `gridShelfViewModel` and bare `shortsLockupViewModel` branches. Current desktop SERP wraps the
-  shorts shelf as `gridShelfViewModel.contents[].shortsLockupViewModel` (verified live 2026-08);
-  the stock fork silently drops those sections, which is why search returned ~no shorts.
+  pager, swipe navigates, ≥20 cards on a generic query).
 - 2026-08-08 wave (device-verified except where noted): resolver LRU cache (60 entries/60 min,
   `ChainResolver`, `StreamResolver.invalidate` seam), expired-URL fast-fail policy + resume
   staleness refresh (`isStale` 50 min — stale-resume path itself not yet exercised on device),
@@ -459,5 +450,3 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-08 | googlevideo progressive read in 10 MB ranged windows (ChunkedRangeDataSource) |
   One open-ended /videoplayback request is paced to ~realtime; bounded ranges arrive full speed
   (downloader already proved it). PipePipe achieves the same via synthesized-DASH range fetches.
-- 2026-08-08 | Shorts search coverage fixed in the FORK (YoutubeSearchExtractor shelf branches),
-  not the app | The shelf sections never reach the app's mapper; no app-side workaround exists.
