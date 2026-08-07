@@ -92,9 +92,15 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   (not committed there): foojay-resolver block in its settings.gradle, and its Java toolchain
   25 -> 21 (this machine has JDK 21; 25-bytecode also breaks the unit-test JVM). A different
   machine needs those two patches plus the checkout at that path, or the build fails.
-- Zulu timeago strings on SEARCH result rows only ("iminyaka edlule") — detail dates are
-  English, settings are English/US. Somewhere the fork localizes search textualUploadDate
-  wrong. Cosmetic; not yet diagnosed.
+- Zulu mystery SOLVED and fixed: the fork hardcodes `Localization("zu")` for all YouTube
+  extraction (`YoutubeService.getLocalization` override) — deliberate, it blocks server-side
+  title translation, so "original titles" is permanently on and can never be a toggle. Textual
+  dates therefore arrive in Zulu; list/comment mappers now format `uploadDate` (DateWrapper,
+  parsed via the fork's own zu timeago patterns) through `englishAge()` and fall back to raw
+  text only when parsing failed. Device-verified (comments show "1 hour ago").
+- SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
+  full video id), auto-skip in the session ticker. Device playback verified but an actual
+  sponsored-segment skip is still user-unverified.
 - If stutter persists after the rn/UA media shaping (user judging): the next step is a ranged
   10 MB chunking media3 DataSource for googlevideo progressive streams — PipePipe's smooth path
   is synthesized-DASH with bounded `range=` chunk fetches, plain open-ended progressive is only
