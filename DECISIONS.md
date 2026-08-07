@@ -78,10 +78,14 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
-- 2026-08-07 wave is BUILT (226 tests green) but NOT device-verified — no phone on adb at build
-  time. Verify: sign-in against a real age-restricted video (see the gotcha below — it may not
-  lift the gate at all), language/country change, Courses tab, description links + timestamps,
-  queue ×, both seekbars.
+- 2026-08-07 wave device-verified on the Nothing A059 EXCEPT sign-in (user is testing that
+  themselves): language/country (results shift region, applies live and across cold start),
+  Courses tab (freeCodeCamp: two learning paths), description tab (HTML rendered, entities
+  decoded, timestamp link seeks in place 15:03 -> 15:33, no navigation), queue × ("1 of 16" ->
+  gone, playback continued; enqueue -> "1 of 2"), both seekbars drag (video 16:01 -> 63:01,
+  shorts ~70%).
+- Courses tab rows have blank thumbnails — the yt-dlp delegate's flat container listing carries
+  none. Cosmetic; would need a per-row fetch, which rule 6 forbids.
 - User-side verification pending on the newest wave: queue-after-exhaustion on device, channel
   Videos/Shorts play-selected/play-all, followed playlists end-to-end (follow → Library → open →
   remove), playlist tab thumbnails, unsubscribe flow.
@@ -200,6 +204,9 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - `NewPipe.init` must read the latched language/country from `NewPipeInit`, never take them as
   ensure() arguments: init is lazy (first extractor call), so a call site passing defaults would
   silently overwrite the user's setting long after prefs loaded.
+- `formatUploadDate` must handle BOTH date shapes: yt-dlp writes "20260805", NewPipe writes
+  ISO-8601 ("2026-08-05T04:00:27-07:00"). The old digits-only guard passed the ISO string through
+  untouched, so the detail page printed a raw timestamp for every NewPipe-sourced video.
 - `AnnotatedString.fromHtml` needs an explicit `import androidx.compose.ui.text.fromHtml` and an
   explicit `LinkInteractionListener { }` SAM wrapper; the lambda alone fails type inference.
 

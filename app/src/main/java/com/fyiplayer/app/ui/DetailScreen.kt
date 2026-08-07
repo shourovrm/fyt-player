@@ -381,12 +381,19 @@ private fun formatCount(n: Long): String = NumberFormat.getIntegerInstance().for
 
 /** yt-dlp's `upload_date` is `YYYYMMDD`; anything else (or a parse miss) is shown as-is rather
  *  than guessed at. */
-private fun formatUploadDate(raw: String): String {
-    if (raw.length != 8 || raw.any { !it.isDigit() }) return raw
+private fun formatUploadDate(input: String): String {
+    // Two shapes reach here: yt-dlp's "20260805" and NewPipe's ISO-8601
+    // "2026-08-05T04:00:27-07:00". Reduce the second to the first, then one code path.
+    val raw = if (input.length >= 10 && input[4] == '-' && input[7] == '-') {
+        input.take(10).replace("-", "")
+    } else {
+        input
+    }
+    if (raw.length != 8 || raw.any { !it.isDigit() }) return input
     val year = raw.substring(0, 4)
-    val month = raw.substring(4, 6).toIntOrNull() ?: return raw
-    val day = raw.substring(6, 8).toIntOrNull() ?: return raw
+    val month = raw.substring(4, 6).toIntOrNull() ?: return input
+    val day = raw.substring(6, 8).toIntOrNull() ?: return input
     val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    val name = months.getOrNull(month - 1) ?: return raw
+    val name = months.getOrNull(month - 1) ?: return input
     return "$name $day, $year"
 }
