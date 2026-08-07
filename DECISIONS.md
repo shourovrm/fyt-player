@@ -33,6 +33,13 @@ routing (same-video timestamps seek, other videos open Detail, channels/playlist
 rest to the browser). Queue **close = clear** (`PlaybackSession.clearQueue`, × on the strip +
 "Clear" in the sheet) keeps the playing item and drops the rest. Both seekbars got real touch
 targets (40dp bounds, unchanged 2.5/3dp art) and the shorts bar clears the nav-gesture zone.
+Optional **download folder** (`settings/DownloadSettings.kt`, `Prefs.downloadTreeUri`): SAF tree
+picker via `OpenDocumentTree`, persisted read+write grant. Production download path is untouched --
+`DownloadQueue.processNext`'s `EngineOutcome.Done` branch best-effort COPIES the finished
+app-private file into the tree (`download/DownloadExport.kt`, `DocumentsContract.createDocument`
++ stream copy) after the row is already COMPLETED; copy failure is swallowed, private file stays
+the source of truth. `FyiApp` mirrors the pref into a `@Volatile` field (same pattern as
+`maxHeightWifi`) and hands `DownloadQueue.get` a `treeUri: () -> String?` lambda.
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only

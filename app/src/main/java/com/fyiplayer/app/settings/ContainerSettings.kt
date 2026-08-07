@@ -25,7 +25,7 @@ fun ContainerSettings(prefs: Prefs) {
     val scope = rememberCoroutineScope()
     val current by prefs.preferredContainer.collectAsStateWithLifecycle(initialValue = "mp4")
 
-    SettingsSection("Preferred container") {
+    SettingsSection("File format") {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CONTAINERS.forEach { container ->
                 FilterChip(

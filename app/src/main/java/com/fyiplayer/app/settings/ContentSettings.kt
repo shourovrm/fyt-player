@@ -48,19 +48,19 @@ fun ContentSettings(prefs: Prefs) {
     val language by prefs.contentLanguage.collectAsStateWithLifecycle(initialValue = "en")
     val country by prefs.contentCountry.collectAsStateWithLifecycle(initialValue = "US")
 
-    SettingsSection("Content region") {
+    SettingsSection("Language & region") {
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("Content language", style = MaterialTheme.typography.bodyLarge)
+            Text("Language", style = MaterialTheme.typography.bodyLarge)
             Text(
-                "Affects the language of titles, descriptions and dates returned by the source.",
+                "Language for titles, descriptions and dates.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ChoiceRow(options = LANGUAGES, selected = language, onSelect = { scope.launch { prefs.setContentLanguage(it) } })
 
-            Text("Content country", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp))
+            Text("Country", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp))
             Text(
-                "Affects which region search and trending results are pulled from.",
+                "Region for search and trending results.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

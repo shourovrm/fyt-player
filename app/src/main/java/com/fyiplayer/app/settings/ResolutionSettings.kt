@@ -31,9 +31,9 @@ fun ResolutionSettings(prefs: Prefs) {
 
     SettingsSection("Resolution") {
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Text("On Wi-Fi (unmetered)", style = MaterialTheme.typography.bodyMedium)
+            Text("Wi-Fi", style = MaterialTheme.typography.bodyMedium)
             ResolutionRow(selected = wifi, onSelect = { scope.launch { prefs.setMaxResolutionWifi(it) } })
-            Text("On mobile data / metered", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
+            Text("Mobile data", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
             ResolutionRow(selected = mobile, onSelect = { scope.launch { prefs.setMaxResolutionMobile(it) } })
         }
     }

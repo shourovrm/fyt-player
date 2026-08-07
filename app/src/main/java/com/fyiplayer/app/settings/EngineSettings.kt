@@ -51,7 +51,7 @@ fun EngineSettings() {
     // shape) -- read once up front so a freshly-installed app shows "bundled", not "unknown".
     LaunchedEffect(Unit) { version = EngineUpdater.installedVersion(context) }
 
-    SettingsSection("Extraction engine") {
+    SettingsSection("Video engine") {
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text(
                 "Version: ${version ?: "bundled with the app"}",
@@ -88,7 +88,7 @@ fun EngineSettings() {
                             updating = false
                         }
                     },
-                ) { Text("Update engine now") }
+                ) { Text("Update now") }
                 if (updating) {
                     CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp).size(16.dp))
                 }

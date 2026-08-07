@@ -2,6 +2,7 @@ package com.fyiplayer.app.download
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Environment
 import androidx.core.content.ContextCompat
 import com.fyiplayer.app.FyiApp
@@ -80,6 +81,8 @@ class DownloadQueue private constructor(
     private val repository: DownloadRepository,
     private val resolver: StreamResolver,
     private val dir: File,
+    private val appContext: Context,
+    private val treeUri: () -> String?,
     private val kickService: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -277,6 +280,10 @@ class DownloadQueue private constructor(
                             updatedAt = System.currentTimeMillis(),
                         ),
                     )
+                    // Best-effort copy into the user's chosen folder, if any -- the row above is
+                    // already COMPLETED and stays that way regardless of how this turns out; the
+                    // private file it points at is what the in-app Downloads screen opens.
+                    produced?.let { file -> treeUri()?.let { uri -> exportToTree(appContext, file, Uri.parse(uri)) } }
                 }
                 EngineOutcome.Cancelled -> {
                     // cancel() already deleted the row; only a plain pause() needs PAUSED written.
@@ -393,6 +400,8 @@ class DownloadQueue private constructor(
                     repository = DownloadRepository(app.database.downloadDao()),
                     resolver = app.resolver,
                     dir = dir,
+                    appContext = appContext,
+                    treeUri = app::currentDownloadTreeUri,
                     kickService = {
                         // Once the dataSync foreground budget for the day is spent, starting the
                         // service again throws ForegroundServiceStartNotAllowedException. The row
