@@ -124,10 +124,13 @@ fun PlayerScreen(
         if (!showVolumeHud) return@LaunchedEffect
         delay(800); showVolumeHud = false
     }
-    // menuOpen is a key, not just a guard: closing the menu restarts the countdown from zero
-    // instead of resuming a timer that expired behind the popup and would yank the chrome away.
-    LaunchedEffect(controlsToken, state.isPlaying, menuOpen) {
-        if (!state.isPlaying || menuOpen) return@LaunchedEffect
+    // menuOpen/scrubbing are keys, not just guards: closing the menu or lifting the finger
+    // restarts the countdown from zero instead of resuming a timer that expired mid-interaction
+    // and would yank the chrome away — a hide during a seekbar drag unmounts the bar and
+    // releases the drag under the user's finger.
+    var scrubbing by remember { mutableStateOf(false) }
+    LaunchedEffect(controlsToken, state.isPlaying, menuOpen, scrubbing) {
+        if (!state.isPlaying || menuOpen || scrubbing) return@LaunchedEffect
         delay(3000); controlsVisible = false
     }
 
@@ -241,6 +244,7 @@ fun PlayerScreen(
                         onOpenCaptions = { interact(); showCaptionSheet = true },
                         canPreviewGrid = seekThumbs != null && state.durationMs > 0,
                         onOpenPreviewGrid = { interact(); showJumpGrid = true },
+                        onScrubbingChange = { scrubbing = it },
                         modifier = Modifier.align(Alignment.BottomStart),
                     )
                 }

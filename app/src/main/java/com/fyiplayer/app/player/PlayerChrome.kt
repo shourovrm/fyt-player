@@ -60,6 +60,7 @@ internal fun ControlBar(
     onOpenCaptions: () -> Unit,
     canPreviewGrid: Boolean,
     onOpenPreviewGrid: () -> Unit,
+    onScrubbingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -86,12 +87,17 @@ internal fun ControlBar(
                 value = shownMs.toFloat(),
                 valueRange = 0f..durationMs.toFloat(),
                 onValueChange = { value ->
+                    // The caller must know too: PlayerScreen's 3s auto-hide otherwise unmounts
+                    // this whole bar mid-drag and the disposal releases the drag (reported:
+                    // "released after around 4 sec").
+                    if (!isScrubbing) onScrubbingChange(true)
                     isScrubbing = true
                     scrubValueMs = value.toLong()
                 },
                 onValueChangeFinished = {
                     PlaybackSession.seekTo(scrubValueMs)
                     isScrubbing = false
+                    onScrubbingChange(false)
                 },
                 // Custom track/thumb slots (material3 1.4's Slider supports both) draw the exact
                 // 2.5dp/10dp the slimmer chrome calls for -- SliderDefaults' own Track/Thumb have no
