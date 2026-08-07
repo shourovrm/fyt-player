@@ -125,6 +125,25 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - User-side verification pending on the newest wave: queue-after-exhaustion on device, channel
   Videos/Shorts play-selected/play-all, followed playlists end-to-end (follow → Library → open →
   remove), playlist tab thumbnails, unsubscribe flow.
+- Search Shorts shelf (`ui/ShortsShelf.kt`, `VideoRef.isShort` wired in `NewPipeYoutubeSource.
+  toVideoRef` from `StreamInfoItem.isShortFormContent` + `/shorts/` URL fallback): LazyRow as the
+  results list's first item (`ResultsListColumn.topContent`), search mode only. `partitionShorts`
+  splits shelf vs. regular/queue. Auto-grows to `MIN_SHELF_SHORTS` (20) by pulling up to
+  `MAX_SHELF_AUTO_FETCHES` (3) extra search pages. Device-verified (shelf renders, tap opens the
+  pager, swipe navigates, ≥20 cards on a generic query). REQUIRES the third local PipePipe patch
+  below — without it search carries almost no shorts.
+- **THIRD required local patch in `~/repos/PipePipe/PipePipeExtractor` (uncommitted there, like
+  the other two):** `YoutubeSearchExtractor.collectStreamsFrom` gains `reelShelfRenderer`,
+  `gridShelfViewModel` and bare `shortsLockupViewModel` branches. Current desktop SERP wraps the
+  shorts shelf as `gridShelfViewModel.contents[].shortsLockupViewModel` (verified live 2026-08);
+  the stock fork silently drops those sections, which is why search returned ~no shorts.
+- 2026-08-08 wave (device-verified except where noted): resolver LRU cache (60 entries/60 min,
+  `ChainResolver`, `StreamResolver.invalidate` seam), expired-URL fast-fail policy + resume
+  staleness refresh (`isStale` 50 min — stale-resume path itself not yet exercised on device),
+  `SharedSurface` ownership registry (black-screen race fix — race never reproduced on demand,
+  fix is registry-by-construction), googlevideo chunked ranged reads
+  (`player/ChunkedRangeDataSource.kt`, 10 MB windows, mirrors StreamDownloader) for full-speed
+  transfer instead of realtime pacing.
 - Search channel rows: `toChannelRef` maps subscriber count into viewCountText as a stopgap; a
   typed channel result (Contracts-level) would let the row render properly and drop the URL
   heuristic in HomeScreen.
@@ -178,6 +197,9 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   previews may drift on very long videos until measured on a device.
 - `Listing.key` is assumed to be a full channel/playlist URL, because that is what `detail()` puts
   there. Anything else constructing a `Listing` must honour that or `listing()` breaks.
+- Test files in one package share a namespace for private top-level declarations: two files both
+  declaring `private class FakeResolver` fail compilation with a misleading "private in file"
+  error. Name test fakes per-file (e.g. `CountingResolver`).
 - `Protocol.DASH` throws in `MediaItemFactory`: `media3-exoplayer-dash` is not a dependency and
   nothing emits DASH yet. Adding a DASH path means adding that artifact first.
 - There is exactly ONE shared video surface. `AppScaffold` therefore hides the mini player and
@@ -423,3 +445,19 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   ref by `ShortsPager`, so there is no callback here that can route to an arbitrary linked target
   without threading a new nav callback through files outside this task's scope. Same-video
   timestamp links still seek in place (no callback needed).
+- 2026-08-08 | Search Shorts shelf reuses `ShortsPager` via `AppShell.openShortsPlayer`, seeded
+  with only the loaded shelf list (no swipe-past-end paging) | Same handoff idiom the channel
+  Shorts tab already uses; a second paging path for one shelf isn't earned yet.
+- 2026-08-08 | Resolver results cached in memory (LRU 60, TTL 60 min) with an `invalidate` seam |
+  PipePipe's InfoCache proves the pattern; replay/back-nav now starts instantly, and the player
+  invalidates before every expiry re-resolve so a dead URL can't be served back.
+- 2026-08-08 | 401/403/410 load errors never retried by ExoPlayer (custom LoadErrorHandlingPolicy) |
+  Default backoff burned 30-90 s before onPlayerError's re-resolve; a dead signed URL can't heal.
+- 2026-08-08 | SharedSurface ownership = explicit registry, detach re-homes to the surviving host |
+  Compose disposal order between hosts is not guaranteed; ordering-dependent detach left the view
+  parentless (intermittent black screen after fullscreen exit).
+- 2026-08-08 | googlevideo progressive read in 10 MB ranged windows (ChunkedRangeDataSource) |
+  One open-ended /videoplayback request is paced to ~realtime; bounded ranges arrive full speed
+  (downloader already proved it). PipePipe achieves the same via synthesized-DASH range fetches.
+- 2026-08-08 | Shorts search coverage fixed in the FORK (YoutubeSearchExtractor shelf branches),
+  not the app | The shelf sections never reach the app's mapper; no app-side workaround exists.

@@ -26,6 +26,9 @@ data class VideoRef(
     /** Free-form age text the listing supplied ("2 weeks ago"). Display only, never parsed.
      *  Stays null when the listing carried none — the row simply omits it, never invents it. */
     val uploadedText: String? = null,
+    /** Short-form vertical clip, as declared by the listing (extractor flag or /shorts/ URL).
+     *  False when the listing didn't say — a plain row, never a probe. */
+    val isShort: Boolean = false,
 )
 
 /** One page of results. [nextPage] is an opaque token the same source hands back to itself. */
@@ -257,8 +260,13 @@ interface VideoSource {
 /**
  * Turns a canonical page URL into playable formats. Implementations form a tiered chain:
  * extraction engine first, headless capture second, a typed [ExtractionError] third. Call at play
- * or download time — never ahead of it, and never cache the result.
+ * or download time — never ahead of it. A resolver may keep a short-lived in-memory cache of
+ * results (signed URLs live nowhere else); [invalidate] is how a caller reports that a served
+ * result is dead (expired/IP-bound URL) so the next [resolve] goes to the network.
  */
 interface StreamResolver {
     suspend fun resolve(ref: VideoRef): Resolved
+
+    /** Drop any cached result for [pageUrl]. Default: nothing cached, nothing to drop. */
+    fun invalidate(pageUrl: String) {}
 }
