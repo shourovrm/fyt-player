@@ -61,6 +61,9 @@ class FyiApp : Application() {
     // Mirrored the same way; DownloadQueue is a plain singleton with no DataStore access of its
     // own, so it reads this through a lambda handed to it in DownloadQueue.get.
     @Volatile private var downloadTreeUri: String? = null
+    // Mirrored the same way; PlaybackSession's skip check runs on the player thread and cannot
+    // suspend on a DataStore read.
+    @Volatile private var sponsorBlockEnabled = false
 
     override fun onCreate() {
         super.onCreate()
@@ -68,6 +71,7 @@ class FyiApp : Application() {
         prefs.maxResolutionWifi.onEach { maxHeightWifi = it }.launchIn(appScope)
         prefs.maxResolutionMobile.onEach { maxHeightMobile = it }.launchIn(appScope)
         prefs.downloadTreeUri.onEach { downloadTreeUri = it }.launchIn(appScope)
+        prefs.sponsorBlock.onEach { sponsorBlockEnabled = it }.launchIn(appScope)
 
         // Latches into NewPipeInit before the first extractor call and re-applies on every
         // settings change, so language/country needs no app restart.
@@ -76,7 +80,7 @@ class FyiApp : Application() {
             .launchIn(appScope)
 
         YoutubeAuth.init(this)
-        PlaybackSession.init(this, resolver, maxHeight = ::currentMaxHeight)
+        PlaybackSession.init(this, resolver, maxHeight = ::currentMaxHeight, sponsorBlockEnabled = { sponsorBlockEnabled })
 
         // Native init takes seconds on a cold install; resolves await EngineGate rather than
         // blocking startup on it.

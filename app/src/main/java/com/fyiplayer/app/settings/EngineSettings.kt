@@ -30,6 +30,10 @@ import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
+// Bump together with the composite build / libs.versions.toml `newpipeExtractor` -- YouTube runs
+// on this extractor, so its version ships with the app, not via the yt-dlp updater below.
+private const val YOUTUBE_ENGINE = "PipePipeExtractor v5.2.4 · YouTube"
+
 /** Extraction-engine version, update channel and the explicit "Update engine" action. Extractors
  *  rot within weeks (CLAUDE.md), so this is the user's only recourse -- nothing here runs unless
  *  tapped. */
@@ -53,9 +57,11 @@ fun EngineSettings() {
 
     SettingsSection("Video engine") {
         Column(Modifier.padding(horizontal = 16.dp)) {
+            Text(YOUTUBE_ENGINE, style = MaterialTheme.typography.bodyLarge)
             Text(
                 "Version: ${version ?: "bundled with the app"}",
                 style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(top = 12.dp),
             )
             Text(
                 "Update channel",
@@ -88,7 +94,7 @@ fun EngineSettings() {
                             updating = false
                         }
                     },
-                ) { Text("Update now") }
+                ) { Text("Update") }
                 if (updating) {
                     CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp).size(16.dp))
                 }

@@ -11,9 +11,19 @@ import kotlinx.coroutines.flow.map
 // title) -- no reason to invent a second domain type the UI would have to convert between.
 fun SubscriptionEntity.toListing(): Listing = Listing(sourceId, Listing.Kind.CHANNEL, channelUrl, title)
 
+/** Library's Channels tab row shape: a [Listing] to navigate/display plus the feed-visibility flag
+ *  the eye toggle reads and flips. Feed builders never see this -- they only want [Listing]s that
+ *  already passed the filter, see [SubscriptionRepository.observeFeedChannels]. */
+data class SubscriptionRow(val listing: Listing, val showInFeed: Boolean)
+
+private fun SubscriptionEntity.toRow(): SubscriptionRow = SubscriptionRow(toListing(), showInFeed)
+
 class SubscriptionRepository(private val dao: SubscriptionDao) {
-    /** Newest-subscribed first -- Home's channel feed order. */
-    fun observeAll(): Flow<List<Listing>> = dao.observeAll().map { list -> list.map { it.toListing() } }
+    /** Newest-subscribed first, every row -- what Library's Channels tab renders. */
+    fun observeAllRows(): Flow<List<SubscriptionRow>> = dao.observeAll().map { list -> list.map { it.toRow() } }
+
+    /** Newest-subscribed first, hidden channels excluded -- Home/Shorts feed order and input. */
+    fun observeFeedChannels(): Flow<List<Listing>> = dao.observeFeedChannels().map { list -> list.map { it.toListing() } }
 
     fun isSubscribed(channelUrl: String): Flow<Boolean> = dao.isSubscribed(channelUrl)
 
@@ -29,4 +39,7 @@ class SubscriptionRepository(private val dao: SubscriptionDao) {
             dao.subscribe(SubscriptionEntity(channelUrl, sourceId, title, System.currentTimeMillis()))
         }
     }
+
+    /** The Library eye toggle -- channel stays subscribed, just opts out of Home/Shorts. */
+    suspend fun setShowInFeed(channelUrl: String, show: Boolean) = dao.setShowInFeed(channelUrl, show)
 }

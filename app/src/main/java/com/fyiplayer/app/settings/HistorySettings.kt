@@ -34,12 +34,12 @@ fun HistorySettings(prefs: Prefs) {
 
     SettingsSection("History") {
         SettingsSwitchRow(
-            label = "Record watch history",
+            label = "Save watch history",
             checked = recordWatch,
             onCheckedChange = { scope.launch { prefs.setRecordWatchHistory(it) } },
         )
         SettingsSwitchRow(
-            label = "Record search history",
+            label = "Save search history",
             checked = recordSearch,
             onCheckedChange = { scope.launch { prefs.setRecordSearchHistory(it) } },
         )

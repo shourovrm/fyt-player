@@ -17,12 +17,12 @@ fun GestureSettings(prefs: Prefs) {
 
     SettingsSection("Gestures") {
         SettingsSwitchRow(
-            label = "Drag left side for brightness",
+            label = "Brightness — drag left side",
             checked = brightness,
             onCheckedChange = { scope.launch { prefs.setGestureBrightness(it) } },
         )
         SettingsSwitchRow(
-            label = "Drag right side for volume",
+            label = "Volume — drag right side",
             checked = volume,
             onCheckedChange = { scope.launch { prefs.setGestureVolume(it) } },
         )
