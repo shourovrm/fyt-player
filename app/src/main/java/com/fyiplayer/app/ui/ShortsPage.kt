@@ -151,7 +151,10 @@ internal fun ShortsPage(
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))))
-                .padding(start = 16.dp, end = 74.dp, top = 48.dp, bottom = 24.dp),
+                // bottom must clear the seekbar band (24dp padding + 40dp touch height = 64dp
+                // above the nav inset, see ShortsSeekBar below) -- it deliberately doesn't move,
+                // so this padding is what makes room instead.
+                .padding(start = 16.dp, end = 74.dp, top = 48.dp, bottom = 48.dp),
         ) {
             Text(ref.title, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             ref.uploader?.let {
@@ -173,10 +176,8 @@ internal fun ShortsPage(
                     .clickable {
                         // Sheet over the still-mounted pager now, not a nav world-switch --
                         // onOpenDetail (curried to this ref by ShortsPager) goes unused here but
-                        // stays wired per-param, matching the rest of this rail. Pause, don't
-                        // toggle: a second tap while already paused must not resume it under the
-                        // sheet.
-                        if (playerState.isPlaying) PlaybackSession.togglePlayPause()
+                        // stays wired per-param, matching the rest of this rail. Playback keeps
+                        // running behind the sheet; nothing here touches it.
                         showDetailsSheet = true
                     }
                     .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -225,8 +226,8 @@ internal fun ShortsPage(
         SavePlaylistSheet(refs = listOf(ref), playlists = playlists, onDismiss = { showSaveSheet = false })
     }
     if (showDetailsSheet) {
-        // Closing (swipe/scrim/back) just dismisses -- playback stays paused; the existing
-        // tap-to-toggle on the video surface above is how the user resumes it.
+        // Closing (swipe/scrim/back) just dismisses -- playback was never paused for the sheet,
+        // so there's nothing to resume here.
         ShortsDetailsSheet(ref = ref, onDismiss = { showDetailsSheet = false })
     }
 }
