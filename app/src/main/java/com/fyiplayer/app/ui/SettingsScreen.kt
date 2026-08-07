@@ -8,8 +8,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.settings.AccountSettings
 import com.fyiplayer.app.settings.BackupSettings
 import com.fyiplayer.app.settings.ContainerSettings
+import com.fyiplayer.app.settings.ContentSettings
 import com.fyiplayer.app.settings.EngineSettings
 import com.fyiplayer.app.settings.GestureSettings
 import com.fyiplayer.app.settings.HistorySettings
@@ -24,6 +26,8 @@ fun SettingsScreen() {
     val app = rememberFyiApp()
     LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(bottom = 24.dp)) {
         item { SourcesSettings(app.prefs) }
+        item { ContentSettings(app.prefs) }
+        item { AccountSettings() }
         item { ResolutionSettings(app.prefs) }
         item { ContainerSettings(app.prefs) }
         item { HistorySettings(app.prefs) }

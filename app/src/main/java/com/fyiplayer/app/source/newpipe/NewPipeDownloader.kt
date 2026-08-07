@@ -1,6 +1,7 @@
 package com.fyiplayer.app.source.newpipe
 
 import java.io.IOException
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request as OkRequest
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -15,8 +16,9 @@ private const val USER_AGENT =
 
 /**
  * [Downloader] for tier-0 (NewPipeExtractor). Reuses the app's single [OkHttpClient] -- no
- * separate client, no separate connection pool. Sends no cookies: this tier only ever resolves a
- * public watch page, never anything behind a wall.
+ * separate client, no separate connection pool. Sends the user's own YouTube session cookie
+ * (see [YoutubeAuth]) only to youtube.com hosts -- never to googlevideo.com, googleapis.com or
+ * any other service (cookie isolation is per-service, a project rule).
  */
 class NewPipeDownloader(private val client: OkHttpClient) : Downloader() {
     @Throws(IOException::class, ReCaptchaException::class)
@@ -31,6 +33,21 @@ class NewPipeDownloader(private val client: OkHttpClient) : Downloader() {
         request.headers().forEach { (name, values) ->
             builder.removeHeader(name)
             values.forEach { builder.addHeader(name, it) }
+        }
+
+        // First-party session, YouTube host only -- cookie isolation is per-service (project rule).
+        // Skipped when the extractor already set its own Cookie header (e.g. consent cookie).
+        val host = request.url().toHttpUrlOrNull()?.host
+        val isYoutubeHost = host != null && (host == "youtube.com" || host.endsWith(".youtube.com"))
+        val hasCookieHeader = request.headers().keys.any { it.equals("Cookie", ignoreCase = true) }
+        if (isYoutubeHost && !hasCookieHeader) {
+            val cookie = YoutubeAuth.cookieHeader()
+            val authorization = YoutubeAuth.authorizationHeader()
+            if (cookie != null && authorization != null) {
+                builder.header("Cookie", cookie)
+                builder.header("X-Origin", "https://www.youtube.com")
+                builder.header("Authorization", authorization)
+            }
         }
 
         client.newCall(builder.build()).execute().use { resp ->
