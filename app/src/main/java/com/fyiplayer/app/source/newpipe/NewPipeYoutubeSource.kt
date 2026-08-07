@@ -320,6 +320,8 @@ private fun StreamInfoItem.toVideoRef(): VideoRef? {
         uploaderUrl = uploaderUrl,
         viewCountText = compactCount(viewCount)?.let { "$it views" },
         uploadedText = englishAge(uploadDate) ?: textualUploadDate,
+        // Fork's own flag first; /shorts/ path fallback covers any listing shape it left unset.
+        isShort = isShortFormContent || url.contains("/shorts/"),
     )
 }
 
