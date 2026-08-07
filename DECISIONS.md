@@ -401,6 +401,18 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   the pairing crossed families.
 - 2026-08-07 | Similar tab tops up from continuations (cap: 2 extra pages, target 8 videos) |
   Niche titles return mostly channels; after the video-only filter 2-3 rows looked broken.
+- 2026-08-07 | Scrub UX: slider box height-pinned, auto-hide paused while scrubbing, preview =
+  ORIGINAL-size decode + single-tile source-rect crop, card follows tile aspect | Three separate
+  drag-release bugs (box inflation, 3s auto-hide unmount, scaled-cache mis-crop) each looked
+  like "the drag randomly releases"; all device-verified fixed (8s synthetic drag lands at 85%).
+- 2026-08-07 | Notification Close = media3 custom SessionCommand (ICON_STOP, SLOT_OVERFLOW) ->
+  PlaybackSession.clear() | media3 1.9.4 facts verified against the artifact bytecode, not
+  memory: notification renders from mediaButtonPreferences, setCustomLayout is not what System
+  UI reads. Watch page left open after Close shows the ref's poster + replay (PlayerScreen
+  pageRef param), never "Nothing playing".
+- 2026-08-07 | Shorts scrub thumbnail (YouTube-style portrait card) with LAZY storyboard fetch |
+  Fetch costs a full extractor call; most shorts are swiped past, never scrubbed — first drag
+  triggers it, page deactivation drops it.
 - 2026-08-07 | Shorts "Details" opens a ModalBottomSheet over the pager, not a nav world-switch |
   `ui/ShortsDetailsSheet.kt` reuses `DetailTabsViewModel`/`descriptionTabSection`/`CommentsSection`
   verbatim (Description + Comments only, no Similar) with its own `source.detail(ref)` fetch,
