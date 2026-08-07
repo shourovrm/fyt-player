@@ -16,6 +16,7 @@ import com.fyiplayer.app.engine.EngineGate
 import com.fyiplayer.app.engine.mapEngineError
 import com.fyiplayer.app.player.FormatSelection
 import com.fyiplayer.app.player.FormatSelector
+import com.fyiplayer.app.player.mediaHttpClient
 import com.fyiplayer.app.ui.userMessage
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -83,9 +84,19 @@ class DownloadQueue private constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engineGate = Semaphore(1)
+    // Same rn/UA request shaping as playback (player/MediaHttp.kt) -- an unshapen client is
+    // paced by the CDN and a 30 MB download takes twenty minutes.
+    private val streamDownloader = StreamDownloader(mediaHttpClient())
 
     @Volatile private var activePageUrl: String? = null
     @Volatile private var activeProcessId: String? = null
+    // Set for rows on the direct-stream path (extractor-resolved); null for engine rows.
+    @Volatile private var activeStreamSignal: StreamDownloader.CancelSignal? = null
+
+    private fun stopActive() {
+        activeStreamSignal?.cancel()
+        activeProcessId?.let { YoutubeDL.getInstance().destroyProcessById(it) }
+    }
 
     // Transient only: DownloadEntity has no error column, and an engine failure message is mapped
     // to a fixed safe-to-display string before it ever lands here (never a raw signed URL).
@@ -142,7 +153,7 @@ class DownloadQueue private constructor(
 
     suspend fun pause(pageUrl: String) {
         if (activePageUrl == pageUrl) {
-            activeProcessId?.let { YoutubeDL.getInstance().destroyProcessById(it) }
+            stopActive()
         } else {
             setState(pageUrl, DownloadState.PAUSED)
         }
@@ -165,9 +176,7 @@ class DownloadQueue private constructor(
      *  does not ask. */
     suspend fun cancel(pageUrl: String) {
         _errors.update { it - pageUrl }
-        if (activePageUrl == pageUrl) {
-            activeProcessId?.let { YoutubeDL.getInstance().destroyProcessById(it) }
-        }
+        if (activePageUrl == pageUrl) stopActive()
         repository.remove(pageUrl)
     }
 
@@ -179,9 +188,7 @@ class DownloadQueue private constructor(
     suspend fun cancelAndDelete(pageUrl: String): Boolean {
         val item = repository.get(pageUrl)
         _errors.update { it - pageUrl }
-        if (activePageUrl == pageUrl) {
-            activeProcessId?.let { YoutubeDL.getInstance().destroyProcessById(it) }
-        }
+        if (activePageUrl == pageUrl) stopActive()
         repository.remove(pageUrl)
         return item?.let { deleteDownloadFiles(dir, it.ref) } ?: true
     }
@@ -207,9 +214,12 @@ class DownloadQueue private constructor(
     suspend fun pauseActive() {
         val pageUrl = activePageUrl ?: return
         val processId = activeProcessId
+        val streamSignal = activeStreamSignal
         setState(pageUrl, DownloadState.PAUSED)
         activePageUrl = null
         activeProcessId = null
+        activeStreamSignal = null
+        streamSignal?.cancel()
         processId?.let { YoutubeDL.getInstance().destroyProcessById(it) }
     }
 
@@ -230,7 +240,7 @@ class DownloadQueue private constructor(
             repository.upsert(next.copy(state = DownloadState.RUNNING, updatedAt = System.currentTimeMillis()))
 
             var lastWriteMillis = 0L
-            val outcome = runEngine(next, processId) { progress ->
+            val outcome = runDownload(next, processId) { progress ->
                 val now = System.currentTimeMillis()
                 if (now - lastWriteMillis >= 1_000) {
                     lastWriteMillis = now
@@ -253,6 +263,7 @@ class DownloadQueue private constructor(
             }
             activePageUrl = null
             activeProcessId = null
+            activeStreamSignal = null
 
             when (outcome) {
                 EngineOutcome.Done -> {
@@ -286,6 +297,43 @@ class DownloadQueue private constructor(
     private suspend fun setState(pageUrl: String, state: DownloadState) {
         val current = repository.get(pageUrl) ?: return
         repository.upsert(current.copy(state = state, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** YouTube rows download through the extractor chain (the only signed-in path — an engine
+     *  subprocess is anonymous and hits the same age wall playback used to); every other source
+     *  keeps the engine, which is still the only downloader that knows their extractors. */
+    private suspend fun runDownload(
+        item: DownloadItem,
+        processId: String,
+        onProgress: (DownloadProgress) -> Unit,
+    ): EngineOutcome =
+        if (item.ref.sourceId == "youtube") runStream(item, onProgress)
+        else runEngine(item, processId, onProgress)
+
+    private suspend fun runStream(
+        item: DownloadItem,
+        onProgress: (DownloadProgress) -> Unit,
+    ): EngineOutcome {
+        val resolved = try {
+            resolver.resolve(item.ref)
+        } catch (e: ExtractionError) {
+            return EngineOutcome.Failed(e.userMessage())
+        }
+        val signal = StreamDownloader.CancelSignal()
+        activeStreamSignal = signal
+        if (!dir.exists()) dir.mkdirs()
+        return when (val outcome = streamDownloader.download(
+            formats = resolved.formats,
+            selector = item.formatId,
+            dir = dir,
+            baseName = safeBaseName(item.ref),
+            signal = signal,
+            onProgress = onProgress,
+        )) {
+            is StreamDownloader.Outcome.Done -> EngineOutcome.Done
+            StreamDownloader.Outcome.Cancelled -> EngineOutcome.Cancelled
+            is StreamDownloader.Outcome.Failed -> EngineOutcome.Failed(outcome.message)
+        }
     }
 
     /**
