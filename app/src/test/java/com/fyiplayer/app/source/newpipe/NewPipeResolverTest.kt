@@ -17,7 +17,7 @@ import org.schabi.newpipe.extractor.exceptions.PaidContentException
 import org.schabi.newpipe.extractor.exceptions.ParsingException
 import org.schabi.newpipe.extractor.exceptions.PrivateContentException
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
-import org.schabi.newpipe.extractor.exceptions.SignInConfirmNotBotException
+import org.schabi.newpipe.extractor.exceptions.AntiBotException
 
 // Pure helpers only -- no network, no NewPipe.init.
 class NewPipeResolverTest {
@@ -57,7 +57,7 @@ class NewPipeResolverTest {
         assertTrue(mapNewPipeError(AgeRestrictedContentException("wall")) is ExtractionError.AccessChallenge)
         assertTrue(mapNewPipeError(PaidContentException("wall")) is ExtractionError.AccessChallenge)
         assertTrue(mapNewPipeError(GeographicRestrictionException("wall")) is ExtractionError.AccessChallenge)
-        assertTrue(mapNewPipeError(SignInConfirmNotBotException("bot check")) is ExtractionError.AccessChallenge)
+        assertTrue(mapNewPipeError(AntiBotException("bot check")) is ExtractionError.AccessChallenge)
     }
 
     @Test

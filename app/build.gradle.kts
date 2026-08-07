@@ -17,7 +17,7 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.fyiplayer.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.fyiplayer.app"
