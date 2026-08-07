@@ -34,6 +34,7 @@ class Prefs(private val context: Context) {
         val BACKGROUND_PLAYBACK = booleanPreferencesKey("background_playback")
         val CONTENT_LANGUAGE = stringPreferencesKey("content_language")
         val CONTENT_COUNTRY = stringPreferencesKey("content_country")
+        val DOWNLOAD_TREE_URI = stringPreferencesKey("download_tree_uri")
     }
 
     // only platform live today; default matches SourceRegistry without this file naming it
@@ -70,4 +71,11 @@ class Prefs(private val context: Context) {
 
     val contentCountry: Flow<String> = flow(CONTENT_COUNTRY, "US")
     suspend fun setContentCountry(v: String) = set(CONTENT_COUNTRY, v)
+
+    // SAF tree URI finished downloads get COPIED into; unset means app-private storage only, so
+    // this has no default and bypasses the flow()/set() helpers, which require a non-null T.
+    val downloadTreeUri: Flow<String?> = data.map { it[DOWNLOAD_TREE_URI] }
+    suspend fun setDownloadTreeUri(v: String?) = context.settingsStore.edit {
+        if (v == null) it.remove(DOWNLOAD_TREE_URI) else it[DOWNLOAD_TREE_URI] = v
+    }
 }

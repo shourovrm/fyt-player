@@ -16,7 +16,7 @@ fun PlaybackSettings(prefs: Prefs) {
 
     SettingsSection("Playback") {
         SettingsSwitchRow(
-            label = "Keep playing when the app is in the background",
+            label = "Keep playing in the background",
             checked = background,
             onCheckedChange = { scope.launch { prefs.setBackgroundPlayback(it) } },
         )

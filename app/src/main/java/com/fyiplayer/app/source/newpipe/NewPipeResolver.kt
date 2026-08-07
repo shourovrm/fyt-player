@@ -60,7 +60,7 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
         info.videoStreams.orEmpty()
             .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
             .forEach { add(muxedFormat(it)) }
-        info.audioStreams.orEmpty()
+        originalAudioOnly(info.audioStreams.orEmpty())
             .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
             .forEach { add(audioOnlyFormat(it)) }
         // DASH and torrent are deliberately skipped: media3-exoplayer-dash isn't a dependency and
@@ -73,6 +73,21 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
 }
 
 private fun genericCodec(codec: String?, fallback: String) = if (codec.isNullOrBlank()) fallback else codec
+
+/** Multi-audio videos ship dubbed tracks, and picking audio by bitrate alone can land on a dub in
+ *  the wrong language. Same narrowing PipePipe's own client uses (`ListHelper
+ *  .filterAudioStreamsByLanguage`, "original" mode): keep original/default/untagged tracks; fall
+ *  back to untracked ids, then to everything rather than to silence. */
+internal fun originalAudioOnly(streams: List<AudioStream>): List<AudioStream> {
+    if (streams.isEmpty()) return streams
+    val original = streams.filter { s ->
+        val name = s.audioTrackName?.lowercase()
+        name == null || "original" in name || "default" in name
+    }
+    if (original.isNotEmpty()) return original
+    val untagged = streams.filter { it.audioTrackId == null }
+    return untagged.ifEmpty { streams }
+}
 
 private fun videoOnlyFormat(s: VideoStream) = MediaFormat(
     formatId = s.id,

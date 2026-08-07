@@ -58,12 +58,16 @@ class FyiApp : Application() {
     // are mirrored into plain fields and the ceiling is picked per call by connection type.
     @Volatile private var maxHeightWifi = 1080
     @Volatile private var maxHeightMobile = 720
+    // Mirrored the same way; DownloadQueue is a plain singleton with no DataStore access of its
+    // own, so it reads this through a lambda handed to it in DownloadQueue.get.
+    @Volatile private var downloadTreeUri: String? = null
 
     override fun onCreate() {
         super.onCreate()
 
         prefs.maxResolutionWifi.onEach { maxHeightWifi = it }.launchIn(appScope)
         prefs.maxResolutionMobile.onEach { maxHeightMobile = it }.launchIn(appScope)
+        prefs.downloadTreeUri.onEach { downloadTreeUri = it }.launchIn(appScope)
 
         // Latches into NewPipeInit before the first extractor call and re-applies on every
         // settings change, so language/country needs no app restart.
@@ -84,6 +88,10 @@ class FyiApp : Application() {
         val metered = getSystemService<ConnectivityManager>()?.isActiveNetworkMetered ?: false
         return if (metered) maxHeightMobile else maxHeightWifi
     }
+
+    /** Not private, unlike [currentMaxHeight]: [com.fyiplayer.app.download.DownloadQueue]'s
+     *  companion reads this cross-package via a method reference. */
+    fun currentDownloadTreeUri(): String? = downloadTreeUri
 }
 
 /** Same host rule as NewPipeDownloader's header injection: youtube.com only, never CDNs. */

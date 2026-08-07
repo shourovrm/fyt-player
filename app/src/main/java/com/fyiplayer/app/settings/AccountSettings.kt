@@ -38,7 +38,7 @@ fun AccountSettings() {
     SettingsSection("Account") {
         if (loggedIn) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text("YouTube account: signed in", style = MaterialTheme.typography.bodyLarge)
+                Text("Signed in to YouTube", style = MaterialTheme.typography.bodyLarge)
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                 TextButton(onClick = {
@@ -52,7 +52,7 @@ fun AccountSettings() {
                 TextButton(onClick = { showConfirm = true }) { Text("Sign in to YouTube") }
             }
             Text(
-                "Watch age-restricted videos your account can access",
+                "Watch age-restricted videos that your account can access",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
