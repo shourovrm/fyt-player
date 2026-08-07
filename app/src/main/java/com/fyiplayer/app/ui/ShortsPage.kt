@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -50,13 +52,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.ui.AspectRatioFrameLayout
 import coil.compose.AsyncImage
+import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.player.PauseGlyph
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.player.PlayerState
+import com.fyiplayer.app.player.SeekThumbnailPreview
 import com.fyiplayer.app.player.SharedVideoSurface
+import com.fyiplayer.app.player.fetchSeekThumbnails
+import com.fyiplayer.app.player.imageFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -96,7 +102,21 @@ internal fun ShortsPage(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // Surfaced by ShortsSeekBar's own drag handling so the floating preview below can render
+    // above the bar without owning the drag itself.
+    var scrubbing by remember { mutableStateOf(false) }
+    var scrubMs by remember { mutableStateOf(0L) }
+    // Storyboard fetch is LAZY: it costs a full extractor call, and most shorts get swiped past,
+    // never scrubbed -- so it fires on the first drag, not on page activation. Keyed on isActive
+    // too: the pager composes outgoing + incoming pages together mid-swipe (see class doc), and
+    // a page going inactive drops its sheet.
+    var seekThumbs by remember { mutableStateOf<SeekThumbnails?>(null) }
+    LaunchedEffect(isActive, ref.pageUrl, scrubbing) {
+        if (!isActive) { seekThumbs = null; return@LaunchedEffect }
+        if (scrubbing && seekThumbs == null) seekThumbs = fetchSeekThumbnails(ref)
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
         if (isActive) {
             SharedVideoSurface(
                 player = PlaybackSession.exoPlayer,
@@ -209,6 +229,7 @@ internal fun ShortsPage(
             ShortsSeekBar(
                 positionMs = playerState.positionMs,
                 durationMs = playerState.durationMs,
+                onScrub = { active, ms -> scrubbing = active; scrubMs = ms },
                 // FullscreenChrome makes this Box full-bleed (ShortsScreen.kt) -- nothing else
                 // consumes the nav-bar inset, so without windowInsetsPadding here the bar sat
                 // inside the gesture nav zone and drags got stolen by the system. 24dp on top of
@@ -219,6 +240,26 @@ internal fun ShortsPage(
                     .padding(horizontal = 2.dp)
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(bottom = 24.dp),
+            )
+        }
+
+        if (isActive && scrubbing) {
+            // x follows the thumb (bar spans maxWidth minus its own 2dp*2 padding above),
+            // clamped so the card never runs off either screen edge. y is a fixed clearance,
+            // tuned like the meta Column's own bottom=76dp above -- generous enough to clear
+            // both the seekbar band and a 2-line title + uploader + Details pill, same
+            // eyeballed-padding approach the rest of this page already uses.
+            val barWidth = maxWidth - 4.dp
+            val fraction = shortsProgressFraction(scrubMs, playerState.durationMs)
+            val thumbX = 2.dp + barWidth * fraction
+            val previewX = (thumbX - ShortsSeekPreviewWidth / 2).coerceIn(0.dp, maxWidth - ShortsSeekPreviewWidth)
+            SeekThumbnailPreview(
+                image = seekThumbs?.imageFor(scrubMs / 1000.0),
+                timestampText = shortsTimestamp(scrubMs),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(bottom = 220.dp)
+                    .offset(x = previewX),
             )
         }
     }
@@ -278,7 +319,12 @@ private fun RailButton(onClick: () -> Unit, content: @Composable () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ShortsSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier = Modifier) {
+private fun ShortsSeekBar(
+    positionMs: Long,
+    durationMs: Long,
+    onScrub: (isScrubbing: Boolean, positionMs: Long) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier,
+) {
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValueMs by remember { mutableStateOf(0L) }
     val shownMs = if (isScrubbing) scrubValueMs else positionMs
@@ -290,10 +336,12 @@ private fun ShortsSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier
         onValueChange = { value ->
             isScrubbing = true
             scrubValueMs = value.toLong()
+            onScrub(true, scrubValueMs)
         },
         onValueChangeFinished = {
             PlaybackSession.seekTo(scrubValueMs)
             isScrubbing = false
+            onScrub(false, scrubValueMs)
         },
         // Drag hit-testing is the Slider's own layout bounds, not the drawn track/thumb --
         // 20dp was inside the margin above and let fingers slip off. 40dp gives a real grab
@@ -321,4 +369,15 @@ private fun ShortsSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier
             }
         },
     )
+}
+
+// Mirrors player.SEEK_PREVIEW_WIDTH (internal to that package, so not reusable here) -- keep
+// in sync if that card's width ever changes.
+private val ShortsSeekPreviewWidth = 140.dp
+
+// player.formatPosition/mmss are internal to the player package; shorts only ever needs the
+// bare current time (no "/ duration"), so this is the whole one-line replacement.
+private fun shortsTimestamp(ms: Long): String {
+    val totalSec = ms / 1000
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
 }

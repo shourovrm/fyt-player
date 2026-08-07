@@ -8,7 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.fyiplayer.app.core.VideoRef
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -64,6 +70,9 @@ fun PlayerScreen(
     gestureBrightness: Boolean = true,
     gestureVolume: Boolean = true,
     onDownload: (() -> Unit)? = null,
+    // The watch page's own video, when embedded in one: with the session cleared (notification
+    // Close) the surface shows this ref's poster + replay instead of a dead "Nothing playing".
+    pageRef: VideoRef? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by PlaybackSession.state.collectAsState()
@@ -138,6 +147,27 @@ fun PlayerScreen(
         val ref = state.current
         val error = state.error
         when {
+            ref == null && pageRef != null -> {
+                pageRef.thumbnailUrl?.let {
+                    AsyncImage(
+                        model = it,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                IconButton(
+                    onClick = { PlaybackSession.play(listOf(pageRef), 0) },
+                    modifier = Modifier.align(Alignment.Center).size(72.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.PlayArrow,
+                        contentDescription = "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(64.dp),
+                    )
+                }
+            }
             ref == null -> Text("Nothing playing", color = Color.White, modifier = Modifier.align(Alignment.Center))
             error != null -> Text(
                 friendlyMessage(error),
