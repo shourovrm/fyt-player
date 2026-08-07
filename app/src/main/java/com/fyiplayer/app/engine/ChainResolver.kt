@@ -7,6 +7,17 @@ import com.fyiplayer.app.core.StreamResolver
 import com.fyiplayer.app.core.VideoRef
 
 private const val TAG = "ChainResolver"
+private const val CACHE_MAX_ENTRIES = 60
+private const val CACHE_TTL_MILLIS = 60L * 60 * 1000 // 60 min
+
+/**
+ * Fresh-vs-stale, pulled out of [ChainResolver] so it's a plain JUnit test: no coroutines, no
+ * clock mock, just three longs in, one bool out.
+ */
+internal fun isCacheFresh(insertedAtMillis: Long, nowMillis: Long, ttlMillis: Long = CACHE_TTL_MILLIS): Boolean =
+    nowMillis - insertedAtMillis < ttlMillis
+
+private data class CacheEntry(val resolved: Resolved, val insertedAtMillis: Long)
 
 /**
  * What tier0 needs beyond [StreamResolver]: whether it owns a URL at all, so [ChainResolver] can
@@ -43,7 +54,41 @@ class ChainResolver(
     private val ownSessionOnChallenge: () -> Boolean = { false },
 ) : StreamResolver {
 
+    // Cache of successful resolves only, keyed by the canonical page URL -- signed formats/captions
+    // stay in memory here, same rule as core/Contracts.kt. LinkedHashMap(accessOrder=true) +
+    // removeEldestEntry gives LRU eviction for free (same pattern as ui/RefCache.kt); @Synchronized
+    // methods make it safe under concurrent resolve() calls (player prefetch + downloads).
+    private val cache = object : LinkedHashMap<String, CacheEntry>(CACHE_MAX_ENTRIES, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>) =
+            size > CACHE_MAX_ENTRIES
+    }
+
+    @Synchronized
+    private fun cacheGet(pageUrl: String): CacheEntry? = cache[pageUrl]
+
+    @Synchronized
+    private fun cachePut(pageUrl: String, entry: CacheEntry) {
+        cache[pageUrl] = entry
+    }
+
+    // Load-bearing: the player calls this when a served URL turns out expired (403) and re-resolves
+    // right after. Without dropping the entry here, the next resolve() would just hand back the same
+    // dead URL and playback would hard-fail instead of recovering.
+    @Synchronized
+    override fun invalidate(pageUrl: String) {
+        cache.remove(pageUrl)
+    }
+
     override suspend fun resolve(ref: VideoRef): Resolved {
+        cacheGet(ref.pageUrl)?.let { entry ->
+            if (isCacheFresh(entry.insertedAtMillis, System.currentTimeMillis())) return entry.resolved
+        }
+        return resolveLive(ref).also { cachePut(ref.pageUrl, CacheEntry(it, System.currentTimeMillis())) }
+    }
+
+    // Unchanged tier0 -> tier1 -> tier2 chain, just renamed so resolve() can wrap it with the cache.
+    // Only a successful return reaches here -- failures throw and are never cached.
+    private suspend fun resolveLive(ref: VideoRef): Resolved {
         if (tier0 != null && tier0.handles(ref.pageUrl)) {
             try {
                 return tier0.resolve(ref).also { logTier("tier0") }
