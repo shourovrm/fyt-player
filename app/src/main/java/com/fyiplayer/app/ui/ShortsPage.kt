@@ -10,12 +10,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -195,11 +198,16 @@ internal fun ShortsPage(
             ShortsSeekBar(
                 positionMs = playerState.positionMs,
                 durationMs = playerState.durationMs,
+                // FullscreenChrome makes this Box full-bleed (ShortsScreen.kt) -- nothing else
+                // consumes the nav-bar inset, so without windowInsetsPadding here the bar sat
+                // inside the gesture nav zone and drags got stolen by the system. 24dp on top of
+                // the inset is the buffer, not a duplicate of it.
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 2.dp)
-                    .padding(bottom = 12.dp),
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(bottom = 24.dp),
             )
         }
     }
@@ -249,7 +257,7 @@ private fun RailButton(onClick: () -> Unit, content: @Composable () -> Unit) {
 /**
  * A real seekbar, not decoration: 3dp track, thumb + halo drawn only while a finger is actually
  * down (mockup ui-fixes §2) so the bar reads as a thin progress line the rest of the time. The
- * modifier's own height is the touch target (>=20dp) even though the drawn track is 3dp -- same
+ * modifier's own height is the touch target (>=40dp) even though the drawn track is 3dp -- same
  * "big grab area, thin visual" split [player.PlayerChrome.ControlBar] uses for the full player.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -271,7 +279,10 @@ private fun ShortsSeekBar(positionMs: Long, durationMs: Long, modifier: Modifier
             PlaybackSession.seekTo(scrubValueMs)
             isScrubbing = false
         },
-        modifier = modifier.height(20.dp),
+        // Drag hit-testing is the Slider's own layout bounds, not the drawn track/thumb --
+        // 20dp was inside the margin above and let fingers slip off. 40dp gives a real grab
+        // area while the track/thumb art stays exactly as thin as the mockup calls for.
+        modifier = modifier.height(40.dp),
         thumb = {
             if (isScrubbing) {
                 Box(

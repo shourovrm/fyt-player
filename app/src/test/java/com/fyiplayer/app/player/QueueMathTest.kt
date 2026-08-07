@@ -84,4 +84,14 @@ class QueueMathTest {
         assertNull(QueueMath.nextIndex(1, 2, RepeatMode.OFF))
         assertEquals(2, QueueMath.nextIndex(1, 3, RepeatMode.OFF))
     }
+
+    // PlaybackSession.clearQueue() trims the queue to just [current] and still calls prefetchNext()
+    // (every mutator does). This is why that call is a genuine no-op: on a 1-item queue there is
+    // nothing to prefetch, or it wraps to the same index, and either way prefetchNext's own
+    // `if (n == index) return` guard swallows it.
+    @Test fun `a single-item queue never yields a real next index to prefetch`() {
+        assertNull(QueueMath.nextIndex(0, 1, RepeatMode.OFF))
+        assertEquals(0, QueueMath.nextIndex(0, 1, RepeatMode.ONE))
+        assertEquals(0, QueueMath.nextIndex(0, 1, RepeatMode.ALL)) // wraps to itself
+    }
 }
