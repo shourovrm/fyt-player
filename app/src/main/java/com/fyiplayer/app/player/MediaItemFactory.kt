@@ -11,6 +11,8 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.SingleSampleMediaSource
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
@@ -26,9 +28,22 @@ object MediaItemFactory {
     // paced to roughly realtime and playback stutters on anything above SD.
     private val httpClient = mediaHttpClient()
 
-    private fun dataSourceFactory(headers: Map<String, String>): DataSource.Factory =
+    // Default policy retries a dead signed URL for ~30-90s (backoff) before onPlayerError ever
+    // fires -- that's where PlaybackSession's re-resolve lives. Failing fast on the codes that
+    // mean "this URL is dead" (see isExpiredHttpError/EXPIRED_HTTP_CODES) turns that into seconds.
+    private val loadErrorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
+        override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long =
+            if (isExpiredHttpError(loadErrorInfo.exception)) C.TIME_UNSET
+            else super.getRetryDelayMsFor(loadErrorInfo)
+    }
+
+    private fun dataSourceFactory(headers: Map<String, String>): DataSource.Factory {
         // headers must be applied verbatim or the CDN rejects the request
-        OkHttpDataSource.Factory(httpClient).setDefaultRequestProperties(headers)
+        val http = OkHttpDataSource.Factory(httpClient).setDefaultRequestProperties(headers)
+        // googlevideo progressive gets read in bounded windows (see ChunkedRangeDataSource);
+        // everything else passes through the wrapper untouched.
+        return DataSource.Factory { ChunkedRangeDataSource(http.createDataSource()) }
+    }
 
     // Feeds the lockscreen/notification (MediaSessionService reads it off the player's current
     // MediaItem). thumbnailUrl is handed to media3 in memory only -- never persisted or logged,
@@ -43,8 +58,12 @@ object MediaItemFactory {
         val item = MediaItem.Builder().setUri(format.url).setMediaMetadata(metadata).build()
         val dsFactory = dataSourceFactory(format.headers)
         return when (format.protocol) {
-            Protocol.HLS -> HlsMediaSource.Factory(dsFactory).createMediaSource(item)
-            Protocol.PROGRESSIVE -> ProgressiveMediaSource.Factory(dsFactory).createMediaSource(item)
+            Protocol.HLS -> HlsMediaSource.Factory(dsFactory)
+                .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
+                .createMediaSource(item)
+            Protocol.PROGRESSIVE -> ProgressiveMediaSource.Factory(dsFactory)
+                .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
+                .createMediaSource(item)
             // ponytail: media3-exoplayer-dash isn't on this app's classpath and no source emits
             // Protocol.DASH yet either; add the dependency + a DashMediaSource branch if one does.
             Protocol.DASH -> throw UnsupportedOperationException("DASH playback not wired up yet")
@@ -67,6 +86,7 @@ object MediaItemFactory {
             .setLabel(track.label)
             .build()
         return SingleSampleMediaSource.Factory(subtitleDataSourceFactory)
+            .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
             .createMediaSource(config, C.TIME_UNSET)
     }
 
