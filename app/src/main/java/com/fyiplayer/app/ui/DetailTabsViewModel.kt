@@ -14,8 +14,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/** Which section is showing below the video header. */
-enum class DetailTab { SIMILAR, COMMENTS }
+/** Which section is showing below the video header. DESCRIPTION needs no loaded/error state of
+ *  its own -- it reads straight off the already-fetched [com.fyiplayer.app.core.VideoDetail]. */
+enum class DetailTab { SIMILAR, DESCRIPTION, COMMENTS }
 
 /**
  * Similar-videos and comments state for one video's detail screen. A plain [AndroidViewModel],

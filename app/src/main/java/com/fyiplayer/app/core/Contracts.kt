@@ -156,6 +156,9 @@ data class VideoDetail(
     val related: List<VideoRef> = emptyList(),
     val uploader: Listing? = null,
     val description: String? = null,
+    /** True when [description] is HTML markup (links, entities) rather than plain text -- the UI
+     *  must parse, never print raw. */
+    val descriptionIsHtml: Boolean = false,
     val uploadDate: String? = null,
     val likeCount: Long? = null,
     val viewCount: Long? = null,

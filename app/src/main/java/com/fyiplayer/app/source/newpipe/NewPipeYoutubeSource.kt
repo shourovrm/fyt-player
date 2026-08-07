@@ -33,6 +33,7 @@ import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.stream.Description
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -104,7 +105,11 @@ class NewPipeYoutubeSource(
     override suspend fun channelContainers(channelUrl: String, tab: ChannelTab, page: String?): ListingPage =
         withContext(Dispatchers.IO) {
             NewPipeInit.ensure(client)
-            // COURSES has no NewPipe equivalent -- only PLAYLISTS is ever reachable here.
+            // COURSES has no NewPipe equivalent (ChannelTabs has no such constant) -- yt-dlp still
+            // supports it, so delegate whole. [page] here is only ever a token this same delegate
+            // call minted (an integer offset, see YoutubeSource.channelContainers), so it round-trips
+            // back into the delegate untouched -- no risk of feeding it a NewPipe Page token instead.
+            if (tab == ChannelTab.COURSES) return@withContext delegate.channelContainers(channelUrl, tab, page)
             if (tab != ChannelTab.PLAYLISTS) throw tabUnavailableError(tab)
             guarded {
                 if (page == null) {
@@ -159,6 +164,9 @@ class NewPipeYoutubeSource(
             related = info.relatedItems.orEmpty().filterIsInstance<StreamInfoItem>().mapNotNull { it.toVideoRef() },
             uploader = uploaderListing,
             description = info.description?.content,
+            // MARKDOWN or plain text both render as plain -- only HTML needs a parser, so that's the
+            // only case worth flagging (honest degradation for MARKDOWN, not a lie).
+            descriptionIsHtml = info.description?.type == Description.HTML,
             uploadDate = info.textualUploadDate,
             likeCount = info.likeCount.takeIf { it >= 0 },
             viewCount = info.viewCount.takeIf { it >= 0 },
@@ -247,7 +255,8 @@ private fun ChannelTab.contentFilter(): String? = when (this) {
     ChannelTab.SHORTS -> ChannelTabs.SHORTS
     ChannelTab.LIVE -> ChannelTabs.LIVESTREAMS
     ChannelTab.PLAYLISTS -> ChannelTabs.PLAYLISTS
-    ChannelTab.COURSES -> null // NewPipe has no courses concept for any service
+    // Guards channelTab() (video entries) only; channelContainers() delegates COURSES to yt-dlp.
+    ChannelTab.COURSES -> null
 }
 
 /** Own message, never raw platform text (that could echo the channel URL) -- same convention as
