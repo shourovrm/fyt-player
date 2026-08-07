@@ -32,6 +32,8 @@ class Prefs(private val context: Context) {
         val GESTURE_BRIGHTNESS = booleanPreferencesKey("gesture_brightness")
         val GESTURE_VOLUME = booleanPreferencesKey("gesture_volume")
         val BACKGROUND_PLAYBACK = booleanPreferencesKey("background_playback")
+        val CONTENT_LANGUAGE = stringPreferencesKey("content_language")
+        val CONTENT_COUNTRY = stringPreferencesKey("content_country")
     }
 
     // only platform live today; default matches SourceRegistry without this file naming it
@@ -61,4 +63,11 @@ class Prefs(private val context: Context) {
 
     val backgroundPlayback: Flow<Boolean> = flow(BACKGROUND_PLAYBACK, true)
     suspend fun setBackgroundPlayback(v: Boolean) = set(BACKGROUND_PLAYBACK, v)
+
+    // ISO 639-1 / ISO 3166-1 alpha-2, fed straight to NewPipe's Localization/ContentCountry.
+    val contentLanguage: Flow<String> = flow(CONTENT_LANGUAGE, "en")
+    suspend fun setContentLanguage(v: String) = set(CONTENT_LANGUAGE, v)
+
+    val contentCountry: Flow<String> = flow(CONTENT_COUNTRY, "US")
+    suspend fun setContentCountry(v: String) = set(CONTENT_COUNTRY, v)
 }
