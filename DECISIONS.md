@@ -21,6 +21,19 @@ bar); shorts pager full-bleed via `FullscreenChrome` with a real seekbar; mini p
 grid. Detail page has a Like/Save/Download/Share/Queue action row; video/shorts cells carry a
 `Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
+2026-08-07 wave: content **language + country** settings (`Prefs.contentLanguage/contentCountry`,
+`settings/ContentSettings.kt`) latch into `NewPipeInit` and reach the extractor as
+`Localization`/`ContentCountry`; changes apply live (`setupLocalization`), no restart. Optional
+first-party **YouTube sign-in** (`YoutubeLoginActivity` WebView on Google's real sign-in page →
+`YoutubeAuth` app-private prefs → `NewPipeDownloader` attaches Cookie/Authorization SAPISIDHASH/
+X-Origin to youtube.com hosts only), surfaced as `settings/AccountSettings.kt`. Channel **Courses**
+tab delegates to yt-dlp (NewPipe has no such tab). Video **description is now its own tab**
+(Similar / Description / Comments) rendering HTML via `AnnotatedString.fromHtml` with in-app link
+routing (same-video timestamps seek, other videos open Detail, channels/playlists open Listing,
+rest to the browser). Queue **close = clear** (`PlaybackSession.clearQueue`, × on the strip +
+"Clear" in the sheet) keeps the playing item and drops the rest. Both seekbars got real touch
+targets (40dp bounds, unchanged 2.5/3dp art) and the shorts bar clears the nav-gesture zone.
+
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only
 WebView tier, chain); `source/youtube/`; `player/` (queue maths, format selection, session, media
@@ -65,6 +78,10 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
+- 2026-08-07 wave is BUILT (226 tests green) but NOT device-verified — no phone on adb at build
+  time. Verify: sign-in against a real age-restricted video (see the gotcha below — it may not
+  lift the gate at all), language/country change, Courses tab, description links + timestamps,
+  queue ×, both seekbars.
 - User-side verification pending on the newest wave: queue-after-exhaustion on device, channel
   Videos/Shorts play-selected/play-all, followed playlists end-to-end (follow → Library → open →
   remove), playlist tab thumbnails, unsubscribe flow.
@@ -172,6 +189,20 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Shorts grid and pager are ONE nav route (`Routes.SHORTS`) toggled by `ShortsViewModel.showPlayer`;
   fullscreen gating keys on `FullscreenChrome.active`, not the route string.
 
+- YouTube publishes NO upload date on shorts shelf items: both `YoutubeShortsLockupInfoItemExtractor`
+  and `YoutubeReelInfoItemExtractor` return null from `getTextualUploadDate()` (checked in the
+  v0.26.4 bytecode). Shorts cells show `Channel · views` and that is the honest ceiling — a date
+  would cost one fetch per visible tile, which the no-I/O-per-list-item rule forbids.
+- Upstream NewPipeExtractor has no logged-in concept at all, so `YoutubeAuth`'s headers ride on
+  whatever InnerTube client the extractor picked. PipePipe's fork additionally swaps the YouTube
+  player client when signed in (`NewPipe.setYoutubePlayerClient`, fork-only API). If sign-in turns
+  out not to lift age gates on device, that missing client swap is the first suspect.
+- `NewPipe.init` must read the latched language/country from `NewPipeInit`, never take them as
+  ensure() arguments: init is lazy (first extractor call), so a call site passing defaults would
+  silently overwrite the user's setting long after prefs loaded.
+- `AnnotatedString.fromHtml` needs an explicit `import androidx.compose.ui.text.fromHtml` and an
+  explicit `LinkInteractionListener { }` SAM wrapper; the lambda alone fails type inference.
+
 ## Tried / rejected
 
 - YouTube `/feed/trending` and `/feed/explore` as Home's source — dead. Both redirect to
@@ -183,6 +214,18 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - `jsoup` dependency — dropped. YouTube extraction goes through the engine's JSON, no markup parsing.
 - `biometric` dependency — dropped. No lock feature in the target shape.
 - Material-You / dynamic colour — rejected. One deliberate accent; wallpaper never overrides it.
+- Facebook search / page-video subscriptions — impossible, not deferred. yt-dlp has no Facebook
+  search extractor and no page-listing extractor (single video/reel IDs only; feature request open
+  since 2023); NewPipeExtractor and its forks have no Facebook service; Graph API page-video
+  listing needs App Review plus a page-owner token; RSS-Bridge's bridge is chronically anti-bot
+  broken. Facebook can only ever be "paste a direct video link". Anything more is scraping against
+  active enforcement, which the no-bypass rule excludes.
+- Swapping NewPipeExtractor for PipePipeExtractor (the PipePipe fork, also GPLv3) — rejected for
+  this wave. Same root package and `NewPipe.init` shape, but it forked before upstream's 0.24
+  restructure (`ChannelTabs` lives in `linkhandler`, `ChannelTabInfo` moved), so ~15 of our imports
+  and their signatures would need porting and every flow retesting. Login needed only app-layer
+  header injection, which upstream supports fine. Revisit only if the player-client swap turns out
+  to be required for age-gated content.
 - R8/minify on release — off for now. Keep rules for the engine and Room must land first, and a
   broken release build is worse than a large one.
 
@@ -237,6 +280,16 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-06 | Followed remote playlists = bookmark row, not item copy | A follow stores only the
   canonical playlist page URL + title; opening it re-fetches live. Copying items would go stale
   and duplicate paging logic.
+- 2026-08-07 | Sign-in is app-layer header injection, not an extractor fork | The user authenticates
+  with Google directly in a WebView; we only read the session cookie the browser already holds and
+  sign requests with Google's own SAPISIDHASH scheme, youtube.com hosts only. No wall is worked
+  around — an account either has access or it does not.
+- 2026-08-07 | Closing the queue clears it but never stops playback | Queue ≠ player: dismissing
+  upcoming items should not kill the video being watched. Enqueue then re-grows it to two items,
+  which is what makes the bar reappear showing just the added video.
+- 2026-08-07 | Description became a tab instead of an inline block | Descriptions are HTML and full
+  of links; a 3-line collapsible with raw markup in it was the worst of both. As a tab it gets the
+  room to render properly and joins the Similar/Comments row the screen already had.
 - 2026-08-06 | Caption cues stripped of embedded positioning at the renderer | Platform TTML/VTT
   regions rendered at the TOP of the surface; SubtitleView's default (bottom-centered) is what
   users expect. One TextOutput wrapper, format-independent.
