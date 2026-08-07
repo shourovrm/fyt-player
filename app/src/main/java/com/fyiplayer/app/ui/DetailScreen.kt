@@ -19,8 +19,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -100,7 +98,6 @@ fun DetailScreen(
     val tabsVm: DetailTabsViewModel = viewModel()
     val showCommentsTab = source?.providesComments == true
     var detail by remember(pageUrl) { mutableStateOf(VideoDetail(ref)) }
-    var descriptionExpanded by remember(pageUrl) { mutableStateOf(false) }
     var actionSheetRef by remember(pageUrl) { mutableStateOf<VideoRef?>(null) }
     var historyRecorded by remember(pageUrl) { mutableStateOf(false) }
     // NOT keyed on pageUrl: this screen's own lifetime is the right scope for it, not a per-video
@@ -145,6 +142,7 @@ fun DetailScreen(
     LaunchedEffect(tabsVm.selectedTab, shownRef.pageUrl, shownRef.title) {
         when (tabsVm.selectedTab) {
             DetailTab.SIMILAR -> if (shownRef.title.isNotBlank()) tabsVm.ensureSimilarLoaded(source, shownRef)
+            DetailTab.DESCRIPTION -> {} // reads straight off `detail`, already fetched above
             DetailTab.COMMENTS -> if (showCommentsTab) tabsVm.ensureCommentsLoaded(source, shownRef)
         }
     }
@@ -220,46 +218,21 @@ fun DetailScreen(
                     }
                 }
                 item { VideoActionRow(rememberVideoActions(shownRef)) }
-                val description = detail.description
-                if (!description.isNullOrBlank()) {
-                    item {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { descriptionExpanded = !descriptionExpanded }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = if (descriptionExpanded) Int.MAX_VALUE else 3,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                                Text(
-                                    if (descriptionExpanded) "Show less" else "Show more",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Icon(
-                                    if (descriptionExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-                }
-                // Only one tab worth showing when this source has no comments (providesComments):
-                // an honest gap, not a tab bar with a single option. Selection stays SIMILAR then.
-                if (showCommentsTab) {
-                    item {
-                        PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = 16.dp)) {
-                            Tab(
-                                selected = tabsVm.selectedTab == DetailTab.SIMILAR,
-                                onClick = { tabsVm.selectedTab = DetailTab.SIMILAR },
-                                text = { Text("Similar") },
-                            )
+                // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
+                // option (the old showCommentsTab-only gate no longer applies).
+                item {
+                    PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = 16.dp)) {
+                        Tab(
+                            selected = tabsVm.selectedTab == DetailTab.SIMILAR,
+                            onClick = { tabsVm.selectedTab = DetailTab.SIMILAR },
+                            text = { Text("Similar") },
+                        )
+                        Tab(
+                            selected = tabsVm.selectedTab == DetailTab.DESCRIPTION,
+                            onClick = { tabsVm.selectedTab = DetailTab.DESCRIPTION },
+                            text = { Text("Description") },
+                        )
+                        if (showCommentsTab) {
                             Tab(
                                 selected = tabsVm.selectedTab == DetailTab.COMMENTS,
                                 onClick = { tabsVm.selectedTab = DetailTab.COMMENTS },
@@ -268,8 +241,8 @@ fun DetailScreen(
                         }
                     }
                 }
-                if (!showCommentsTab || tabsVm.selectedTab == DetailTab.SIMILAR) {
-                    similarVideosSection(
+                when (tabsVm.selectedTab) {
+                    DetailTab.SIMILAR -> similarVideosSection(
                         results = tabsVm.similarItems,
                         loading = tabsVm.similarLoading,
                         error = tabsVm.similarError,
@@ -282,8 +255,8 @@ fun DetailScreen(
                         },
                         onLongPress = { actionSheetRef = it },
                     )
-                } else {
-                    item {
+                    DetailTab.DESCRIPTION -> descriptionTabSection(detail, onOpenDetail, onOpenListing)
+                    DetailTab.COMMENTS -> item {
                         CommentsSection(
                             comments = tabsVm.comments,
                             loading = tabsVm.commentsLoading,
