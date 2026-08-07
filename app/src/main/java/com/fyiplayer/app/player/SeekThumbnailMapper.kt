@@ -45,6 +45,26 @@ fun SeekThumbnails.imageFor(timeSec: Double): SeekPreviewImage? {
     return null
 }
 
+/** Pixel rect to crop out of a decoded sheet bitmap for one tile -- see [tileRect]. */
+data class TileRect(val left: Int, val top: Int, val width: Int, val height: Int)
+
+/**
+ * Pixel rect for tile ([col], [row]) of [spec], clamped to the actually-decoded
+ * [bitmapWidth]x[bitmapHeight]. YouTube occasionally ships a storyboard sheet a few px short of
+ * `cols * tileWidth` (NewPipe/PipePipe clamp for the same reason: `SeekbarPreviewThumbnailHolder
+ * .createBitmapSupplier`) -- left/top only ever get pulled back toward the origin, never past it
+ * and never negative, so width/height are always >= 1 and always fit inside the bitmap.
+ */
+fun tileRect(spec: SpriteSheet, col: Int, row: Int, bitmapWidth: Int, bitmapHeight: Int): TileRect {
+    val maxLeft = (bitmapWidth - spec.tileWidth).coerceAtLeast(0)
+    val maxTop = (bitmapHeight - spec.tileHeight).coerceAtLeast(0)
+    val left = (col * spec.tileWidth).coerceIn(0, maxLeft)
+    val top = (row * spec.tileHeight).coerceIn(0, maxTop)
+    val width = spec.tileWidth.coerceAtMost(bitmapWidth - left).coerceAtLeast(1)
+    val height = spec.tileHeight.coerceAtMost(bitmapHeight - top).coerceAtLeast(1)
+    return TileRect(left, top, width, height)
+}
+
 /**
  * [SeekThumbnails.intervalSeconds] for a tile preview of [frameCount] frames spread over a video
  * of [durationSeconds]. Falls back to 1.0 when the listing gave no duration — the flipbook cycles
