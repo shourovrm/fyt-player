@@ -10,10 +10,13 @@ import com.fyiplayer.app.engine.EngineGate
 import com.fyiplayer.app.engine.EngineResolver
 import com.fyiplayer.app.engine.WebViewResolver
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.source.newpipe.NewPipeInit
 import com.fyiplayer.app.source.newpipe.NewPipeResolver
+import com.fyiplayer.app.source.newpipe.YoutubeAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -52,6 +55,13 @@ class FyiApp : Application() {
         prefs.maxResolutionWifi.onEach { maxHeightWifi = it }.launchIn(appScope)
         prefs.maxResolutionMobile.onEach { maxHeightMobile = it }.launchIn(appScope)
 
+        // Latches into NewPipeInit before the first extractor call and re-applies on every
+        // settings change, so language/country needs no app restart.
+        combine(prefs.contentLanguage, prefs.contentCountry) { lang, country -> lang to country }
+            .onEach { (lang, country) -> NewPipeInit.updateLocalization(lang, country) }
+            .launchIn(appScope)
+
+        YoutubeAuth.init(this)
         PlaybackSession.init(this, resolver, maxHeight = ::currentMaxHeight)
 
         // Native init takes seconds on a cold install; resolves await EngineGate rather than

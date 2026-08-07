@@ -29,6 +29,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Hosts Google's real sign-in page for first-party YouTube login; launched only from
+             within the app (AccountSettings), never from outside it. -->
+        <activity
+            android:name=".YoutubeLoginActivity"
+            android:exported="false" />
+
         <!-- services are declared by the phase that adds them: playback (mediaPlayback),
              downloads (dataSync). A declaration without its class is a runtime crash. -->
         <!-- exported=true is required here, not a hole: media button routing (headset/Bluetooth,
