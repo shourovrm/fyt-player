@@ -151,10 +151,11 @@ internal fun ShortsPage(
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))))
-                // bottom must clear the seekbar band (24dp padding + 40dp touch height = 64dp
-                // above the nav inset, see ShortsSeekBar below) -- it deliberately doesn't move,
-                // so this padding is what makes room instead.
-                .padding(start = 16.dp, end = 74.dp, top = 48.dp, bottom = 48.dp),
+                // bottom must clear the WHOLE seekbar band (24dp padding + 40dp touch height =
+                // 64dp above the nav inset, see ShortsSeekBar below) plus a visible gap -- the
+                // bar deliberately doesn't move, so this padding is what makes room instead.
+                // 48dp cleared the title but left the Details pill (last child) on the bar line.
+                .padding(start = 16.dp, end = 74.dp, top = 48.dp, bottom = 76.dp),
         ) {
             Text(ref.title, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             ref.uploader?.let {
