@@ -221,6 +221,17 @@ class NewPipeYoutubeSource(
         NewPipeInit.ensure(client)
         val info = guarded { StreamInfo.getInfo(ServiceList.YouTube, ref.pageUrl) }
         val best = info.previewFrames.orEmpty().maxByOrNull { it.totalCount } ?: return@withContext null
+        try {
+            // Counts only, never URLs. Storyboard shape from this client changes with the fork's
+            // player client; a wrong grid renders the whole sheet as a mini grid in the scrub card.
+            android.util.Log.d(
+                "SeekThumbs",
+                "levels=${info.previewFrames.size} best: total=${best.totalCount} grid=${best.framesPerPageX}x${best.framesPerPageY} " +
+                    "tile=${best.frameWidth}x${best.frameHeight} pages=${best.urls.size} frameMs=${best.durationPerFrame}",
+            )
+        } catch (logError: Throwable) {
+            // unmocked Log under plain JUnit
+        }
         val sprites = best.urls.map { url ->
             SpriteSheet(
                 url = url,

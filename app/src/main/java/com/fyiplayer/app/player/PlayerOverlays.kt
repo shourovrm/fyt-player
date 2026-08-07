@@ -29,13 +29,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.fyiplayer.app.core.SeekThumbnails
+import kotlin.math.roundToInt
 
 /** Small pill HUD used for both the brightness and volume gestures. */
 @Composable
@@ -70,13 +85,12 @@ internal val SEEK_PREVIEW_GAP = 8.dp
 
 /**
  * One preview frame in a [width]x[height] box: either a direct still ([SeekPreviewImage.Frame])
- * or one tile cropped out of a sprite sheet ([SeekPreviewImage.Tile]). A sprite tile is cropped
- * without any bitmap-region decoding: the whole sheet is loaded at a size scaled so one tile
- * exactly fills the box (cols/rows tiles -> cols/rows times that box), then shifted by col/row
- * tiles so the wanted tile lands in the visible window; this [Box]'s `clip` hides the rest. Coil
- * caches by URL, so cropping another tile of the *same* sheet — scrubbing, or the jump grid — costs
- * no extra fetch. Shared by the scrub preview and the jump grid, which is why the box size is a
- * parameter rather than the fixed preview constants.
+ * or one tile cropped out of a sprite sheet ([SeekPreviewImage.Tile]). A sprite tile is drawn by
+ * decoding the whole sheet once (Coil, software bitmap) and painting ONLY the wanted tile via a
+ * source-rect [drawImage] — the previous scale-shift-and-clip approach relied on layout centering
+ * behaviour it didn't control and showed the whole sheet as a mini grid mid-scrub. Coil caches by
+ * URL, so another tile of the *same* sheet (scrubbing, the jump grid) costs no refetch/redecode.
+ * Shared by the scrub preview and the jump grid, which is why the box size is a parameter.
  */
 @Composable
 fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier: Modifier = Modifier) {
@@ -94,19 +108,29 @@ fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier:
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            // requiredSize, NOT size: the sheet is cols x rows times bigger than this Box, and
-            // `size` only coerces INTO the incoming constraints — the parent Box is already fixed
-            // at one tile, so `size` would clamp the sheet back down and the offset would then
-            // push it out of view, painting a blank grey square. `requiredSize` ignores the
-            // incoming constraints, which is the whole point: draw it oversized, let the parent clip.
-            is SeekPreviewImage.Tile -> AsyncImage(
-                model = image.sheet.url,
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .requiredSize(width * image.sheet.cols, height * image.sheet.rows)
-                    .offset(x = -width * image.col, y = -height * image.row),
-            )
+            is SeekPreviewImage.Tile -> {
+                val context = LocalContext.current
+                // Software bitmap: drawImage needs pixel access, hardware bitmaps refuse it.
+                var sheetBitmap by remember(image.sheet.url) { mutableStateOf<ImageBitmap?>(null) }
+                LaunchedEffect(image.sheet.url) {
+                    val result = context.imageLoader.execute(
+                        ImageRequest.Builder(context).data(image.sheet.url).allowHardware(false).build(),
+                    )
+                    sheetBitmap = ((result as? SuccessResult)?.drawable as? BitmapDrawable)
+                        ?.bitmap?.asImageBitmap()
+                }
+                sheetBitmap?.let { sheet ->
+                    val rect = tileRect(image.sheet, image.col, image.row, sheet.width, sheet.height)
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawImage(
+                            image = sheet,
+                            srcOffset = IntOffset(rect.left, rect.top),
+                            srcSize = IntSize(rect.width, rect.height),
+                            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                        )
+                    }
+                }
+            }
         }
     }
 }
