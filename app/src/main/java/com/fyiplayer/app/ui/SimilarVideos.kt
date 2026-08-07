@@ -89,6 +89,16 @@ internal fun buildSimilarQuery(title: String, maxWords: Int = MAX_QUERY_WORDS): 
 internal fun excludeCurrent(results: List<VideoRef>, current: VideoRef): List<VideoRef> =
     results.filterNot { it.pageUrl == current.pageUrl }
 
+/** Search "all" mixes channels and playlists into results, and a Similar tab full of channels is
+ *  noise. [VideoRef] carries no type field (DECISIONS.md), so the pageUrl shape is the only
+ *  signal: known channel/user/playlist path shapes are dropped, everything else passes as video. */
+internal fun isVideoLike(ref: VideoRef): Boolean {
+    val path = "/" + ref.pageUrl.substringAfter("://").substringBefore('?').substringBefore('#')
+        .substringAfter('/', "")
+    return !("/channel/" in path || "/c/" in path || "/user/" in path || "/playlist" in path ||
+        path.split('/').any { it.startsWith("@") })
+}
+
 /**
  * Emits the Similar tab directly into the caller's [LazyListScope] -- same shape the old "more
  * from this channel" section used, so it scrolls as part of the one detail page instead of

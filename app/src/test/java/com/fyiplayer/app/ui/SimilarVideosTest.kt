@@ -72,6 +72,13 @@ class SimilarVideosTest {
         assertEquals(6, q.split(" ").size)
     }
 
+    @Test fun `isVideoLike keeps watch URLs, drops channels, handles and playlists`() {
+        assertEquals(true, isVideoLike(ref("abc").copy(pageUrl = "https://www.youtube.com/watch?v=abc")))
+        assertEquals(false, isVideoLike(ref("c").copy(pageUrl = "https://www.youtube.com/channel/UCx")))
+        assertEquals(false, isVideoLike(ref("h").copy(pageUrl = "https://www.youtube.com/@somehandle")))
+        assertEquals(false, isVideoLike(ref("p").copy(pageUrl = "https://www.youtube.com/playlist?list=PL1")))
+    }
+
     @Test fun `excludeCurrent drops the video matching by page URL`() {
         val current = ref("abc", "Current Video")
         val results = listOf(ref("abc", "Current Video (dup title in results)"), ref("def"), ref("ghi"))
