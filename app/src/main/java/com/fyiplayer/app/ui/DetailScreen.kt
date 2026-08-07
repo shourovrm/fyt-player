@@ -113,6 +113,18 @@ fun DetailScreen(
         onDispose { FullscreenChrome.active = false }
     }
 
+    // Opening a watch page means "play this": paths that navigate here WITHOUT starting playback
+    // (history rows, a reopened failed video) otherwise dead-end at "Nothing playing". Only two
+    // cases may take the shared surface: nothing is playing at all, or THIS video is the one
+    // sitting in a failed resolve (reopening it is the user's retry). A different video playing
+    // keeps the surface -- same rule as the mini player.
+    LaunchedEffect(pageUrl) {
+        val st = PlaybackSession.state.value
+        if (st.current == null || (st.current.pageUrl == ref.pageUrl && st.error != null)) {
+            PlaybackSession.play(listOf(ref), 0)
+        }
+    }
+
     LaunchedEffect(pageUrl) {
         detail = try {
             source?.detail(ref) ?: VideoDetail(ref)

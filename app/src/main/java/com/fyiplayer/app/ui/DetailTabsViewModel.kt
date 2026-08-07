@@ -83,7 +83,7 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
                 // The engine exposes no related/recommended list (DECISIONS.md); this is a search
                 // on the video's own topic, honestly labelled as such in the UI.
                 val page = source.search(buildSimilarQuery(ref.title))
-                similarItems = excludeCurrent(page.items, ref)
+                similarItems = excludeCurrent(page.items.filter(::isVideoLike), ref)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ExtractionError) {
