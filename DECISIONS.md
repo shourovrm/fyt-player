@@ -363,6 +363,14 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Tried / rejected
 
+- Bars-follow-chrome in fullscreen (tap shows status bar with the controls) — REVERTED. Repeated
+  insetsController hide/show inside a fullscreen session wedges this OEM's inset delivery: after
+  exit the window keeps landscape insets and the portrait page renders shifted right. Three
+  workarounds failed (requestApplyInsets, WM attribute round-trip, root-inset snapshot — the
+  snapshot also latches because Android mutates Configuration in place, so remember keys never
+  re-fire). Bars now change exactly twice per session (hide on entry, show on exit); the decor
+  inset listener (SystemBarInsetsState) and the WM round-trip stay as hardening.
+
 - YouTube `/feed/trending` and `/feed/explore` as Home's source — dead. Both redirect to
   youtube.com home and error "the channel/playlist does not exist" (verified live).
 - Mix/radio playlists (`watch?v=X&list=RDX`) as a Home feed source — rejected by the extractor
