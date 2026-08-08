@@ -94,31 +94,15 @@ fun AppScaffold(
             !FullscreenChrome.active && !isDarkTheme
     }
 
-    // NOT Compose's WindowInsets.systemBars: its cached holder wedges when the fullscreen
-    // transition combines insetsController.hide/show with an in-process rotation (manifest
-    // configChanges) -- after exit it keeps serving LANDSCAPE values (left=status-bar) to a
-    // portrait layout, shifting the whole page right (device-verified; the system-side inset
-    // state was correct the whole time). Snapshot the view root's real insets instead, re-read
-    // on rotation (LocalConfiguration) and again shortly after fullscreen exits (bars re-show
-    // asynchronously).
-    val configuration = LocalConfiguration.current
+    // NOT Compose's WindowInsets.systemBars (its cached holder wedges across the fullscreen
+    // hide/show + in-process rotation and keeps serving landscape values to a portrait layout),
+    // and NOT a keyed snapshot of getRootWindowInsets either (Android mutates the Configuration
+    // instance in place, so remember keys never fire again and a landscape value read during the
+    // exit window latches forever -- both device-verified). [SystemBarInsetsState] is fed by
+    // MainActivity's decor-view listener on EVERY genuine inset dispatch; the WM round-trip in
+    // setFullscreen's exit guarantees one lands after the transition.
     val fullscreenActive = FullscreenChrome.active
-    var insetsTick by remember { mutableStateOf(0) }
-    LaunchedEffect(fullscreenActive) {
-        if (!fullscreenActive) {
-            // twice: once right after the exit's WM round-trip lands, once after rotation and
-            // the bars-show animation have definitely settled
-            kotlinx.coroutines.delay(250)
-            insetsTick++
-            kotlinx.coroutines.delay(600)
-            insetsTick++
-        }
-    }
-    val systemBarInsets = remember(configuration, fullscreenActive, insetsTick) {
-        val raw = androidx.core.view.ViewCompat.getRootWindowInsets(view)
-            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        if (raw == null) WindowInsets(0) else WindowInsets(raw.left, raw.top, raw.right, raw.bottom)
-    }
+    val systemBarInsets = SystemBarInsetsState.insets
 
     Scaffold(
         // Full-bleed always: an outer inset-padding modifier here would push the Scaffold's own
@@ -207,6 +191,17 @@ private fun isFullPlayerRoute(route: String?): Boolean =
  */
 internal object FullscreenChrome {
     var active by mutableStateOf(false)
+}
+
+/** System-bar insets as last DELIVERED to the window -- fed by MainActivity's decor listener,
+ *  never read from a cache. The one inset source the scaffold trusts; see its usage comment. */
+object SystemBarInsetsState {
+    var insets by mutableStateOf(WindowInsets(0))
+        private set
+
+    fun update(left: Int, top: Int, right: Int, bottom: Int) {
+        insets = WindowInsets(left, top, right, bottom)
+    }
 }
 
 /** Which nav item is lit. detail/listing light nothing — they're reachable from more than one tab. */
