@@ -3,28 +3,44 @@ package com.fyiplayer.app.player
 import java.util.concurrent.atomic.AtomicLong
 import okhttp3.OkHttpClient
 
-// Same desktop-Firefox UA the extractor path sends -- googlevideo paces or rejects requests with
-// an unfamiliar UA (okhttp's default identifies itself as okhttp).
-private const val MEDIA_USER_AGENT =
+// For non-media hosts (thumbnails, storyboards) a browser UA stays -- some CDNs pace unknown UAs.
+private const val BROWSER_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
 
 // One counter per process, monotonic across every media request -- mirrors the web player's
 // behaviour, which numbers all its media fetches in one sequence.
 private val requestNumber = AtomicLong(0)
 
+private const val YOUTUBE_ORIGIN = "https://www.youtube.com"
+
 /**
- * The OkHttp client for MEDIA requests (playback datasource + stream downloads). PipePipe's
- * player (NewPipe's `YoutubeHttpDataSource`) shapes every googlevideo request three ways, and
- * without them googlevideo throttles the transfer to roughly realtime: an incrementing `rn`
- * (request number) query parameter on `/videoplayback` URLs, a real browser User-Agent, and
- * `TE: trailers`. Non-googlevideo URLs pass through untouched apart from the UA.
+ * The OkHttp client for MEDIA requests (playback datasource + stream downloads), shaped like
+ * PipePipe's `YoutubeHttpDataSource` for `/videoplayback` URLs:
+ *  - incrementing `rn` query parameter and `TE: trailers` on every request;
+ *  - the User-Agent must MATCH the innertube client that signed the URL (its `c=` param), never
+ *    a desktop browser: a Chrome/Firefox UA on a visionos/TVHTML5-signed URL is a mismatch
+ *    googlevideo intermittently 403s (seen live). PipePipe sends the platform default UA for
+ *    everything that isn't ANDROID/IOS-signed; `http.agent` is that default.
+ *  - `Origin`/`Referer`/`Sec-Fetch-*` only for WEB/TVHTML5-family URLs, exactly like PipePipe.
+ * Non-googlevideo URLs pass through with just the browser UA.
  */
 internal fun mediaHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .addInterceptor { chain ->
         val request = chain.request()
         val builder = request.newBuilder()
-        if (request.header("User-Agent") == null) builder.header("User-Agent", MEDIA_USER_AGENT)
         if (request.url.encodedPath.startsWith("/videoplayback")) {
+            val client = request.url.queryParameter("c").orEmpty()
+            val platformUa = System.getProperty("http.agent")
+            if (request.header("User-Agent") == null && platformUa != null) {
+                builder.header("User-Agent", platformUa)
+            }
+            if (client.startsWith("WEB") || client.startsWith("TVHTML5")) {
+                builder.header("Origin", YOUTUBE_ORIGIN)
+                builder.header("Referer", YOUTUBE_ORIGIN)
+                builder.header("Sec-Fetch-Dest", "empty")
+                builder.header("Sec-Fetch-Mode", "cors")
+                builder.header("Sec-Fetch-Site", "cross-site")
+            }
             builder.header("TE", "trailers")
             if (request.url.queryParameter("rn") == null) {
                 builder.url(
@@ -33,7 +49,22 @@ internal fun mediaHttpClient(): OkHttpClient = OkHttpClient.Builder()
                         .build(),
                 )
             }
+        } else if (request.header("User-Agent") == null) {
+            builder.header("User-Agent", BROWSER_USER_AGENT)
         }
-        chain.proceed(builder.build())
+        val shaped = builder.build()
+        val response = chain.proceed(shaped)
+        if (shaped.url.encodedPath.startsWith("/videoplayback")) {
+            // client name + booleans only -- the URL itself is signed and must never be logged
+            android.util.Log.d(
+                "MediaHttp",
+                "videoplayback c=${shaped.url.queryParameter("c")} " +
+                    "ua=${shaped.header("User-Agent")?.substringBefore('/')} " +
+                    "range=${shaped.url.queryParameter("range") != null} " +
+                    "rangeHeader=${shaped.header("Range") != null} " +
+                    "rn=${shaped.url.queryParameter("rn") != null} code=${response.code}",
+            )
+        }
+        response
     }
     .build()

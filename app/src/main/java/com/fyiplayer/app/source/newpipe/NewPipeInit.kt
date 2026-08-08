@@ -36,19 +36,33 @@ internal object NewPipeInit {
         if (initialized) NewPipe.setupLocalization(Localization(language), ContentCountry(country))
     }
 
-    /** PipePipe's own login wiring, in two parts (PipePipeClient `App.reconcileYoutubePlayerClient`
-     *  + `ServiceHelper.initServices`): the extractor reads the session from
-     *  `ServiceList.YouTube.setTokens` (its `addLoggedInHeaders` builds Cookie/SAPISIDHASH from
-     *  it), and the signed-in TVHTML5 player client is the one whose player responses honour the
-     *  account's age verification. Called on init and again by [YoutubeAuth] on every
-     *  login/logout, so both always match the session. */
+    /** The extractor reads the session from `ServiceList.YouTube.setTokens` (its
+     *  `addLoggedInHeaders` builds Cookie/SAPISIDHASH from it). The player client stays
+     *  `visionos` even when signed in: signed-in `tv_downgraded` (TVHTML5) returns
+     *  ciphered-signature URLs that googlevideo 403s for popular videos (device-verified live --
+     *  the whole "No connection a lot of the time" report), while visionos URLs are unciphered
+     *  and play. `tv_downgraded` is used only as the per-resolve age-wall retry
+     *  ([withSignedInPlayerClient]). Called on init and again by [YoutubeAuth] on every
+     *  login/logout. */
     fun updatePlayerClient() {
         if (initialized) applyAuthState()
     }
 
     private fun applyAuthState() {
-        val cookie = YoutubeAuth.cookieHeader()
-        org.schabi.newpipe.extractor.ServiceList.YouTube.setTokens(cookie)
-        NewPipe.setYoutubePlayerClient(if (cookie != null) "tv_downgraded" else "visionos")
+        org.schabi.newpipe.extractor.ServiceList.YouTube.setTokens(YoutubeAuth.cookieHeader())
+        NewPipe.setYoutubePlayerClient("visionos")
+    }
+
+    /** Runs [block] with the signed-in TVHTML5 player client, restoring visionos after. Only
+     *  worth calling when a session exists -- anonymous tv_downgraded gains nothing. The client
+     *  field is process-global in the fork, so this serializes on this object to keep a parallel
+     *  prefetch resolve from riding the swapped client. */
+    fun <T> withSignedInPlayerClient(block: () -> T): T = synchronized(this) {
+        NewPipe.setYoutubePlayerClient("tv_downgraded")
+        try {
+            block()
+        } finally {
+            NewPipe.setYoutubePlayerClient("visionos")
+        }
     }
 }

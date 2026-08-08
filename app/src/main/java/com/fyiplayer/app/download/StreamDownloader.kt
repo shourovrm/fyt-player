@@ -10,6 +10,7 @@ import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Call
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -150,19 +151,34 @@ internal class StreamDownloader(private val client: OkHttpClient) {
 
         while (true) {
             if (signal.cancelled) throw CancelledDownload()
-            val builder = Request.Builder().url(format.url)
-            format.headers.forEach { (k, v) -> builder.header(k, v) }
             val end = offset + CHUNK_BYTES - 1
-            builder.header("Range", "bytes=$offset-$end")
+            // googlevideo windows ride the range= QUERY PARAM (official-client shape; header-ranged
+            // requests from non-web clients intermittently 403 -- same rule as ChunkedRangeDataSource).
+            // Other hosts keep the standard Range header.
+            val googleRanged = android.net.Uri.parse(format.url).encodedPath
+                ?.startsWith("/videoplayback") == true
+            val url =
+                if (googleRanged) {
+                    format.url.toHttpUrl().newBuilder()
+                        .removeAllQueryParameters("range")
+                        .addQueryParameter("range", "$offset-$end").build().toString()
+                } else {
+                    format.url
+                }
+            val builder = Request.Builder().url(url)
+            format.headers.forEach { (k, v) -> builder.header(k, v) }
+            if (!googleRanged) builder.header("Range", "bytes=$offset-$end")
 
             val call = client.newCall(builder.build())
             signal.activeCall = call
+            val windowStart = offset
             try {
                 call.execute().use { resp ->
                     if (signal.cancelled) throw CancelledDownload()
                     if (resp.code == 416 && offset > 0) return // ranged past EOF: part is complete
                     if (!resp.isSuccessful) throw IOException("http ${resp.code}")
-                    val ranged = resp.code == 206
+                    // range= param windows answer 200, not 206 -- still bounded windows
+                    val ranged = resp.code == 206 || googleRanged
                     if (!ranged && offset > 0) {
                         // server ignored Range: the full body follows, start the part over
                         part.delete()
@@ -203,6 +219,9 @@ internal class StreamDownloader(private val client: OkHttpClient) {
             val total = knownTotal
             if (total != null && offset >= total) return
             if (total == null && offset <= end) return // short read with unknown size: EOF
+            // range= param past EOF answers 200 with an empty body, never 416 -- an empty window
+            // with no known total is the end, not a reason to loop forever
+            if (offset == windowStart) return
         }
     }
 
