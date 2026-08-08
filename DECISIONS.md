@@ -2,6 +2,30 @@
 
 ## Current state
 
+2026-08-08 field-report wave (5 parallel agents, integrated + 275 tests green, device-UNverified):
+IOException no longer blanket-maps to Network ("No connection" spam fix — only real transport
+exceptions in an 8-deep cause chain qualify); `PlaybackSession.retryCurrent()` + Retry button on
+player error states (except AccessChallenge — honest wall keeps no retry) and togglePlayPause
+routes to it on error/STATE_IDLE (stuck-after-background fix); player gestures got edge dead
+zones (24dp sides / 32dp bottom for system back/home), 24px slop before mode lock, and
+full-height-drag ≈ 150% range sensitivity (float accumulator); h:mm:ss time labels
+(`formatPosition` seam, feeds mini player too); tap in fullscreen shows system bars with the
+chrome (entering fullscreen seeds controlsVisible=false or paused video would pin bars on);
+PipePipe queue semantics — row taps everywhere open Detail (single-item play), whole-list play
+only via explicit Play All/Background; Similar tab gained the shorts shelf (`onOpenShorts`
+threaded through AppShell→DetailScreen); shorts overlay gained HD quality + speed rail entries
+(same QualitySheet/SpeedSheet + PlaybackSession seams as PlayerScreen); search: BackHandler exits
+search mode, suggestion dropdown (fork `YoutubeSuggestionExtractor` via
+`source/newpipe/SearchSuggestions.kt`, 300ms debounce), Clear-all in history dropdown,
+PullToRefreshBox on home feed; search returns playlists (stopgap VideoRef, canonical
+`playlist?list=` URL, RD* mixes dropped, HomeScreen URL-heuristic routes to listing) and
+LIVE/UPCOMING badges (`VideoRef.isLive/isUpcoming`; upcoming = future upload date, the fork
+reports premiere start time as upload date); autoplay-next pref (off default, title-search based,
+honest subtitle) via injected `autoplayNext` lambda + STATE_ENDED latch; crash visibility:
+`CrashLog.kt` uncaught handler writes class-names+frames only (never messages — they carry URLs),
+"Last crash" viewer row in EngineSettings; EngineSettings copy now says extractor updates require
+a new APK (yt-dlp rows relabelled).
+
 Signed arm64-v8a release APK builds; 203 JVM unit tests green. Compose + Material 3, single Activity.
 
 2026-08-06 wave: NewPipeExtractor v0.26.4 is BOTH tier-0 of the resolver chain AND the YouTube
@@ -85,6 +109,11 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
+- Device-verify the 2026-08-08 field-report wave (v0.2.0 APK at repo root): retry-after-background,
+  gesture zones, queue semantics, suggestions, autoplay, shorts quality, LIVE badges, crash row.
+- "Back through Similar chain goes home" report NOT reproduced in code (nav pushes one entry per
+  tap, no popUpTo) — suspect the eaten back-edge-swipe (fixed) or a crash; re-test on device, use
+  the new Last-crash row if it recurs.
 - **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
   built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
   (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
@@ -314,7 +343,23 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - R8/minify on release — off for now. Keep rules for the engine and Room must land first, and a
   broken release build is worse than a large one.
 
+- Suggestion fetch failures collapse to emptyList — a dead suggestion endpoint must never render
+  as a search error. `SearchSuggestions.fetch` swallows everything by design.
+- `Icons.Filled.History` and `LocalFocusManager` under `androidx.compose.ui.focus` don't exist —
+  History glyph missing from material-icons-core (Search icon reused), LocalFocusManager lives in
+  `androidx.compose.ui.platform`.
+
 ## Log
+
+- 2026-08-08 | Retry button on player errors EXCEPT AccessChallenge | Re-resolving can't pass an
+  honest wall; ResultsList already sets onRetry = null for the same reason.
+- 2026-08-08 | Search playlist hits: RD* (mix/radio) list ids dropped at mapping | Extractor
+  rejects mixes ("Unable to recognize playlist"); a row would only open a broken listing.
+- 2026-08-08 | Row tap = single-item play everywhere; whole-list play only behind explicit
+  Play All/Background | PipePipe queue model the user asked for: queue holds only what was
+  deliberately enqueued. Shorts pager keeps its list — swipe nav needs it.
+- 2026-08-08 | Crash log records exception class names + frames, never messages | Extractor
+  exception messages embed signed URLs; redaction rule beats debuggability.
 
 - 2026-07-30 | Single `:app` module, no multi-module split | Four layers are enforced by package
   boundaries and review, not by Gradle. Module wiring costs build time and buys nothing yet.
