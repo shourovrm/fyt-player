@@ -3,6 +3,7 @@ package com.fyiplayer.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -142,18 +143,13 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
             if (ref.thumbnailUrl != null) {
                 AsyncImage(model = ref.thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
             }
-            if (ref.durationSeconds != null) {
-                Text(
-                    formatDuration(ref.durationSeconds),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.72f))
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
-                    color = Color(0xFFF2F4F5),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                )
+            // isLive/isUpcoming take the corner over a duration -- neither is a fixed-length clip
+            // yet, so a "12:34" badge would be a lie. Playlist rows carry no durationSeconds at
+            // all (no VideoRef shape fits one), so they fall through with no badge, correctly.
+            when {
+                ref.isLive -> CornerBadge("LIVE", background = MaterialTheme.colorScheme.error, color = MaterialTheme.colorScheme.onError)
+                ref.isUpcoming -> CornerBadge("UPCOMING", background = Color.Black.copy(alpha = 0.72f), color = Color(0xFFF2F4F5))
+                ref.durationSeconds != null -> CornerBadge(formatDuration(ref.durationSeconds), background = Color.Black.copy(alpha = 0.72f), color = Color(0xFFF2F4F5))
             }
         }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
@@ -173,6 +169,23 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
             }
         }
     }
+}
+
+/** Bottom-right thumbnail overlay -- one shape shared by the duration/LIVE/UPCOMING badges so they
+ *  read as the same UI element, not three different overlays. */
+@Composable
+private fun BoxScope.CornerBadge(text: String, background: Color, color: Color) {
+    Text(
+        text,
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(6.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(background)
+            .padding(horizontal = 5.dp, vertical = 2.dp),
+        color = color,
+        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+    )
 }
 
 @Composable

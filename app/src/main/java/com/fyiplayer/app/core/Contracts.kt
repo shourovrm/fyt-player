@@ -29,6 +29,10 @@ data class VideoRef(
     /** Short-form vertical clip, as declared by the listing (extractor flag or /shorts/ URL).
      *  False when the listing didn't say — a plain row, never a probe. */
     val isShort: Boolean = false,
+    /** Currently broadcasting, as declared by the listing. False when the listing didn't say. */
+    val isLive: Boolean = false,
+    /** A scheduled premiere that hasn't started yet. False when the listing didn't say. */
+    val isUpcoming: Boolean = false,
 )
 
 /** One page of results. [nextPage] is an opaque token the same source hands back to itself. */

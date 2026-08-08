@@ -41,6 +41,7 @@ import org.schabi.newpipe.extractor.search.filter.FilterItem
 import org.schabi.newpipe.extractor.stream.Description
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import org.schabi.newpipe.extractor.stream.StreamType
 
 private const val SOURCE_ID = "youtube"
 
@@ -161,7 +162,7 @@ class NewPipeYoutubeSource(
         val resolvedRef = ref.copy(
             title = info.name ?: ref.title,
             thumbnailUrl = info.thumbnails.lastOrNull()?.url ?: ref.thumbnailUrl,
-            durationSeconds = info.duration.takeIf { it >= 0 }?.toInt() ?: ref.durationSeconds,
+            durationSeconds = info.duration.takeIf { it > 0 }?.toInt() ?: ref.durationSeconds,
             uploader = info.uploaderName ?: ref.uploader,
             uploaderUrl = info.uploaderUrl ?: ref.uploaderUrl,
             viewCountText = compactCount(info.viewCount)?.let { "$it views" } ?: ref.viewCountText,
@@ -300,7 +301,8 @@ private fun tabUnavailableError(tab: ChannelTab): ExtractionError.Unsupported {
 private fun InfoItem.toSearchVideoRef(): VideoRef? = when (this) {
     is StreamInfoItem -> toVideoRef()
     is ChannelInfoItem -> toChannelRef()
-    else -> null // PlaylistInfoItem and anything else: no VideoRef shape fits a mixed search hit
+    is PlaylistInfoItem -> toPlaylistVideoRef()
+    else -> null // anything else: no VideoRef shape fits a mixed search hit
 }
 
 private fun InfoItem.toStreamVideoRef(): VideoRef? = (this as? StreamInfoItem)?.toVideoRef()
@@ -315,13 +317,17 @@ private fun StreamInfoItem.toVideoRef(): VideoRef? {
         remoteId = videoId,
         title = name,
         thumbnailUrl = thumbnailUrl,
-        durationSeconds = duration.takeIf { it >= 0 }?.toInt(),
+        durationSeconds = duration.takeIf { it > 0 }?.toInt(),
         uploader = uploaderName,
         uploaderUrl = uploaderUrl,
         viewCountText = compactCount(viewCount)?.let { "$it views" },
         uploadedText = englishAge(uploadDate) ?: textualUploadDate,
         // Fork's own flag first; /shorts/ path fallback covers any listing shape it left unset.
         isShort = isShortFormContent || url.contains("/shorts/"),
+        isLive = streamType == StreamType.LIVE_STREAM || streamType == StreamType.AUDIO_LIVE_STREAM,
+        // Premieres report their future start time as the "upload" date (see YoutubeStreamInfoItemExtractor
+        // .isPremiere/getDateFromPremiere) -- a date in the future means it hasn't gone live yet.
+        isUpcoming = isUpcoming(uploadDate),
     )
 }
 
@@ -339,6 +345,32 @@ private fun ChannelInfoItem.toChannelRef(): VideoRef = VideoRef(
 private fun PlaylistInfoItem.toPlaylistListing(): Listing =
     Listing(sourceId = SOURCE_ID, kind = Listing.Kind.PLAYLIST, key = url, title = name, thumbnailUrl = thumbnailUrl)
 
+// ponytail: playlists in search results are a VideoRef, same stopgap as toChannelRef -- a typed
+// search-result shape is the real fix (see DECISIONS.md Next), not earned by one row kind yet.
+private val LIST_ID = Regex("[?&]list=([^&]+)")
+
+/** A playlist has no video id of its own -- pageUrl IS the identity, same remoteId=pageUrl
+ *  convention as [toChannelRef]. [url] is already `playlist?list=ID` for a normal playlist hit but
+ *  can be a mix/radio "shareUrl" (`watch?v=X&list=RDX`) from the lockup search shape; pull the
+ *  `list=` id out of either and rebuild the canonical playlist page URL so HomeScreen's
+ *  `playlist?list=` routing heuristic always matches. */
+private fun PlaylistInfoItem.toPlaylistVideoRef(): VideoRef? {
+    val listId = LIST_ID.find(url)?.groupValues?.get(1) ?: return null
+    // RD* = mix/radio: the extractor rejects them ("Unable to recognize playlist"), so a row
+    // would only ever open a broken listing. Drop the hit instead.
+    if (listId.startsWith("RD")) return null
+    val pageUrl = "https://www.youtube.com/playlist?list=$listId"
+    return VideoRef(
+        sourceId = SOURCE_ID,
+        pageUrl = pageUrl,
+        remoteId = pageUrl,
+        title = name,
+        thumbnailUrl = thumbnailUrl,
+        uploader = uploaderName,
+        viewCountText = streamCount.takeIf { it > 0 }?.let { "$it videos" },
+    )
+}
+
 private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     id = commentId,
     author = uploaderName ?: "",
@@ -351,6 +383,15 @@ private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     isHearted = isHeartedByUploader,
     authorAvatarUrl = uploaderAvatarUrl,
 )
+
+/** True when [date] is in the future -- a premiere reports its scheduled start time as its
+ *  "upload" date (see YoutubeStreamInfoItemExtractor.isPremiere/getDateFromPremiere), so a future
+ *  date means the video hasn't gone live yet. [now] is a parameter for tests, same convention as
+ *  [englishAge]. */
+internal fun isUpcoming(
+    date: DateWrapper?,
+    now: OffsetDateTime = OffsetDateTime.now(),
+): Boolean = date?.offsetDateTime()?.isAfter(now) == true
 
 /** The fork pins YouTube extraction to Zulu (hl=zu, its always-on non-localized-titles trick), so
  *  every TEXTUAL date arrives in Zulu ("2 izinyanga ezedlule"). The parsed [DateWrapper] is
