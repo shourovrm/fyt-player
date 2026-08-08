@@ -39,4 +39,13 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** Rotation is handled in-process (manifest configChanges), and this OEM does not always
+     *  re-dispatch window insets after it -- the layout then keeps the OLD orientation's insets
+     *  (portrait page indented by a landscape side inset after leaving fullscreen). Ask for a
+     *  fresh dispatch once the new configuration has laid out. */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        window.decorView.post { window.decorView.requestApplyInsets() }
+    }
 }
