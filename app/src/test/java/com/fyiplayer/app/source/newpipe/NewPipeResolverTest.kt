@@ -67,8 +67,11 @@ class NewPipeResolverTest {
     }
 
     @Test
-    fun ioExceptionMapsToNetwork() {
-        assertTrue(mapNewPipeError(IOException("timeout")) is ExtractionError.Network)
+    fun ioExceptionMapsByCauseNotType() {
+        // Bare IOException is how the extractor wraps parse failures too -- only real transport
+        // exceptions may claim "no connection" (see NewPipeErrorsTest for the full matrix).
+        assertTrue(mapNewPipeError(java.net.SocketTimeoutException("timeout")) is ExtractionError.Network)
+        assertTrue(mapNewPipeError(IOException("parse junk")) !is ExtractionError.Network)
     }
 
     @Test
