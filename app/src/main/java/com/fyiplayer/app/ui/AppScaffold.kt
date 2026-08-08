@@ -102,6 +102,11 @@ fun AppScaffold(
     // MainActivity's decor-view listener on EVERY genuine inset dispatch; the WM round-trip in
     // setFullscreen's exit guarantees one lands after the transition.
     val fullscreenActive = FullscreenChrome.active
+    // Exit-fullscreen: overwrite with the latched portrait insets immediately (PipePipe's
+    // manual-reset trick) -- the OS may never redeliver, and a late real dispatch still wins.
+    LaunchedEffect(fullscreenActive) {
+        if (!fullscreenActive) SystemBarInsetsState.restoreLatched()
+    }
     val systemBarInsets = SystemBarInsetsState.insets
 
     Scaffold(
@@ -199,8 +204,22 @@ object SystemBarInsetsState {
     var insets by mutableStateOf(WindowInsets(0))
         private set
 
+    // Last portrait-shaped delivery (no side insets, real top): the known-good set
+    // [restoreLatched] falls back to when the OS skips redelivery after a fullscreen exit.
+    private var portraitLatch: WindowInsets? = null
+
     fun update(left: Int, top: Int, right: Int, bottom: Int) {
-        insets = WindowInsets(left, top, right, bottom)
+        val fresh = WindowInsets(left, top, right, bottom)
+        insets = fresh
+        if (left == 0 && right == 0 && top > 0) portraitLatch = fresh
+    }
+
+    /** PipePipe's own cure for this OS bug, translated: it zeroes the inset padding BY HAND on
+     *  fullscreen exit ("Android will not do it when orientation changes from landscape to
+     *  portrait" -- their comment). Restore the latched portrait set instead of waiting for a
+     *  dispatch that may never come; a genuine dispatch afterwards still wins via [update]. */
+    fun restoreLatched() {
+        portraitLatch?.let { insets = it }
     }
 }
 

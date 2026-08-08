@@ -76,6 +76,17 @@ fun setFullscreen(activity: Activity, fullscreen: Boolean) {
 
 
 /**
+ * While fullscreen, system bars track the in-app chrome: a tap that reveals the control row
+ * reveals the status/nav bars with it, auto-hide takes both away. [setFullscreen] stays the
+ * entry/exit authority. The stale-inset wedge this churn can trigger on this OEM is covered by
+ * SystemBarInsetsState.restoreLatched() on exit -- PipePipe's manual-reset trick.
+ */
+fun setSystemBarsVisible(activity: Activity, visible: Boolean) {
+    val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+    if (visible) insetsController.show(WindowInsetsCompat.Type.systemBars()) else insetsController.hide(WindowInsetsCompat.Type.systemBars())
+}
+
+/**
  * Narrows fullscreen orientation to the stream's own aspect ratio: a portrait video (taller than
  * wide) locks portrait so it fills the screen edge to edge instead of letterboxing inside a
  * forced landscape frame; a landscape video locks landscape; unknown or square (0 or equal
