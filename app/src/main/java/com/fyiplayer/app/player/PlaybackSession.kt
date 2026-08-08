@@ -105,6 +105,10 @@ object PlaybackSession {
     // Injected by FyiApp; returns null when the pref is off, the search fails, or nothing
     // qualifies -- STATE_ENDED's handler treats null as "nothing to autoplay", same as no queue.
     private var autoplayNext: suspend (VideoRef) -> VideoRef? = { null }
+    // Position persistence seams (FyiApp gates on the pref and owns the near-end-clears rule);
+    // the session only decides WHEN: resume lookup at item start, save on tick/pause/end.
+    private var loadPosition: suspend (String) -> Long? = { null }
+    private var savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> }
     private var sponsorFetchJob: Job? = null
     // Segments for the item currently at `index`. Never trusted after an item change until
     // fetchSponsorSegments's own index check confirms the response is still for the right item.
@@ -151,12 +155,16 @@ object PlaybackSession {
         maxHeight: () -> Int = { 1080 },
         sponsorBlockEnabled: () -> Boolean = { false },
         autoplayNext: suspend (VideoRef) -> VideoRef? = { null },
+        loadPosition: suspend (String) -> Long? = { null },
+        savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> },
     ) {
         if (::player.isInitialized) return
         this.resolver = resolver
         this.maxHeight = maxHeight
         this.sponsorBlockEnabled = sponsorBlockEnabled
         this.autoplayNext = autoplayNext
+        this.loadPosition = loadPosition
+        this.savePosition = savePosition
         appContext = context.applicationContext
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         // Sideloaded captions ride SingleSampleMediaSource, which hands the renderer RAW subtitle
@@ -551,7 +559,11 @@ object PlaybackSession {
             val item = resolveItem(i, ref) ?: return@launch
             player.setMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
             player.prepare()
-            if (resumeAtMs != null) player.seekTo(resumeAtMs)
+            // resumeAtMs given = the SAME item continuing (expiry re-resolve, retry). A genuinely
+            // new start may pick up its saved resume point instead. Shorts never resume -- a
+            // swipe-through clip restarting mid-way would just be confusing.
+            val resume = resumeAtMs ?: if (!ref.isShort) loadPosition(ref.pageUrl) else null
+            if (resume != null) player.seekTo(resume)
             player.playWhenReady = true
             // retriedIndex is deliberately NOT cleared here. This runs on the re-resolve that a
             // failed item triggered, so clearing it would re-arm the retry for the same item and
@@ -702,17 +714,35 @@ object PlaybackSession {
 
     private fun tickPosition(isPlaying: Boolean) {
         tickerJob?.cancel()
-        if (!isPlaying) return
+        if (!isPlaying) {
+            // pause/stop: capture the resume point now -- the 5s cadence below may be behind
+            persistPosition()
+            return
+        }
         tickerJob = scope.launch {
+            var ticks = 0
             while (isActive) {
                 val position = player.currentPosition.coerceAtLeast(0)
                 _state.update {
                     it.copy(positionMs = position, durationMs = player.duration.coerceAtLeast(0))
                 }
                 if (player.isPlaying) checkSponsorSkip(position)
+                if (++ticks % 10 == 0) persistPosition() // every ~5s while playing
                 delay(500)
             }
         }
+    }
+
+    /** Writes the current position through [savePosition]. Guards make it safe to call from any
+     *  playback event: shorts are skipped, and a cleared/errored player (position 0, duration
+     *  unset) writes nothing -- so a stop after an error can't wipe a real saved position. */
+    private fun persistPosition() {
+        val ref = _state.value.current ?: return
+        if (ref.isShort) return
+        val duration = player.duration
+        val position = player.currentPosition
+        if (duration <= 0 || position <= 0) return
+        scope.launch { savePosition(ref.pageUrl, position, duration) }
     }
 
     /** Cancels any in-flight fetch and drops whatever segments were held -- called at every point
@@ -758,6 +788,9 @@ object PlaybackSession {
         override fun onPlaybackStateChanged(playbackState: Int) {
             _state.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
             if (playbackState == Player.STATE_ENDED) {
+                // watched to the end: position==duration rides through savePosition, whose owner
+                // clears the row (a finished video must not grow a stale resume bar)
+                persistPosition()
                 // Reached the true end of the player's own (<=2-item) timeline with nothing to
                 // auto-advance into — happens when repeat/shuffle changed after the last prefetch.
                 val target = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order)

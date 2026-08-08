@@ -7,6 +7,7 @@ import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.db.AppDatabase
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.data.repo.PositionsRepository
 import com.fyiplayer.app.engine.ChainResolver
 import com.fyiplayer.app.engine.EngineGate
 import com.fyiplayer.app.engine.EngineResolver
@@ -66,6 +67,10 @@ class FyiApp : Application() {
     @Volatile private var sponsorBlockEnabled = false
     // Mirrored the same way; read synchronously inside autoplayNextFor before it does any work.
     @Volatile private var autoplayNextEnabled = false
+    // Mirrored the same way; position load/save check it before touching the database.
+    @Volatile private var savePlayPositionEnabled = true
+
+    private val positionsRepo by lazy { PositionsRepository(database.playbackPositionDao()) }
 
     override fun onCreate() {
         super.onCreate()
@@ -76,6 +81,7 @@ class FyiApp : Application() {
         prefs.downloadTreeUri.onEach { downloadTreeUri = it }.launchIn(appScope)
         prefs.sponsorBlock.onEach { sponsorBlockEnabled = it }.launchIn(appScope)
         prefs.autoplayNext.onEach { autoplayNextEnabled = it }.launchIn(appScope)
+        prefs.savePlayPosition.onEach { savePlayPositionEnabled = it }.launchIn(appScope)
 
         // Latches into NewPipeInit before the first extractor call and re-applies on every
         // settings change, so language/country needs no app restart.
@@ -94,6 +100,7 @@ class FyiApp : Application() {
         PlaybackSession.init(
             this, resolver, maxHeight = ::currentMaxHeight,
             sponsorBlockEnabled = { sponsorBlockEnabled }, autoplayNext = ::autoplayNextFor,
+            loadPosition = ::loadPositionFor, savePosition = ::savePositionFor,
         )
 
         // Native init takes seconds on a cold install; resolves await EngineGate rather than
@@ -127,7 +134,28 @@ class FyiApp : Application() {
             null
         }
     }
+
+    /** Resume point for [pageUrl], or null when the pref is off, nothing useful is saved, or the
+     *  video was (nearly) finished -- restarting a done video at 95% would be worse than at 0. */
+    private suspend fun loadPositionFor(pageUrl: String): Long? {
+        if (!savePlayPositionEnabled) return null
+        val p = positionsRepo.get(pageUrl) ?: return null
+        if (p.durationMs <= 0) return null
+        return p.positionMs.takeIf { it > RESUME_MIN_MS && it < p.durationMs * 9 / 10 }
+    }
+
+    /** Near the end counts as watched: the row is cleared so no stale resume bar lingers --
+     *  same behaviour as PipePipe. Sub-[RESUME_MIN_MS] positions aren't worth a database row. */
+    private suspend fun savePositionFor(pageUrl: String, positionMs: Long, durationMs: Long) {
+        if (!savePlayPositionEnabled || durationMs <= 0) return
+        when {
+            positionMs >= durationMs * 9 / 10 -> positionsRepo.clear(pageUrl)
+            positionMs > RESUME_MIN_MS -> positionsRepo.save(pageUrl, positionMs, durationMs)
+        }
+    }
 }
+
+private const val RESUME_MIN_MS = 5_000L
 
 /** A search hit [autoplayNextFor] may play next: a plain video page (not a channel/playlist
  *  stopgap ref), not live, not an unstarted premiere, not a short, and not the video that just

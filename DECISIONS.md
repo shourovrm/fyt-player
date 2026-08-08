@@ -192,6 +192,17 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Older open items from review: positions never saved (resume bars empty), signed thumbnail URLs
   persisted for Likes/PlaylistItems, shuffle desync, backup `unescapeForScript` round-trip.
 
+- 2026-08-08 late wave (device-verified): fullscreen-exit right-shift FIXED — the OEM skips the
+  window's inset re-dispatch after the in-process rotation; every app-side cache (Compose holder
+  AND getRootWindowInsets) then serves landscape values to the portrait layout. Fix is a forced
+  WindowManager relayout round-trip (`window.attributes = window.attributes`) on fullscreen exit
+  + onConfigurationChanged, plus AppScaffold snapshotting root insets keyed on
+  configuration/fullscreen with a double re-read tick. Playback-position resume LANDED
+  (device-verified): `Prefs.savePlayPosition` (default on, third toggle in HistorySettings),
+  FyiApp owns pref gating + near-end-clears (>=90% clears the row, <5s not saved),
+  PlaybackSession saves every ~5s tick + on pause + at STATE_ENDED and resumes via
+  `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
+
 ## Gotchas
 
 - Signed-in `tv_downgraded` (TVHTML5) URLs are ciphered and googlevideo 403s them for popular
