@@ -106,7 +106,11 @@ fun AppScaffold(
     var insetsTick by remember { mutableStateOf(0) }
     LaunchedEffect(fullscreenActive) {
         if (!fullscreenActive) {
-            kotlinx.coroutines.delay(300) // bars + rotation settle
+            // twice: once right after the exit's WM round-trip lands, once after rotation and
+            // the bars-show animation have definitely settled
+            kotlinx.coroutines.delay(250)
+            insetsTick++
+            kotlinx.coroutines.delay(600)
             insetsTick++
         }
     }

@@ -46,6 +46,11 @@ class MainActivity : ComponentActivity() {
      *  fresh dispatch once the new configuration has laid out. */
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        window.decorView.post { window.decorView.requestApplyInsets() }
+        window.decorView.post {
+            // attribute reassign = forced WindowManager relayout round-trip; the server then
+            // recomputes and re-sends this window's insets, refreshing every app-side cache
+            window.attributes = window.attributes
+            window.decorView.requestApplyInsets()
+        }
     }
 }

@@ -31,6 +31,7 @@ fun HistorySettings(prefs: Prefs) {
     val searchHistory = remember { SearchHistoryRepository(app.database.searchHistoryDao()) }
     val recordWatch by prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
     val recordSearch by prefs.recordSearchHistory.collectAsStateWithLifecycle(initialValue = true)
+    val savePosition by prefs.savePlayPosition.collectAsStateWithLifecycle(initialValue = true)
 
     SettingsSection("History") {
         SettingsSwitchRow(
@@ -42,6 +43,11 @@ fun HistorySettings(prefs: Prefs) {
             label = "Save search history",
             checked = recordSearch,
             onCheckedChange = { scope.launch { prefs.setRecordSearchHistory(it) } },
+        )
+        SettingsSwitchRow(
+            label = "Remember playback position",
+            checked = savePosition,
+            onCheckedChange = { scope.launch { prefs.setSavePlayPosition(it) } },
         )
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
             TextButton(onClick = { scope.launch { history.clear(); searchHistory.clear() } }) {
