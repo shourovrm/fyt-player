@@ -131,18 +131,15 @@ fun PlayerScreen(
     var controlsToken by remember { mutableStateOf(0) }
     fun interact() { controlsVisible = true; controlsToken++ }
 
-    // Entering fullscreen drops the chrome immediately -- controlsVisible defaults true, and
-    // without this the bars-follow-chrome effect below would re-show system bars right after
-    // the entry hide (forever, when paused: the 3s auto-hide only runs while playing).
+    // Entering fullscreen drops the chrome immediately; tap brings it back.
     LaunchedEffect(fullscreen) {
         if (fullscreen) controlsVisible = false
     }
-    // Bars follow chrome visibility only inside a fullscreen session -- guarded by `fullscreen`
-    // so this never fires embedded, and the DisposableEffect above (entry hide / exit-always-show)
-    // still runs first on every fullscreen flip; this only layers the tap-to-toggle behaviour atop it.
-    LaunchedEffect(fullscreen, controlsVisible) {
-        if (fullscreen) activity?.let { setSystemBarsVisible(it, controlsVisible) }
-    }
+    // DELIBERATELY no bars-follow-chrome here: repeatedly hiding/showing system bars inside a
+    // fullscreen session wedges this OEM's inset delivery (post-exit the layout keeps landscape
+    // insets -- the "page shifted right" bug, device-verified regression when the follow
+    // behaviour shipped). Bars change exactly twice per session, in setFullscreen: hide on
+    // entry, show on exit. The status bar stays reachable via the system edge swipe.
 
     LaunchedEffect(fastSeekToken) {
         if (fastSeekTotal == null) return@LaunchedEffect

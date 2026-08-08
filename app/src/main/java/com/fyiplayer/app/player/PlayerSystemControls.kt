@@ -74,17 +74,6 @@ fun setFullscreen(activity: Activity, fullscreen: Boolean) {
     }
 }
 
-/**
- * While fullscreen, system bars should track the in-app chrome rather than stay permanently
- * hidden -- a tap that reveals the control row should reveal the status/nav bars with it, and
- * auto-hide should take both away together. [setFullscreen]'s own hide/show stays the entry/exit
- * authority (esp. on exit, where bars must come back regardless of chrome state); this is only
- * for the tap-to-toggle behaviour in between, and callers gate it to the fullscreen session.
- */
-fun setSystemBarsVisible(activity: Activity, visible: Boolean) {
-    val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-    if (visible) insetsController.show(WindowInsetsCompat.Type.systemBars()) else insetsController.hide(WindowInsetsCompat.Type.systemBars())
-}
 
 /**
  * Narrows fullscreen orientation to the stream's own aspect ratio: a portrait video (taller than

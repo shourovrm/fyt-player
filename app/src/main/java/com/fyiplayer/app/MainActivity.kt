@@ -22,6 +22,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Feeds SystemBarInsetsState from every REAL inset dispatch. Compose's own inset cache
+        // (and any keyed re-read of the root view's cached copy) goes stale across the
+        // fullscreen hide/show + in-process rotation on this OEM; a listener at the decor can't
+        // -- it sees exactly what the system last delivered, nothing cached. Default handling
+        // continues via ViewCompat.onApplyWindowInsets so decor + children behave as before.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { v, insets ->
+            val sb = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            com.fyiplayer.app.ui.SystemBarInsetsState.update(sb.left, sb.top, sb.right, sb.bottom)
+            androidx.core.view.ViewCompat.onApplyWindowInsets(v, insets)
+        }
         // The media notification is technically exempt from POST_NOTIFICATIONS, but this device's
         // OEM keeps an app's notifications at importance=NONE until the permission is granted —
         // no lockscreen/notification playback controls without asking once.
