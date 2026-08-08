@@ -29,6 +29,7 @@ fun PlaybackSettings(prefs: Prefs) {
     val scope = rememberCoroutineScope()
     val sponsorBlock by prefs.sponsorBlock.collectAsStateWithLifecycle(initialValue = false)
     val background by prefs.backgroundPlayback.collectAsStateWithLifecycle(initialValue = true)
+    val autoplayNext by prefs.autoplayNext.collectAsStateWithLifecycle(initialValue = false)
     val wifi by prefs.maxResolutionWifi.collectAsStateWithLifecycle(initialValue = 1080)
     val mobile by prefs.maxResolutionMobile.collectAsStateWithLifecycle(initialValue = 720)
 
@@ -42,6 +43,18 @@ fun PlaybackSettings(prefs: Prefs) {
             label = "Background playback",
             checked = background,
             onCheckedChange = { scope.launch { prefs.setBackgroundPlayback(it) } },
+        )
+        SettingsSwitchRow(
+            label = "Autoplay next",
+            checked = autoplayNext,
+            onCheckedChange = { scope.launch { prefs.setAutoplayNext(it) } },
+        )
+        // Honest about what this is: no recommendation system exists, just a title search.
+        Text(
+            "When the queue ends, plays a similar video (title-based search)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
         )
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text("Wi-Fi", style = MaterialTheme.typography.bodyMedium)

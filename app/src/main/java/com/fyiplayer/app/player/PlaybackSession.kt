@@ -102,6 +102,9 @@ object PlaybackSession {
     // Mirror of Prefs.sponsorBlock, same pattern as maxHeight: format selection/skip checks run
     // on the player thread and cannot suspend on a DataStore read.
     private var sponsorBlockEnabled: () -> Boolean = { false }
+    // Injected by FyiApp; returns null when the pref is off, the search fails, or nothing
+    // qualifies -- STATE_ENDED's handler treats null as "nothing to autoplay", same as no queue.
+    private var autoplayNext: suspend (VideoRef) -> VideoRef? = { null }
     private var sponsorFetchJob: Job? = null
     // Segments for the item currently at `index`. Never trusted after an item change until
     // fetchSponsorSegments's own index check confirms the response is still for the right item.
@@ -133,6 +136,7 @@ object PlaybackSession {
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
     private var retriedIndex: Int? = null // one re-resolve attempt per item on an expired URL
+    private var autoplayFired = false // guards STATE_ENDED's possible re-emission from double-firing autoplay
 
     private class PreparedItem(
         val queueIndex: Int,
@@ -146,11 +150,13 @@ object PlaybackSession {
         resolver: StreamResolver,
         maxHeight: () -> Int = { 1080 },
         sponsorBlockEnabled: () -> Boolean = { false },
+        autoplayNext: suspend (VideoRef) -> VideoRef? = { null },
     ) {
         if (::player.isInitialized) return
         this.resolver = resolver
         this.maxHeight = maxHeight
         this.sponsorBlockEnabled = sponsorBlockEnabled
+        this.autoplayNext = autoplayNext
         appContext = context.applicationContext
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         // Sideloaded captions ride SingleSampleMediaSource, which hands the renderer RAW subtitle
@@ -242,6 +248,7 @@ object PlaybackSession {
         index = QueueMath.clamp(startIndex, refs.size)
         prepared = null
         retriedIndex = null
+        autoplayFired = false
         currentFormats = emptyList()
         currentCaptions = emptyList()
         currentResolvedAtMillis = 0
@@ -351,6 +358,13 @@ object PlaybackSession {
     fun togglePlayPause() {
         ensureInit()
         val ref = queue.getOrNull(index)
+        // Error state, or a source the player itself gave up on (e.g. a killed surface/source
+        // after sitting backgrounded a couple of minutes -- flipping playWhenReady on a dead
+        // source does nothing visible): recover instead of toggling a player with nothing to play.
+        if (ref != null && (_state.value.error != null || player.playbackState == Player.STATE_IDLE)) {
+            retryCurrent()
+            return
+        }
         // Resuming into a stream that's been resolved long enough its signed URL may already be
         // dead: refresh proactively (position-preserving) instead of letting the player discover
         // that itself and eat the default retry backoff before onPlayerError fires.
@@ -360,6 +374,21 @@ object PlaybackSession {
             return
         }
         player.playWhenReady = !player.playWhenReady
+    }
+
+    /** Recovers the current item: re-resolves and re-prepares in place, same machinery as the
+     *  expired-URL path above and [onPlayerError]'s auto re-resolve, just triggered manually --
+     *  the Retry action on an error state, or [togglePlayPause] finding the player dead. Position
+     *  is read from [PlayerState.positionMs] rather than the player: a failed resolve already
+     *  cleared the player's own source (see [resolveItem]'s catch blocks), so the player's own
+     *  [ExoPlayer.getCurrentPosition] can no longer be trusted for where playback actually was. */
+    fun retryCurrent() {
+        ensureInit()
+        val ref = queue.getOrNull(index) ?: return
+        val resumeAt = _state.value.positionMs
+        resolver.invalidate(ref.pageUrl) // resolver may have cached the dead/stale result
+        _state.update { it.copy(error = null) }
+        startAt(index, resumeAtMs = resumeAt)
     }
 
     fun setSpeed(speed: Float) {
@@ -515,6 +544,7 @@ object PlaybackSession {
         loadJob?.cancel()
         prefetchJob?.cancel()
         val ref = queue.getOrNull(i) ?: return
+        autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         window = emptyList()
         clearSponsorSegments() // item is changing -- the old item's segments must not carry over
         loadJob = scope.launch {
@@ -555,7 +585,11 @@ object PlaybackSession {
             resolver.resolve(ref)
         } catch (e: ExtractionError) {
             if (i == index) {
-                // the previous item must not keep playing (or auto-advance) under the error guardrail
+                // the previous item must not keep playing (or auto-advance) under the error guardrail.
+                // Kill the ticker NOW: its cancel via onIsPlayingChanged is a posted event, and one
+                // stray tick after clearMediaItems() would overwrite positionMs with 0, losing the
+                // resume point retryCurrent() reads back.
+                tickerJob?.cancel()
                 player.stop()
                 player.clearMediaItems()
                 prepared = null
@@ -575,7 +609,11 @@ object PlaybackSession {
         val selection = result.selection
         if (selection == null) {
             if (i == index) {
-                // the previous item must not keep playing (or auto-advance) under the error guardrail
+                // the previous item must not keep playing (or auto-advance) under the error guardrail.
+                // Kill the ticker NOW: its cancel via onIsPlayingChanged is a posted event, and one
+                // stray tick after clearMediaItems() would overwrite positionMs with 0, losing the
+                // resume point retryCurrent() reads back.
+                tickerJob?.cancel()
                 player.stop()
                 player.clearMediaItems()
                 prepared = null
@@ -621,6 +659,7 @@ object PlaybackSession {
      *  — so the UI gets height/queue info immediately instead of a blank beat. */
     private fun adoptPrepared(item: PreparedItem) {
         retriedIndex = null
+        autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         val ref = queue.getOrNull(item.queueIndex) ?: return
         currentFormats = item.resolved.formats
         currentCaptions = item.resolved.captions
@@ -722,7 +761,18 @@ object PlaybackSession {
                 // Reached the true end of the player's own (<=2-item) timeline with nothing to
                 // auto-advance into — happens when repeat/shuffle changed after the last prefetch.
                 val target = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order)
-                if (target != null && target != index) { index = target; startAt(target) }
+                if (target != null && target != index) {
+                    index = target; startAt(target)
+                } else if (!autoplayFired) {
+                    // Queue is genuinely exhausted. STATE_ENDED can re-emit before the async
+                    // lookup below returns, so the latch is set synchronously, not after it lands.
+                    autoplayFired = true
+                    val ref = queue.getOrNull(index)
+                    if (ref != null) scope.launch {
+                        val next = autoplayNext(ref)
+                        if (next != null) play(listOf(next), 0)
+                    }
+                }
             }
         }
 

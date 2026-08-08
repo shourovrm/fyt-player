@@ -36,6 +36,7 @@ class Prefs(private val context: Context) {
         val CONTENT_COUNTRY = stringPreferencesKey("content_country")
         val DOWNLOAD_TREE_URI = stringPreferencesKey("download_tree_uri")
         val SPONSOR_BLOCK = booleanPreferencesKey("sponsor_block")
+        val AUTOPLAY_NEXT = booleanPreferencesKey("autoplay_next")
     }
 
     // only platform live today; default matches SourceRegistry without this file naming it
@@ -77,6 +78,11 @@ class Prefs(private val context: Context) {
     // (No originalTitles pref: the extractor fork forces non-localized titles unconditionally.)
     val sponsorBlock: Flow<Boolean> = flow(SPONSOR_BLOCK, false)
     suspend fun setSponsorBlock(v: Boolean) = set(SPONSOR_BLOCK, v)
+
+    // Off by default: there is no real recommendation system here, only a title search against
+    // the current video -- opt-in so it never surprises someone who just wants the queue to stop.
+    val autoplayNext: Flow<Boolean> = flow(AUTOPLAY_NEXT, false)
+    suspend fun setAutoplayNext(v: Boolean) = set(AUTOPLAY_NEXT, v)
 
     // SAF tree URI finished downloads get COPIED into; unset means app-private storage only, so
     // this has no default and bypasses the flow()/set() helpers, which require a non-null T.
