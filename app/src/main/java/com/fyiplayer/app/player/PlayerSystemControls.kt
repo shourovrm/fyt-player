@@ -62,6 +62,11 @@ fun setFullscreen(activity: Activity, fullscreen: Boolean) {
     val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
     insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     if (fullscreen) insetsController.hide(WindowInsetsCompat.Type.systemBars()) else insetsController.show(WindowInsetsCompat.Type.systemBars())
+    // Exit path: the rotation back is handled in-process, and this OEM can skip the inset
+    // re-dispatch afterwards, leaving portrait content indented by landscape's side inset.
+    // MainActivity.onConfigurationChanged covers the rotation itself; this covers the bar
+    // show/hide when no rotation happens at all.
+    activity.window.decorView.post { activity.window.decorView.requestApplyInsets() }
 }
 
 /**

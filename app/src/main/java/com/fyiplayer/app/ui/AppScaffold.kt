@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
@@ -93,6 +94,28 @@ fun AppScaffold(
             !FullscreenChrome.active && !isDarkTheme
     }
 
+    // NOT Compose's WindowInsets.systemBars: its cached holder wedges when the fullscreen
+    // transition combines insetsController.hide/show with an in-process rotation (manifest
+    // configChanges) -- after exit it keeps serving LANDSCAPE values (left=status-bar) to a
+    // portrait layout, shifting the whole page right (device-verified; the system-side inset
+    // state was correct the whole time). Snapshot the view root's real insets instead, re-read
+    // on rotation (LocalConfiguration) and again shortly after fullscreen exits (bars re-show
+    // asynchronously).
+    val configuration = LocalConfiguration.current
+    val fullscreenActive = FullscreenChrome.active
+    var insetsTick by remember { mutableStateOf(0) }
+    LaunchedEffect(fullscreenActive) {
+        if (!fullscreenActive) {
+            kotlinx.coroutines.delay(300) // bars + rotation settle
+            insetsTick++
+        }
+    }
+    val systemBarInsets = remember(configuration, fullscreenActive, insetsTick) {
+        val raw = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        if (raw == null) WindowInsets(0) else WindowInsets(raw.left, raw.top, raw.right, raw.bottom)
+    }
+
     Scaffold(
         // Full-bleed always: an outer inset-padding modifier here would push the Scaffold's own
         // background (and everything in it) down below the status bar, leaving the raw window
@@ -100,7 +123,7 @@ fun AppScaffold(
         // insets the *content* instead, so the background paints behind the status bar and the
         // icons drawn over it while the app surface still starts in the right place.
         modifier = modifier,
-        contentWindowInsets = if (FullscreenChrome.active) WindowInsets(0) else WindowInsets.systemBars,
+        contentWindowInsets = if (fullscreenActive) WindowInsets(0) else systemBarInsets,
         bottomBar = {
             // One Column: queue bar + mini player sit above the nav bar and are part of the
             // Scaffold's bottom inset, so content is never hidden under them.
