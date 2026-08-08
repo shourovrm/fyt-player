@@ -797,8 +797,15 @@ object PlaybackSession {
                 if (ref != null) resolver.invalidate(ref.pageUrl) // resolver may have cached the dead URL
                 startAt(index, resumeAtMs = player.currentPosition)
             } else {
-                // ids/codes only, never the exception's message — it can embed the dead signed URL
-                _state.update { it.copy(error = ExtractionError.Network("playback error ${error.errorCode}")) }
+                // ids/codes only, never the exception's message — it can embed the dead signed URL.
+                // Only genuine transport trouble may claim "no connection": a googlevideo 403 on a
+                // fresh URL (seen live) is the platform refusing this client, not the user's network.
+                val mapped = if (isNetworkCause(error)) {
+                    ExtractionError.Network("playback error ${error.errorCode}")
+                } else {
+                    ExtractionError.Unsupported("playback error ${error.errorCode}")
+                }
+                _state.update { it.copy(error = mapped) }
             }
         }
     }
@@ -812,6 +819,23 @@ internal val EXPIRED_HTTP_CODES = setOf(401, 403, 410)
 /** Walks the cause chain for the HTTP codes that mean "this signed URL is dead", per Contracts's
  *  [com.fyiplayer.app.core.ExtractionError.Expired]. Never logs the message: it can carry the dead
  *  URL. Shared by PlaybackSession's onPlayerError and MediaItemFactory's fail-fast retry policy. */
+/** True only for transport-level causes (no route, DNS, timeout) — the cases where "check your
+ *  network" is honest advice. An HTTP status is proof the network worked. */
+internal fun isNetworkCause(error: Throwable?): Boolean {
+    var cause: Throwable? = error
+    var depth = 0
+    while (cause != null && depth++ < 8) {
+        when (cause) {
+            is java.net.SocketTimeoutException, is java.net.UnknownHostException,
+            is java.net.ConnectException, is javax.net.ssl.SSLException,
+            -> return true
+        }
+        if (cause is HttpDataSource.InvalidResponseCodeException) return false
+        cause = cause.cause.takeIf { it !== cause }
+    }
+    return false
+}
+
 internal fun isExpiredHttpError(error: Throwable?): Boolean {
     var cause: Throwable? = error
     while (cause != null) {
