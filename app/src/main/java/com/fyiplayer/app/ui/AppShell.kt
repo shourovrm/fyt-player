@@ -115,6 +115,7 @@ fun AppShell(navController: NavHostController) {
                 pageUrl = pageUrl,
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
+                onOpenShorts = { items, index -> navController.openShortsPlayer(items, index) },
                 onBack = { navController.popBackStack() },
                 playerSurface = { surfaceRef, fullscreen, onToggleFullscreen ->
                     PlayerScreen(

@@ -112,6 +112,7 @@ internal fun LazyListScope.similarVideosSection(
     onRetry: () -> Unit,
     onClick: (VideoRef) -> Unit,
     onLongPress: (VideoRef) -> Unit,
+    onOpenShorts: (List<VideoRef>, Int) -> Unit,
 ) {
     // No permanent explainer caption here: the tab label already says "Similar", and honesty
     // about what this list actually is lives in the empty/error states below, not a standing
@@ -139,8 +140,21 @@ internal fun LazyListScope.similarVideosSection(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
-        else -> items(results, key = { it.pageUrl }) { rel ->
-            ResultRow(rel, onClick = { onClick(rel) }, onLongPress = { onLongPress(rel) })
+        else -> {
+            // Same shelf idiom as search (ShortsShelf.kt): shorts pulled above the regular rows,
+            // excluded from them. Empty shelf -> partition returns nothing, no row emitted.
+            val (shortsItems, longformItems) = partitionShorts(results)
+            if (shortsItems.isNotEmpty()) {
+                item(key = "similarShortsShelf") {
+                    ShortsShelf(shortsItems) { ref ->
+                        val index = shortsItems.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
+                        onOpenShorts(shortsItems, index)
+                    }
+                }
+            }
+            items(longformItems, key = { it.pageUrl }) { rel ->
+                ResultRow(rel, onClick = { onClick(rel) }, onLongPress = { onLongPress(rel) })
+            }
         }
     }
 }

@@ -83,6 +83,7 @@ fun DetailScreen(
     pageUrl: String,
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
+    onOpenShorts: (List<VideoRef>, Int) -> Unit,
     onBack: () -> Unit,
     playerSurface: @Composable (ref: VideoRef, fullscreen: Boolean, onToggleFullscreen: () -> Unit) -> Unit = { _, _, _ -> },
 ) {
@@ -263,12 +264,11 @@ fun DetailScreen(
                         error = tabsVm.similarError,
                         retryEnabled = !tabsVm.similarBlocked,
                         onRetry = { tabsVm.retrySimilar(source, shownRef) },
-                        onClick = { rel ->
-                            val index = tabsVm.similarItems.indexOfFirst { it.pageUrl == rel.pageUrl }.coerceAtLeast(0)
-                            PlaybackSession.play(tabsVm.similarItems, index)
-                            onOpenDetail(rel)
-                        },
+                        // Just opens Detail -- Detail autoplays the single video (PipePipe queue
+                        // model, CLAUDE.md), so a chain of Similar taps unwinds one video per back.
+                        onClick = onOpenDetail,
                         onLongPress = { actionSheetRef = it },
+                        onOpenShorts = onOpenShorts,
                     )
                     DetailTab.DESCRIPTION -> descriptionTabSection(detail, onOpenDetail, onOpenListing)
                     DetailTab.COMMENTS -> item {

@@ -42,12 +42,6 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
 
     LaunchedEffect(listing) { vm.ensureLoaded(listing) }
 
-    fun playAndOpen(ref: VideoRef) {
-        val index = vm.items.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
-        PlaybackSession.play(vm.items, index)
-        onOpenDetail(ref)
-    }
-
     Scaffold(
         topBar = {
             if (selecting) {
@@ -107,7 +101,9 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                 isLoadingMore = vm.loading && vm.items.isNotEmpty(),
                 onLoadMore = { vm.loadMore(listing) },
                 selecting = selecting,
-                onTap = ::playAndOpen,
+                // Row tap opens Detail only -- Detail autoplays the single video (PipePipe queue
+                // model, CLAUDE.md). "Play all" above is the one explicit whole-list play.
+                onTap = onOpenDetail,
                 onToggle = { selection = selection.toggled(it.pageUrl) },
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
