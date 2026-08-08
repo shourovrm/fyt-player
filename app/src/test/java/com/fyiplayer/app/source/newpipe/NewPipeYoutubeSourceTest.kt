@@ -1,7 +1,11 @@
 package com.fyiplayer.app.source.newpipe
 
+import java.time.OffsetDateTime
+import org.schabi.newpipe.extractor.localization.DateWrapper
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 // Pure helpers only -- no network, no NewPipe.init.
@@ -31,5 +35,19 @@ class NewPipeYoutubeSourceTest {
     fun negativeIsUnknownNeverInvented() {
         assertNull(compactCount(-1))
         assertNull(compactCount(-100))
+    }
+
+    @Test
+    fun futureDateIsUpcoming() {
+        val now = OffsetDateTime.parse("2026-08-08T00:00:00Z")
+        val premiereStart = DateWrapper(now.plusHours(2))
+        assertTrue(isUpcoming(premiereStart, now))
+    }
+
+    @Test
+    fun pastOrNullDateIsNotUpcoming() {
+        val now = OffsetDateTime.parse("2026-08-08T00:00:00Z")
+        assertFalse(isUpcoming(DateWrapper(now.minusDays(1)), now))
+        assertFalse(isUpcoming(null, now))
     }
 }
