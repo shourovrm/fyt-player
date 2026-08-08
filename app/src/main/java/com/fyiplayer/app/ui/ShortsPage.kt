@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -59,10 +60,13 @@ import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.player.PauseGlyph
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.player.PlayerState
+import com.fyiplayer.app.player.QualitySheet
 import com.fyiplayer.app.player.SeekThumbnailPreview
 import com.fyiplayer.app.player.SharedVideoSurface
+import com.fyiplayer.app.player.SpeedSheet
 import com.fyiplayer.app.player.fetchSeekThumbnails
 import com.fyiplayer.app.player.imageFor
+import com.fyiplayer.app.player.trimSpeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -89,6 +93,8 @@ internal fun ShortsPage(
     val liked by remember(ref.pageUrl) { likes.observeIsLiked(ref.pageUrl) }.collectAsState(initial = false)
     var showSaveSheet by remember { mutableStateOf(false) }
     var showDetailsSheet by remember { mutableStateOf(false) }
+    var showQualitySheet by remember { mutableStateOf(false) }
+    var showSpeedSheet by remember { mutableStateOf(false) }
 
     // Tap toggles play/pause. The glyph shown is which way THIS tap just requested, not the
     // player's own isPlaying (onIsPlayingChanged lands a beat later) -- and it fades on its own
@@ -222,6 +228,11 @@ internal fun ShortsPage(
                 context.startActivity(Intent.createChooser(send, "Share link"))
             },
             onSave = { showSaveSheet = true },
+            // Quality/speed act on PlaybackSession's current item -- only meaningful while this
+            // page is the one actually loaded, so the buttons don't show on inactive pages.
+            onQuality = if (isActive) { { showQualitySheet = true } } else null,
+            speed = playerState.speed,
+            onSpeed = if (isActive) { { showSpeedSheet = true } } else null,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 104.dp),
         )
 
@@ -272,6 +283,23 @@ internal fun ShortsPage(
         // so there's nothing to resume here.
         ShortsDetailsSheet(ref = ref, onDismiss = { showDetailsSheet = false })
     }
+    // Same sheets, same PlaybackSession calls PlayerScreen's overflow menu uses -- one shared
+    // seam for both surfaces instead of a second quality/speed path just for shorts.
+    if (showQualitySheet) {
+        QualitySheet(
+            heights = playerState.availableHeights,
+            selectedHeight = playerState.selectedHeight,
+            onSelect = { PlaybackSession.selectQuality(it); showQualitySheet = false },
+            onDismiss = { showQualitySheet = false },
+        )
+    }
+    if (showSpeedSheet) {
+        SpeedSheet(
+            current = playerState.speed,
+            onSelect = { PlaybackSession.setSpeed(it); showSpeedSheet = false },
+            onDismiss = { showSpeedSheet = false },
+        )
+    }
 }
 
 @Composable
@@ -280,6 +308,9 @@ private fun ShortsActionRail(
     onLike: () -> Unit,
     onShare: () -> Unit,
     onSave: () -> Unit,
+    onQuality: (() -> Unit)?,
+    speed: Float,
+    onSpeed: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -295,6 +326,19 @@ private fun ShortsActionRail(
         }
         RailButton(onClick = onShare) {
             Icon(Icons.Filled.Share, contentDescription = "Share", tint = Color.White)
+        }
+        // No quality glyph anywhere in this repo (PlayerScreen's own overflow menu is a text
+        // DropdownMenuItem, not an icon) -- a text label matches what already exists instead of
+        // inventing a new hand-drawn glyph.
+        if (onQuality != null) {
+            RailButton(onClick = onQuality) {
+                Text("HD", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        if (onSpeed != null) {
+            RailButton(onClick = onSpeed) {
+                Text("${trimSpeed(speed)}x", color = Color.White, style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

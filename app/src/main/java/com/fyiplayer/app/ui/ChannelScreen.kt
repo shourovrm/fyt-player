@@ -86,13 +86,14 @@ fun ChannelScreen(
     }
 
     fun playAndOpen(ref: VideoRef) {
-        val index = currentVideos.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
-        // Shorts are vertical clips: open the swipe pager, not the landscape detail player.
+        // Shorts are vertical clips: open the swipe pager, which needs the whole tab's list. A
+        // regular row tap just opens Detail now -- Detail autoplays the single video (PipePipe
+        // queue model, CLAUDE.md); the header's "Play all" keeps the whole-tab queue.
         val sel = vm.selected
         if (sel is ChannelUiTab.Content && sel.tab == ChannelTab.SHORTS) {
+            val index = currentVideos.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
             onOpenShorts(currentVideos, index)
         } else {
-            PlaybackSession.play(currentVideos, index)
             onOpenDetail(ref)
         }
     }
