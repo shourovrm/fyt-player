@@ -70,14 +70,9 @@ fun EngineSettings() {
 
     SettingsSection("Video engine") {
         Column(Modifier.padding(horizontal = 16.dp)) {
+            // yt-dlp rows below say "yt-dlp" explicitly, so this line needs no disclaimer: the
+            // extractor version ships with the APK and the updater never touches it.
             Text(YOUTUBE_ENGINE, style = MaterialTheme.typography.bodyLarge)
-            // Honest about what "Update" below does NOT touch: the YouTube extractor ships
-            // compiled into the app -- there is no in-app path to a newer one, only a new APK.
-            Text(
-                "Built into this build of the app. A newer extractor needs a new APK.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Text(
                 "yt-dlp version: ${version ?: "bundled with the app"}",
                 style = MaterialTheme.typography.bodyLarge,

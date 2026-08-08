@@ -137,12 +137,11 @@ fun PlayerScreen(
     LaunchedEffect(fullscreen) {
         if (fullscreen) controlsVisible = false
     }
-    // Bars follow chrome inside a fullscreen session. The hide/show churn can wedge this OEM's
-    // inset redelivery on exit (the "page shifted right" bug); SystemBarInsetsState's latched
-    // portrait restore in AppScaffold is what makes this safe to have back.
-    LaunchedEffect(fullscreen, controlsVisible) {
-        if (fullscreen) activity?.let { setSystemBarsVisible(it, controlsVisible) }
-    }
+    // DELIBERATELY no bars-follow-chrome: the hide/show churn wedges this OEM's inset delivery
+    // (the "page shifted right" bug) and even the latched-restore trick didn't hold on device.
+    // Bars change exactly twice per session (setFullscreen: hide on entry, show on exit); the
+    // status bar stays reachable via the system edge swipe. Do not re-add without a device-
+    // verified fix for the wedge.
 
     LaunchedEffect(fastSeekToken) {
         if (fastSeekTotal == null) return@LaunchedEffect
