@@ -244,13 +244,21 @@ internal fun CenterPlayButton(onClick: () -> Unit, playing: Boolean, modifier: M
     }
 }
 
-internal fun mmss(ms: Long): String {
+/** [forceHours] widens m:ss to h:mm:ss even when this value's own hours digit is zero, so a
+ *  position label stays the same width as its duration ("0:05:12 / 1:41:12") instead of the
+ *  label reflowing as the clock crosses the hour mark. */
+internal fun mmss(ms: Long, forceHours: Boolean = false): String {
     val totalSec = ms / 1000
-    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0 || forceHours) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
-internal fun formatPosition(positionMs: Long, durationMs: Long): String =
-    "${mmss(positionMs)} / ${mmss(durationMs)}"
+internal fun formatPosition(positionMs: Long, durationMs: Long): String {
+    val hasHours = durationMs / 1000 >= 3600
+    return "${mmss(positionMs, forceHours = hasHours)} / ${mmss(durationMs)}"
+}
 
 /** Null when there's no queue at all — a single video has no position to show. */
 internal fun queuePositionLabel(queueSize: Int, index: Int): String? =

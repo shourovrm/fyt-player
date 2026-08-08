@@ -1,17 +1,23 @@
 package com.fyiplayer.app.player
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.VideoRef
@@ -113,12 +119,30 @@ fun PlayerScreen(
     var seekBurstBaseMs by remember { mutableStateOf(0L) }
     var brightnessPercent by remember { mutableStateOf(activity?.let(::currentBrightnessPercent) ?: 50) }
     var volumePercent by remember { mutableStateOf(currentStreamVolumePercent(context)) }
+    // Float accumulators, not the displayed Ints directly: playerGestures reports a percent delta
+    // per pointer-move frame, and most frames move well under 1% -- rounding each one to Int before
+    // adding it back would silently drop small drags instead of letting them add up.
+    var brightnessAccum by remember { mutableStateOf(brightnessPercent.toFloat()) }
+    var volumeAccum by remember { mutableStateOf(volumePercent.toFloat()) }
     var showBrightnessHud by remember { mutableStateOf(false) }
     var showVolumeHud by remember { mutableStateOf(false) }
     var seekPreviewMs by remember { mutableStateOf<Long?>(null) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsToken by remember { mutableStateOf(0) }
     fun interact() { controlsVisible = true; controlsToken++ }
+
+    // Entering fullscreen drops the chrome immediately -- controlsVisible defaults true, and
+    // without this the bars-follow-chrome effect below would re-show system bars right after
+    // the entry hide (forever, when paused: the 3s auto-hide only runs while playing).
+    LaunchedEffect(fullscreen) {
+        if (fullscreen) controlsVisible = false
+    }
+    // Bars follow chrome visibility only inside a fullscreen session -- guarded by `fullscreen`
+    // so this never fires embedded, and the DisposableEffect above (entry hide / exit-always-show)
+    // still runs first on every fullscreen flip; this only layers the tap-to-toggle behaviour atop it.
+    LaunchedEffect(fullscreen, controlsVisible) {
+        if (fullscreen) activity?.let { setSystemBarsVisible(it, controlsVisible) }
+    }
 
     LaunchedEffect(fastSeekToken) {
         if (fastSeekTotal == null) return@LaunchedEffect
@@ -169,11 +193,25 @@ fun PlayerScreen(
                 }
             }
             ref == null -> Text("Nothing playing", color = Color.White, modifier = Modifier.align(Alignment.Center))
-            error != null -> Text(
-                friendlyMessage(error),
-                color = Color.White,
+            error != null -> Column(
                 modifier = Modifier.align(Alignment.Center).padding(32.dp),
-            )
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(friendlyMessage(error), color = Color.White)
+                // An AccessChallenge is an honest wall (login/CAPTCHA/age) -- re-resolving can't
+                // pass it, so no Retry there, same convention as ResultsList's onRetry = null.
+                if (error !is ExtractionError.AccessChallenge) {
+                    Spacer(Modifier.height(12.dp))
+                    // The reported "stuck play button": an error used to render dead-end text with
+                    // no way forward short of leaving the screen. retryCurrent() re-resolves the
+                    // same item from where it left off -- not a bypass of whatever stopped it.
+                    OutlinedButton(
+                        onClick = { PlaybackSession.retryCurrent() },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                    ) { Text("Retry") }
+                }
+            }
             else -> {
                 SharedVideoSurface(
                     player = PlaybackSession.exoPlayer,
@@ -185,13 +223,15 @@ fun PlayerScreen(
                             gestureBrightness = gestureBrightness,
                             gestureVolume = gestureVolume,
                             accumulator = accumulator,
-                            onBrightnessDrag = { delta ->
-                                brightnessPercent = (brightnessPercent + (delta / 4).toInt()).coerceIn(0, 100)
+                            onBrightnessDrag = { deltaPercent ->
+                                brightnessAccum = (brightnessAccum + deltaPercent).coerceIn(0f, 100f)
+                                brightnessPercent = brightnessAccum.toInt()
                                 showBrightnessHud = true
                                 activity?.let { setWindowBrightness(it, brightnessPercent) }
                             },
-                            onVolumeDrag = { delta ->
-                                volumePercent = (volumePercent + (delta / 4).toInt()).coerceIn(0, 100)
+                            onVolumeDrag = { deltaPercent ->
+                                volumeAccum = (volumeAccum + deltaPercent).coerceIn(0f, 100f)
+                                volumePercent = volumeAccum.toInt()
                                 showVolumeHud = true
                                 setStreamVolumePercent(context, volumePercent)
                             },
