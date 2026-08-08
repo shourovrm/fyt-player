@@ -14,8 +14,10 @@ import com.fyiplayer.app.core.VideoSource
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.SearchHistoryRepository
 import com.fyiplayer.app.data.repo.SubscriptionRepository
+import com.fyiplayer.app.source.newpipe.SearchSuggestions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -37,6 +39,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var selectedTab: String by mutableStateOf(ALL_TAB_ID)
 
     internal val searchResults = mutableStateMapOf<String, TabResult>()
+
+    /** Autocomplete rows for the search field. Empty until [requestSuggestions] lands, or once
+     *  [clearSuggestions] runs -- never stale text from a since-abandoned query. */
+    internal var suggestions: List<String> by mutableStateOf(emptyList())
+        private set
+    private var suggestionsJob: Job? = null
 
     /** Home's default (blank-query) feed: newest uploads from subscribed channels. Cached
      *  for the ViewModel's lifetime -- [loadFeedIfNeeded] never refetches once [FeedState.loaded]
@@ -184,6 +192,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteSearchHistoryEntry(q: String) {
         viewModelScope.launch { searchHistoryRepo.remove(q) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { searchHistoryRepo.clear() }
+    }
+
+    /** Debounced (~300ms): a cancel-and-relaunch Job, same pattern as [refreshFeed]'s [feedJob] --
+     *  only the latest query's result is ever applied. */
+    fun requestSuggestions(q: String) {
+        suggestionsJob?.cancel()
+        if (q.isBlank()) { suggestions = emptyList(); return }
+        suggestionsJob = viewModelScope.launch {
+            delay(300)
+            suggestions = SearchSuggestions.fetch(q)
+        }
+    }
+
+    fun clearSuggestions() {
+        suggestionsJob?.cancel()
+        suggestions = emptyList()
     }
 
     private fun outcomeFor(cur: TabResult, page: String?, error: Throwable): TabResult = when (error) {

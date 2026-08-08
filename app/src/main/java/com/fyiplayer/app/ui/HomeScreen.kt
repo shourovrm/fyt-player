@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -45,7 +49,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
-import com.fyiplayer.app.player.PlaybackSession
 
 /**
  * Home (browse) and Search share this screen: a blank query shows [HomeFeedSection] (newest
@@ -70,6 +73,18 @@ fun HomeScreen(
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
 
     val isSearching = vm.query.isNotBlank()
+    val focusManager = LocalFocusManager.current
+    // Every other screen exits on back; Home has no screen "above" search to pop to, so back must
+    // leave search mode instead of falling through to the Activity's default (closing the app).
+    BackHandler(enabled = isSearching) {
+        vm.clearSearch()
+        focusManager.clearFocus()
+    }
+    // Suggestion fetch tracks the query while the field has focus -- requestSuggestions debounces
+    // internally, and a blank query (or losing focus) drops any suggestions on screen.
+    LaunchedEffect(vm.query, searchFieldFocused) {
+        if (searchFieldFocused && vm.query.isNotBlank()) vm.requestSuggestions(vm.query) else vm.clearSuggestions()
+    }
 
     val tabIds = remember(browseSources) { listOf(ALL_TAB_ID) + browseSources.map { it.id } }
     LaunchedEffect(tabIds) { vm.selectedTab = resolveSelectedTab(vm.selectedTab, tabIds) }
@@ -113,10 +128,7 @@ fun HomeScreen(
         }
     }
 
-    // Playback queue is whichever list is actually on screen -- the search results (shorts
-    // excluded, they open the pager instead), or Home's feed.
-    val displayedItems = if (isSearching) longformItems else vm.feed.items
-    fun playAndOpen(ref: VideoRef) {
+    fun openResult(ref: VideoRef) {
         // A YouTube search can return channel rows shaped as a VideoRef (NewPipeYoutubeSource's
         // toChannelRef): no duration, pageUrl is the channel page, not a watch URL. detail() has
         // no idea what to do with that -- route to the channel screen instead of a dead-end resolve.
@@ -124,8 +136,14 @@ fun HomeScreen(
             onOpenListing(Listing(sourceId = ref.sourceId, kind = Listing.Kind.CHANNEL, key = ref.pageUrl, title = ref.title, thumbnailUrl = ref.thumbnailUrl))
             return
         }
-        val index = displayedItems.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
-        PlaybackSession.play(displayedItems, index)
+        // Stopgap YouTube search hit for a playlist (Agent B): pageUrl is the playlist page, not a
+        // watch URL -- same dead-end-resolve problem as the channel case above.
+        if (ref.pageUrl.contains("playlist?list=")) {
+            onOpenListing(Listing(sourceId = ref.sourceId, kind = Listing.Kind.PLAYLIST, key = ref.pageUrl, title = ref.title))
+            return
+        }
+        // Tapping a row opens Detail only -- Detail autoplays this single ref itself (DECISIONS
+        // 2026-08-07). The queue stays whatever was explicitly enqueued, never silently replaced.
         onOpenDetail(ref)
     }
     fun openShort(ref: VideoRef) {
@@ -165,7 +183,13 @@ fun HomeScreen(
                     entries = searchHistory.map { it.query },
                     onPick = { vm.runSearch(it, browseSources) },
                     onDelete = { vm.deleteSearchHistoryEntry(it) },
+                    onClearAll = { vm.clearSearchHistory() },
                 )
+            }
+            // Typed but not yet submitted: searchResults is still the empty map runSearch hasn't
+            // populated yet, so show live suggestions here instead of a "No results" flash.
+            searchFieldFocused && vm.query.isNotBlank() && vm.searchResults.isEmpty() -> {
+                SearchSuggestionsDropdown(suggestions = vm.suggestions, onPick = { vm.runSearch(it, browseSources) })
             }
             isSearching -> {
                 if (tabIds.size > 1) {
@@ -183,7 +207,7 @@ fun HomeScreen(
                             errors = errorRows,
                             hasMore = false,
                             onLoadMore = {},
-                            onClick = ::playAndOpen,
+                            onClick = ::openResult,
                             onLongPress = { actionSheetRef = it },
                             listState = listState,
                             modifier = Modifier.weight(1f),
@@ -201,7 +225,7 @@ fun HomeScreen(
                             errors = errorRows,
                             hasMore = hasMore,
                             onLoadMore = { vm.continueTab(feeding) },
-                            onClick = ::playAndOpen,
+                            onClick = ::openResult,
                             onLongPress = { actionSheetRef = it },
                             listState = listState,
                             modifier = Modifier.weight(1f),
@@ -216,13 +240,21 @@ fun HomeScreen(
                     }
                 }
             }
-            else -> HomeFeedSection(
-                feed = vm.feed,
-                onClick = ::playAndOpen,
-                onLongPress = { actionSheetRef = it },
-                listState = listState,
-                modifier = Modifier.weight(1f),
-            )
+            else -> {
+                PullToRefreshBox(
+                    isRefreshing = vm.feed.loading,
+                    onRefresh = { vm.refreshFeed(browseSources) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    HomeFeedSection(
+                        feed = vm.feed,
+                        onClick = ::openResult,
+                        onLongPress = { actionSheetRef = it },
+                        listState = listState,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
         }
     }
 
@@ -291,18 +323,45 @@ private fun HomeFeedSection(
 }
 
 @Composable
-private fun SearchHistorySuggestions(entries: List<String>, onPick: (String) -> Unit, onDelete: (String) -> Unit) {
+private fun SearchHistorySuggestions(
+    entries: List<String>,
+    onPick: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onClearAll: () -> Unit,
+) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-        Text("Recent searches", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(12.dp))
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Recent searches", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f).padding(vertical = 12.dp))
+            TextButton(onClick = onClearAll) { Text("Clear all") }
+        }
         entries.take(10).forEach { q ->
             Row(
                 Modifier.fillMaxWidth().clickable { onPick(q) }.padding(start = 16.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(q, modifier = Modifier.weight(1f).padding(vertical = 10.dp))
+                Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(q, modifier = Modifier.weight(1f).padding(start = 12.dp, top = 10.dp, bottom = 10.dp))
                 IconButton(onClick = { onDelete(q) }) {
                     Icon(Icons.Filled.Clear, contentDescription = "Remove \"$q\" from history")
                 }
+            }
+        }
+    }
+}
+
+/** Live autocomplete rows shown while the query is non-blank and not yet submitted -- Search icon
+ *  distinguishes these from [SearchHistorySuggestions]'s History-icon rows. No delete affordance:
+ *  these aren't stored, there's nothing to remove. */
+@Composable
+private fun SearchSuggestionsDropdown(suggestions: List<String>, onPick: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        suggestions.forEach { q ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onPick(q) }.padding(start = 16.dp, end = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(q, modifier = Modifier.weight(1f).padding(start = 12.dp, top = 10.dp, bottom = 10.dp))
             }
         }
     }
