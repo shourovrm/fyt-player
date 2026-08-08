@@ -1,10 +1,16 @@
 package com.fyiplayer.app.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -22,7 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.CrashLog
 import com.fyiplayer.app.engine.EngineChannel
 import com.fyiplayer.app.engine.EngineUpdater
 import com.fyiplayer.app.engine.UpdateResult
@@ -46,6 +54,8 @@ fun EngineSettings() {
     var channel by remember { mutableStateOf(EngineChannel.STABLE) }
     var updating by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
+    var crash by remember { mutableStateOf<String?>(null) }
+    var showCrash by remember { mutableStateOf(false) }
     // remember: lastChecked(context) builds a fresh Flow each call -- without this key,
     // collectAsStateWithLifecycle would see a new upstream and restart collection every recomposition.
     val lastCheckedFlow = remember(context) { EngineUpdater.lastChecked(context) }
@@ -53,18 +63,28 @@ fun EngineSettings() {
 
     // version(context) only returns non-null after a successful update ever ran (verified API
     // shape) -- read once up front so a freshly-installed app shows "bundled", not "unknown".
-    LaunchedEffect(Unit) { version = EngineUpdater.installedVersion(context) }
+    LaunchedEffect(Unit) {
+        version = EngineUpdater.installedVersion(context)
+        crash = CrashLog.read(context)
+    }
 
     SettingsSection("Video engine") {
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text(YOUTUBE_ENGINE, style = MaterialTheme.typography.bodyLarge)
+            // Honest about what "Update" below does NOT touch: the YouTube extractor ships
+            // compiled into the app -- there is no in-app path to a newer one, only a new APK.
             Text(
-                "Version: ${version ?: "bundled with the app"}",
+                "Built into this build of the app. A newer extractor needs a new APK.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "yt-dlp version: ${version ?: "bundled with the app"}",
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = 12.dp),
             )
             Text(
-                "Update channel",
+                "yt-dlp update channel",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
             )
@@ -94,7 +114,7 @@ fun EngineSettings() {
                             updating = false
                         }
                     },
-                ) { Text("Update") }
+                ) { Text("Update yt-dlp") }
                 if (updating) {
                     CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp).size(16.dp))
                 }
@@ -110,6 +130,44 @@ fun EngineSettings() {
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
+            if (crash != null) {
+                Row(
+                    Modifier.padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Last crash", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { showCrash = true }) { Text("View") }
+                }
+            }
         }
+    }
+
+    if (showCrash) {
+        val text = crash.orEmpty()
+        AlertDialog(
+            onDismissRequest = { showCrash = false },
+            title = { Text("Last crash") },
+            text = {
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    context.getSystemService<ClipboardManager>()
+                        ?.setPrimaryClip(ClipData.newPlainText("Crash log", text))
+                    showCrash = false
+                }) { Text("Copy") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    CrashLog.clear(context)
+                    crash = null
+                    showCrash = false
+                }) { Text("Clear") }
+            },
+        )
     }
 }
