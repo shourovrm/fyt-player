@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 
 // Bump together with the composite build / libs.versions.toml `newpipeExtractor` -- YouTube runs
 // on this extractor, so its version ships with the app, not via the yt-dlp updater below.
-private const val YOUTUBE_ENGINE = "PipePipeExtractor v5.2.4 · YouTube"
+private const val YOUTUBE_ENGINE = "PipePipeExtractor v5.2.5 · YouTube"
 
 /** Extraction-engine version, update channel and the explicit "Update engine" action. Extractors
  *  rot within weeks (CLAUDE.md), so this is the user's only recourse -- nothing here runs unless

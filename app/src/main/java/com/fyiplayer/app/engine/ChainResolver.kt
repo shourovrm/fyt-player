@@ -29,29 +29,21 @@ interface UrlScopedResolver : StreamResolver {
 }
 
 /**
- * The full resolution chain: NewPipeExtractor (tier0, YouTube watch/shorts pages only) first when
- * supplied, then engine JSON (tier1), then hidden-WebView capture (tier2).
+ * The full resolution chain: PipePipeExtractor (tier0) OWNS every URL it handles (YouTube
+ * watch/shorts) -- any tier0 failure is final for that URL. yt-dlp (tier1) and the hidden
+ * WebView (tier2) serve only URLs tier0 does not handle. The old tier0->tier1 fallback was
+ * removed deliberately: yt-dlp is anonymous and 3-15s slower, its formats hit the same walls,
+ * and the signed-in-AccessChallenge retry was confirmed insufficient (the engine ignores a bare
+ * cookie header) -- the fork's own token login in tier0 is the real signed-in path.
  *
- * tier0 falls through to tier1 on [ExtractionError.Unsupported] or [ExtractionError.Network] --
- * one attempt, no retry. [ExtractionError.AccessChallenge] and [ExtractionError.ContentUnavailable]
- * from tier0 are honest facts about the content, not a tier-specific failure, so they are NOT
- * retried on tier1/tier2 -- with one exception: when [ownSessionOnChallenge] says the user is
- * signed in, an AccessChallenge falls through to tier1 (which attaches the user's own session
- * cookie) and then tier2 (whose WebView shares the login WebView's cookie jar), because the
- * account the user actually signed in with may legitimately pass an age wall the anonymous
- * extractor cannot. Neither tier dismisses any wall; if it stands there too, the ORIGINAL
- * AccessChallenge is rethrown so the UI reports the real reason, not a downstream timeout.
- *
- * tier1 -> tier2 behaviour is unchanged from before tier0 existed: only
- * [ExtractionError.AccessChallenge] is a hard stop there (never retried on tier2, since a WebView
- * load would face the exact same wall); every other tier1 [ExtractionError] -- including
+ * tier1 -> tier2: only [ExtractionError.AccessChallenge] is a hard stop there (a WebView load
+ * would face the exact same wall); every other tier1 [ExtractionError] -- including
  * [ExtractionError.ContentUnavailable] -- falls through to tier2.
  */
 class ChainResolver(
     private val tier1: StreamResolver,
     private val tier2: StreamResolver,
     private val tier0: UrlScopedResolver? = null,
-    private val ownSessionOnChallenge: () -> Boolean = { false },
 ) : StreamResolver {
 
     // Cache of successful resolves only, keyed by the canonical page URL -- signed formats/captions
@@ -92,29 +84,13 @@ class ChainResolver(
         if (tier0 != null && tier0.handles(ref.pageUrl)) {
             try {
                 return tier0.resolve(ref).also { logTier("tier0") }
-            } catch (e: ExtractionError.AccessChallenge) {
-                if (ownSessionOnChallenge()) {
-                    logFallthrough("tier0", e, "retrying with own session")
-                    try {
-                        return tier1.resolve(ref).also { logTier("tier1") }
-                    } catch (e1: ExtractionError) {
-                        logFallthrough("tier1", e1, "trying webview")
-                    }
-                    try {
-                        return tier2.resolve(ref).also { logTier("tier2") }
-                    } catch (e2: ExtractionError) {
-                        logHardStop("tier2", e2)
-                        throw e // the wall is the real reason, not a downstream timeout
-                    }
-                }
-                logHardStop("tier0", e)
-                throw e
-            } catch (e: ExtractionError.ContentUnavailable) {
-                logHardStop("tier0", e)
-                throw e
             } catch (e: ExtractionError) {
-                logFallthrough("tier0", e, "trying tier1")
-                // falls through to the tier1 -> tier2 chain below
+                // tier0 owns its URLs outright: yt-dlp is anonymous AND 3-15s slower, and its
+                // formats hit the same walls -- falling through only ever traded a fast honest
+                // error for a slow duplicate one. yt-dlp keeps non-YouTube URLs (below) and the
+                // channel Courses listing delegate; it is no longer a YouTube resolve fallback.
+                logHardStop("tier0", e)
+                throw e
             }
         }
         return try {

@@ -14,6 +14,7 @@ import com.fyiplayer.app.engine.WebViewResolver
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.source.newpipe.NewPipeInit
 import com.fyiplayer.app.source.newpipe.NewPipeResolver
+import com.fyiplayer.app.source.newpipe.WebViewJsDecoder
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,9 +51,6 @@ class FyiApp : Application() {
                 if (isYoutubeHost(url)) YoutubeAuth.cookieHeader() else null
             }),
             WebViewResolver(this), NewPipeResolver(newPipeHttpClient),
-            // Signed in -> an age wall may pass on the user's own session (cookied engine, then
-            // WebView sharing the login WebView's cookie jar).
-            ownSessionOnChallenge = { YoutubeAuth.cookieHeader() != null },
         )
     }
 
@@ -84,6 +82,13 @@ class FyiApp : Application() {
         combine(prefs.contentLanguage, prefs.contentCountry) { lang, country -> lang to country }
             .onEach { (lang, country) -> NewPipeInit.updateLocalization(lang, country) }
             .launchIn(appScope)
+
+        // Local sig/n decoder: without it every ciphered-signature video depends on the remote
+        // api.pipepipe.dev decoder, which this device's network cannot always resolve -- an
+        // undecoded sig/n is a guaranteed googlevideo 403. Warm the player metadata off-main.
+        val jsDecoder = WebViewJsDecoder(this, newPipeHttpClient)
+        org.schabi.newpipe.extractor.services.youtube.YoutubeApiDecoder.setLocalDecoder(jsDecoder)
+        appScope.launch { runCatching { jsDecoder.getPlayerData("") } }
 
         YoutubeAuth.init(this)
         PlaybackSession.init(

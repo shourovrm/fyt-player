@@ -2,6 +2,28 @@
 
 ## Current state
 
+2026-08-08 "No connection" ROOT CAUSE FIXED (device-verified: the exact 403 video now plays):
+signed-in sessions swapped the fork's player client to `tv_downgraded` (TVHTML5), whose
+ciphered-signature URLs googlevideo 403s for popular videos even after correct sig/n decode.
+Player client is now ALWAYS `visionos` (unciphered URLs, play fine); `tv_downgraded` only as a
+one-shot age-wall retry (`NewPipeInit.withSignedInPlayerClient`, used by NewPipeResolver on
+AccessChallenge + session present). Supporting fixes, all landed: local sig/n decoder
+(`source/newpipe/WebViewJsDecoder` + `SharedWebViewRuntime`, ported from PipePipeClient, EJS
+solver assets under `assets/ejs/`) registered via `YoutubeApiDecoder.setLocalDecoder` — kills
+the api.pipepipe.dev remote-decoder dependency (device DNS couldn't resolve it; undecoded sig =
+guaranteed 403); googlevideo ranges now ride the `range=` QUERY PARAM (official-client shape)
+instead of the Range header in both `ChunkedRangeDataSource` and `StreamDownloader` (range-param
+windows answer HTTP 200, not 206 — downloader loop handles both, empty window = EOF); media UA
+on `/videoplayback` is the platform default (`http.agent`), never a browser string (client/UA
+mismatch is 403-bait), with Origin/Referer/Sec-Fetch added for WEB/TVHTML5-signed URLs only
+(mirrors PipePipe's YoutubeHttpDataSource); ChainResolver: tier0 owns YouTube outright — NO
+yt-dlp/WebView fallback for YouTube resolve failures (yt-dlp keeps non-YouTube + channel Courses
+delegate); playback errors map honestly (`isNetworkCause`) — HTTP-status failures say "Can't
+play this video right now", never "No connection". Extractor checkout merged to v5.2.5 (code
+identical to 5.2.4 + version bump; local JDK-21 toolchain patch kept). Redaction-safe wire
+diagnostics kept on purpose: `NewPipeResolver` logs media URL param NAMES only,
+`MediaHttp` logs client/UA-prefix/range-flags/response-code only.
+
 2026-08-08 field-report wave (5 parallel agents, integrated + 275 tests green, device-UNverified):
 IOException no longer blanket-maps to Network ("No connection" spam fix — only real transport
 exceptions in an 8-deep cause chain qualify); `PlaybackSession.retryCurrent()` + Retry button on
@@ -171,6 +193,17 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   persisted for Likes/PlaylistItems, shuffle desync, backup `unescapeForScript` round-trip.
 
 ## Gotchas
+
+- Signed-in `tv_downgraded` (TVHTML5) URLs are ciphered and googlevideo 403s them for popular
+  videos even with a correct sig/n decode. Never make it the default client again — visionos
+  always, TVHTML5 only for the age-wall retry.
+- visionos progressive URLs carry NO `c=` param and often no `clen` — `ChunkedRangeDataSource`
+  then passes through un-chunked (old pacing risk); watch for stutter reports on long videos.
+- The fork's remote decoder (api.pipepipe.dev) silently yields unusable URLs when unreachable:
+  a missed decode leaves SIGNATURE_PLACEHOLDER/raw `n` in the URL with NO exception. The local
+  WebViewJsDecoder must stay registered before any resolve.
+- googlevideo `range=` param windows answer HTTP 200 (not 206) and past-EOF gives an empty 200
+  body, never 416.
 
 - A feed that reads its enabled-source set from DataStore sees an EMPTY set on the first
   composition. Loading then and latching `loaded = true` is why Home and Shorts both silently

@@ -1,6 +1,7 @@
 package com.fyiplayer.app.source.newpipe
 
 import com.fyiplayer.app.core.CaptionTrack
+import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
 import com.fyiplayer.app.core.Resolved
@@ -46,7 +47,23 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            throw mapNewPipeError(e)
+            val mapped = mapNewPipeError(e)
+            // Age wall + signed in: retry once on the TVHTML5 client, whose player responses
+            // honour the account's age verification. Everything else resolves on visionos --
+            // TVHTML5 URLs are ciphered and googlevideo 403s them for popular videos.
+            if (mapped is ExtractionError.AccessChallenge && YoutubeAuth.cookieHeader() != null) {
+                try {
+                    val retried = NewPipeInit.withSignedInPlayerClient {
+                        StreamInfo.getInfo(ServiceList.YouTube, ref.pageUrl)
+                    }
+                    return@withContext toResolved(ref, retried)
+                } catch (e2: CancellationException) {
+                    throw e2
+                } catch (e2: Exception) {
+                    throw mapped // the wall is the honest reason, not the retry's failure
+                }
+            }
+            throw mapped
         }
         toResolved(ref, info)
     }
@@ -69,6 +86,17 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
         if (!hls.isNullOrBlank()) add(hlsFormat(hls))
     }
     val captions = info.subtitles.orEmpty().mapNotNull { it.toCaptionTrack() }
+    // Param NAMES only, never values -- a signed URL must not reach the log. Diagnoses 403s:
+    // an unreplaced SIGNATURE_PLACEHOLDER or a missing sig/pot param names the broken stage.
+    formats.firstOrNull { it.url.contains("/videoplayback") }?.let { f ->
+        try {
+            val names = android.net.Uri.parse(f.url).queryParameterNames.sorted().joinToString(",")
+            val placeholder = f.url.contains("SIGNATURE_PLACEHOLDER")
+            android.util.Log.d("NewPipeResolver", "media url params=[$names] placeholder=$placeholder")
+        } catch (t: Throwable) {
+            // diagnostics only
+        }
+    }
     return Resolved(ref = ref, formats = formats, resolvedAtMillis = System.currentTimeMillis(), captions = captions)
 }
 

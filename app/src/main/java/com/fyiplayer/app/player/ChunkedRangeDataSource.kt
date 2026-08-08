@@ -18,6 +18,16 @@ private const val CHUNK_BYTES = 10L * 1024 * 1024
  * chain of [CHUNK_BYTES] windows, invisibly to ExoPlayer: open() still reports the full length,
  * read() re-opens the next window when one ends.
  *
+ * Ranges ride as a `range=start-end` QUERY PARAMETER, never an HTTP Range header: official
+ * clients use the parameter (PipePipe's DeliveryType doc says exactly this, and its DASH path
+ * enables setRangeParameterEnabled), and googlevideo intermittently 403s header-ranged requests
+ * from non-web clients (seen live on this device). The inner DataSpec is therefore always
+ * position=0/length=UNSET so the upstream HTTP source has no reason to add a Range header.
+ *
+ * Total size comes from the URL's own `clen` parameter (googlevideo attaches it to progressive
+ * URLs) or ExoPlayer's requested span; a /videoplayback URL carrying neither falls back to one
+ * open-ended passthrough request -- the old pacing, but never a wrong length.
+ *
  * Non-/videoplayback URLs (HLS segments, subtitles, other hosts) pass through untouched.
  */
 internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSource {
@@ -31,33 +41,33 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
         upstream.addTransferListener(transferListener)
 
     override fun open(dataSpec: DataSpec): Long {
-        chunked = dataSpec.uri.encodedPath?.startsWith("/videoplayback") == true
+        val isVideoPlayback = dataSpec.uri.encodedPath?.startsWith("/videoplayback") == true
+        val total =
+            if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.position + dataSpec.length
+            else dataSpec.uri.getQueryParameter("clen")?.toLongOrNull() ?: C.LENGTH_UNSET.toLong()
+        chunked = isVideoPlayback && total != C.LENGTH_UNSET.toLong()
         if (!chunked) return upstream.open(dataSpec)
 
         spec = dataSpec
         position = dataSpec.position
-        endExclusive =
-            if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.position + dataSpec.length
-            else C.LENGTH_UNSET.toLong()
-        val firstChunk = openChunk()
-        if (endExclusive == C.LENGTH_UNSET.toLong()) {
-            // Total size comes from the first window's Content-Range ("bytes X-Y/TOTAL"). A server
-            // that ignored Range sent the whole rest of the body instead -- fall back to exactly
-            // that (no further windows), which is just the old open-ended behaviour.
-            val total = upstream.responseHeaders["Content-Range"]?.firstOrNull()
-                ?.substringAfterLast('/')?.toLongOrNull()
-            endExclusive = total ?: (position + firstChunk)
-        }
+        endExclusive = total
+        openChunk()
         return endExclusive - position
     }
 
-    /** Opens the next bounded window at [position]. Returns the bytes the window will serve. */
+    /** Opens the next bounded window at [position] via the `range=` param. */
     private fun openChunk(): Long {
-        val remaining =
-            if (endExclusive == C.LENGTH_UNSET.toLong()) CHUNK_BYTES
-            else minOf(CHUNK_BYTES, endExclusive - position)
+        val windowEnd = minOf(position + CHUNK_BYTES, endExclusive) // exclusive
+        val base = spec!!
+        val uri = base.uri.buildUpon().clearQuery().apply {
+            // rebuild every param except any stale range, then append ours
+            base.uri.queryParameterNames.filter { it != "range" }.forEach { name ->
+                base.uri.getQueryParameters(name).forEach { appendQueryParameter(name, it) }
+            }
+            appendQueryParameter("range", "$position-${windowEnd - 1}")
+        }.build()
         return upstream.open(
-            spec!!.buildUpon().setPosition(position).setLength(remaining).build(),
+            base.buildUpon().setUri(uri).setPosition(0).setLength(C.LENGTH_UNSET.toLong()).build(),
         )
     }
 
