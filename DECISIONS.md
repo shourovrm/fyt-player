@@ -370,6 +370,13 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   snapshot also latches because Android mutates Configuration in place, so remember keys never
   re-fire). Bars now change exactly twice per session (hide on entry, show on exit); the decor
   inset listener (SystemBarInsetsState) and the WM round-trip stay as hardening.
+  PipePipe's recipe if this is ever re-attempted (researched from source): their activity
+  RECREATES on rotation (no configChanges), player survives in a Service, fullscreen/system-UI
+  state recomputed from scratch on reattach; bars-follow-controls via legacy systemUiVisibility;
+  and they STILL hand-reset insets ("Apply window insets because Android will not do it when
+  orientation changes from landscape to portrait" -- Player.toggleFullscreen +
+  setFragmentListener zero the padding manually). The OS bug is real; their cure is View-world
+  manual padding resets.
 
 - YouTube `/feed/trending` and `/feed/explore` as Home's source — dead. Both redirect to
   youtube.com home and error "the channel/playlist does not exist" (verified live).
