@@ -6,9 +6,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Pure-function coverage for the Similar tab's query builder -- no Android, no network. This is
- *  the whole quality of the feature (DECISIONS.md: no related/recommended list from the engine,
- *  so "similar" is a search on the video's own title). */
+/** Pure-function coverage for the Similar tab's query builder -- no Android, no network. Query
+ *  building is the fallback path's whole quality, used when a source's detail() carries no related
+ *  list; real YouTube recommendations bypass it entirely (DetailTabsViewModel.loadSimilar). */
 class SimilarVideosTest {
 
     private fun ref(id: String, title: String = id, sourceId: String = "youtube") = VideoRef(
