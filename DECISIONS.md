@@ -2,11 +2,9 @@
 
 ## Current state
 
-2026-08-09 wave (4 parallel agents, integrated, tests green, device-UNverified): Similar tab now
-shows REAL recommendations — `VideoDetail.related` (extractor's `info.relatedItems`, free with the
-detail fetch, zero extra request); title search demoted to fallback for empty/absent related lists.
-DetailScreen gates `ensureSimilarLoaded` on `detailLoaded` or the fallback would fire first and
-latch (`similarLoadedFor`). Home merged feed sorts `uploadEpochMs` descending (new `VideoRef`
+2026-08-09 wave (4 parallel agents, integrated, tests green, device-UNverified): Similar tab
+STAYS title-search — recommendations landed and were reverted same day (user preference, see
+Tried/rejected). Home merged feed sorts `uploadEpochMs` descending (new `VideoRef`
 field from `uploadDate.offsetDateTime()`; nulls last, stable; `sortByRecency` applied ONLY at
 Home's merge — channel tabs/playlists keep service order, Shorts interleave untouched). Playlist
 rows now persist `uploaderUrl` (schema v6, additive column — the WatchHistory v1→2 bug all over
@@ -116,11 +114,11 @@ header, metadata, channel tap-through, Similar/Comments tabs below), listing, se
 and the full player — chrome, gestures, quality/speed sheets, mini player, queue bar,
 seek-thumbnail mapping.
 
-Detail's "more from this channel" section is two tabs (`DetailTabsViewModel`): **Similar** (real
-recommendations from `VideoDetail.related` since 2026-08-09, title search as fallback only) and
-**Comments** (unchanged threading/replies, fed by the state holder instead of owning its own
-fetch). Each tab fetches at most once per video, gated the same idempotent way
-`ListingViewModel.ensureLoaded` is.
+Detail's "more from this channel" section is two tabs (`DetailTabsViewModel`): **Similar** (title
+search on the video's own topic — deliberately NOT the platform's recommendations, user's call;
+`VideoDetail.related` is populated by the extractor but unused) and **Comments** (unchanged
+threading/replies, fed by the state holder instead of owning its own fetch). Each tab fetches at
+most once per video, gated the same idempotent way `ListingViewModel.ensureLoaded` is.
 
 And: library (likes / playlists / history, multi-select, resume bars), playlist detail with
 reorder, the download queue + foreground service + downloads screen, the shorts pager, and library
@@ -146,7 +144,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
-- Device-verify the 2026-08-09 wave (v0.2.2): Similar recommendations, home recency sort, playlist
+- Device-verify the 2026-08-09 wave (v0.2.2): home recency sort, playlist
   channel link (needs a NEWLY-added playlist item — old rows have null uploaderUrl), share-with
   from YouTube/FB/Twitter apps cold+warm, shorts-entry flash gone.
 - "Back through Similar chain goes home" STILL reported by user on 2026-08-09 despite my live
@@ -379,6 +377,9 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Tried / rejected
 
+- Similar tab via extractor recommendations (`VideoDetail.related`) — worked, reverted 2026-08-09:
+  user wants title search, not YouTube's recommendation feed. Never re-add unprompted.
+
 - Bars-follow-chrome in fullscreen (tap shows status bar with the controls) — REVERTED. Repeated
   insetsController hide/show inside a fullscreen session wedges this OEM's inset delivery: after
   exit the window keeps landscape insets and the portrait page renders shifted right. Three
@@ -570,8 +571,8 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-08 | googlevideo progressive read in 10 MB ranged windows (ChunkedRangeDataSource) |
   One open-ended /videoplayback request is paced to ~realtime; bounded ranges arrive full speed
   (downloader already proved it). PipePipe achieves the same via synthesized-DASH range fetches.
-- 2026-08-09 | Similar = VideoDetail.related (extractor recommendations), search fallback only |
-  Free with detail fetch; the "engine exposes no related list" premise died with the yt-dlp era.
+- 2026-08-09 | Similar recommendations reverted same day | User explicitly wants title search,
+  not YouTube's recommendation feed. Don't re-attempt.
 - 2026-08-09 | Home merged feed sorted by new VideoRef.uploadEpochMs desc, nulls last | Cross-
   channel recency order; DateWrapper approximation fine for a sort key. Home merge point only.
 - 2026-08-09 | playlist_items gained uploaderUrl (schema v6) | Same bug class as WatchHistory
