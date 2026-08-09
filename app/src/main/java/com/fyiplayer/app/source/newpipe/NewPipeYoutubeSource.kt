@@ -322,6 +322,9 @@ private fun StreamInfoItem.toVideoRef(): VideoRef? {
         uploaderUrl = uploaderUrl,
         viewCountText = compactCount(viewCount)?.let { "$it views" },
         uploadedText = englishAge(uploadDate) ?: textualUploadDate,
+        // DateWrapper may be an approximation (service only gave "2 weeks ago") -- fine for a sort
+        // key, exact ordering within the same day was never promised.
+        uploadEpochMs = uploadDate?.offsetDateTime()?.toInstant()?.toEpochMilli(),
         // Fork's own flag first; /shorts/ path fallback covers any listing shape it left unset.
         isShort = isShortFormContent || url.contains("/shorts/"),
         isLive = streamType == StreamType.LIVE_STREAM || streamType == StreamType.AUDIO_LIVE_STREAM,

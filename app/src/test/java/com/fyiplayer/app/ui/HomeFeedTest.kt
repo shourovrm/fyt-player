@@ -72,6 +72,15 @@ class HomeFeedTest {
         assertEquals(candidates, excludeWatched(candidates, emptySet()))
     }
 
+    @Test fun `sortByRecency orders newest first with null dates last, stably`() {
+        val old = ref("old").copy(uploadEpochMs = 100L)
+        val new = ref("new").copy(uploadEpochMs = 200L)
+        val n1 = ref("n1") // no date
+        val n2 = ref("n2") // no date, must stay after n1 (stable)
+        val sorted = sortByRecency(listOf(old, n1, new, n2))
+        assertEquals(listOf("new", "old", "n1", "n2"), sorted.map { it.remoteId })
+    }
+
     @Test fun `no subscriptions means no channels to fetch and an empty feed`() {
         val channels = capChannels(emptyList())
         assertTrue(channels.isEmpty())

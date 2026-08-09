@@ -63,6 +63,12 @@ internal fun interleave(bySource: List<List<VideoRef>>): List<VideoRef> {
     return merged
 }
 
+/** Home-only: newest upload first across the whole merged feed, nulls (no parseable date) last.
+ *  Stable sort so same-timestamp/null items keep [interleave]'s round-robin relative order. Not
+ *  applied inside [interleave] itself -- Shorts merges the same way but is never date-sorted. */
+internal fun sortByRecency(items: List<VideoRef>): List<VideoRef> =
+    items.sortedByDescending { it.uploadEpochMs ?: Long.MIN_VALUE }
+
 // --- Home's default (no search) feed: newest uploads from the channels the user subscribed to. ---
 
 /** [loading] true while at least one channel's fetch is still in flight -- items still fill in
