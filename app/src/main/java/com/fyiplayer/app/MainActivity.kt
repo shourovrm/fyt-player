@@ -1,6 +1,7 @@
 package com.fyiplayer.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -8,12 +9,38 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.fyiplayer.app.player.MiniPlayer
 import com.fyiplayer.app.player.QueueBar
 import com.fyiplayer.app.ui.AppScaffold
 import com.fyiplayer.app.ui.AppShell
 import com.fyiplayer.app.ui.openDetail
 import com.fyiplayer.app.ui.theme.FyiTheme
+
+/** First https URL found in shared/link-opened intent text -- share text is often prose with a
+ *  link inside it, not a bare URL. Shared state (not an Activity field) because the NavHost that
+ *  can actually consume it -- [AppShell] via [PendingSharedUrl] below -- lives one Compose frame
+ *  later than [MainActivity.onCreate]. */
+private val urlPattern = Regex("https?://\\S+")
+
+private fun sharedUrlFrom(intent: Intent?): String? {
+    val text = when (intent?.action) {
+        Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+        Intent.ACTION_VIEW -> intent.dataString
+        else -> null
+    } ?: return null
+    return urlPattern.find(text)?.value
+}
+
+/** Cold start: [MainActivity.onCreate] can run before the NavHost exists in composition, so the
+ *  shared URL waits here until [AppShell]'s content slot (in setContent, below) is ready to
+ *  navigate. Warm start (onNewIntent) writes here too -- both paths funnel through one seam. */
+private object PendingSharedUrl {
+    var value by mutableStateOf<String?>(null)
+}
 
 class MainActivity : ComponentActivity() {
     private val notificationPermission =
@@ -22,6 +49,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        PendingSharedUrl.value = sharedUrlFrom(intent)
         // Feeds SystemBarInsetsState from every REAL inset dispatch. Compose's own inset cache
         // (and any keyed re-read of the root view's cached copy) goes stale across the
         // fullscreen hide/show + in-process rotation on this OEM; a listener at the decor can't
@@ -45,9 +73,28 @@ class MainActivity : ComponentActivity() {
                 AppScaffold(
                     queueBar = { QueueBar() },
                     miniPlayer = { nav -> MiniPlayer(onOpen = { nav.openDetail(it) }) },
-                ) { AppShell(it) }
+                ) { nav ->
+                    // Runs once the graph is set (same composition pass, before this effect body
+                    // executes) and again on every new shared URL -- warm-start intents included.
+                    LaunchedEffect(nav, PendingSharedUrl.value) {
+                        PendingSharedUrl.value?.let { url ->
+                            PendingSharedUrl.value = null
+                            nav.openDetail(url)
+                        }
+                    }
+                    AppShell(nav)
+                }
             }
         }
+    }
+
+    /** Warm start: singleTask means a share/open-with while the app is already running lands
+     *  here instead of a fresh onCreate. setIntent keeps getIntent() consistent for anything else
+     *  that reads it later (e.g. a future config-change re-read). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        sharedUrlFrom(intent)?.let { PendingSharedUrl.value = it }
     }
 
     /** Rotation is handled in-process (manifest configChanges), and this OEM does not always
