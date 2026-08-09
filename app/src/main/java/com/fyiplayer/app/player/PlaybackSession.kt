@@ -241,6 +241,16 @@ object PlaybackSession {
 
     fun play(refs: List<VideoRef>, startIndex: Int) {
         ensureInit()
+        // play() always means a genuinely new queue (never a mid-queue continuation -- those go
+        // through skipNext/skipPrevious/playAt instead), so the OLD item must not keep playing
+        // (audibly or visibly) into whatever surface picks it up next -- e.g. the Shorts pager
+        // reattaching the one shared PlayerView the instant this is called, well before startAt's
+        // async resolve below hands it a new source. clearMediaItems() (not just stop(), which
+        // alone can leave PlayerView's shutter closed-check believing it's still the same period
+        // -- see PlayerView.ComponentListener#onTracksChanged) empties the timeline, which is what
+        // actually makes PlayerView close its shutter instead of holding the outgoing frame.
+        player.stop()
+        player.clearMediaItems()
         // PlaybackService.onGetSession just hands back the session over this same player, so
         // starting it here (idempotent if already running) is enough for lockscreen/Bluetooth
         // controls and the notification to exist for the rest of this queue's lifetime.
