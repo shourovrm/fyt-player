@@ -108,7 +108,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                             android.util.Log.d("HomeFeed", "no source for sourceId='${channel.sourceId}'")
                         }
                         outcomes[i] = ChannelFetchOutcome.Failed
-                        feed = feed.copy(items = interleave(outcomes.map(::itemsOf)))
+                        feed = feed.copy(items = sortByRecency(interleave(outcomes.map(::itemsOf))))
                         return@launch
                     }
                     val page = try {
@@ -129,7 +129,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     // Append as each channel returns rather than waiting for the slowest one.
-                    feed = feed.copy(items = interleave(outcomes.map(::itemsOf)))
+                    feed = feed.copy(items = sortByRecency(interleave(outcomes.map(::itemsOf))))
                 }
             }
             jobs.joinAll()

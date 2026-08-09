@@ -26,6 +26,10 @@ data class VideoRef(
     /** Free-form age text the listing supplied ("2 weeks ago"). Display only, never parsed.
      *  Stays null when the listing carried none — the row simply omits it, never invents it. */
     val uploadedText: String? = null,
+    /** Upload instant in epoch millis, when the listing carried a parseable date -- sort key for
+     *  Home's merged feed. Null when the listing gave no date (or only unparseable text); a sort
+     *  on this field must treat null as "unknown, sort last", never as epoch 0. */
+    val uploadEpochMs: Long? = null,
     /** Short-form vertical clip, as declared by the listing (extractor flag or /shorts/ URL).
      *  False when the listing didn't say — a plain row, never a probe. */
     val isShort: Boolean = false,
