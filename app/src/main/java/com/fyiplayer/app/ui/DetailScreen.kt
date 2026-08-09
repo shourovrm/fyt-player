@@ -100,6 +100,10 @@ fun DetailScreen(
     val tabsVm: DetailTabsViewModel = viewModel()
     val showCommentsTab = source?.providesComments == true
     var detail by remember(pageUrl) { mutableStateOf(VideoDetail(ref)) }
+    // Gates the SIMILAR fetch below: Similar needs detail.related, which only exists once this
+    // resolves (success or fallback) -- firing earlier would load Similar via search, then never
+    // retry now that similarLoadedFor is already set for this video.
+    var detailLoaded by remember(pageUrl) { mutableStateOf(false) }
     var actionSheetRef by remember(pageUrl) { mutableStateOf<VideoRef?>(null) }
     var historyRecorded by remember(pageUrl) { mutableStateOf(false) }
     // NOT keyed on pageUrl: this screen's own lifetime is the right scope for it, not a per-video
@@ -137,6 +141,7 @@ fun DetailScreen(
         } catch (e: Exception) {
             VideoDetail(ref)
         }
+        detailLoaded = true
     }
 
     // Recorded once the enriched ref has a real title, and only when the setting is on -- the
@@ -152,12 +157,15 @@ fun DetailScreen(
 
     // Only the selected tab fetches, and only once per video -- ensureXLoaded is idempotent
     // (DetailTabsViewModel), so re-running this on every recomposition (e.g. re-entering from
-    // fullscreen) never refetches. Similar needs a real title to build a query from, so it waits;
-    // Comments doesn't. Keeps loading even while fullscreen so content is ready the moment the
-    // user exits it.
-    LaunchedEffect(tabsVm.selectedTab, shownRef.pageUrl, shownRef.title) {
+    // fullscreen) never refetches. Similar waits on detailLoaded so it sees the real detail.related
+    // (recommendations) instead of firing early on an empty list and falling back to search for
+    // good; Comments doesn't need detail at all. Keeps loading even while fullscreen so content is
+    // ready the moment the user exits it.
+    LaunchedEffect(tabsVm.selectedTab, shownRef.pageUrl, shownRef.title, detailLoaded) {
         when (tabsVm.selectedTab) {
-            DetailTab.SIMILAR -> if (shownRef.title.isNotBlank()) tabsVm.ensureSimilarLoaded(source, shownRef)
+            DetailTab.SIMILAR -> if (detailLoaded && shownRef.title.isNotBlank()) {
+                tabsVm.ensureSimilarLoaded(source, shownRef, detail.related)
+            }
             DetailTab.DESCRIPTION -> {} // reads straight off `detail`, already fetched above
             DetailTab.COMMENTS -> if (showCommentsTab) tabsVm.ensureCommentsLoaded(source, shownRef)
         }
@@ -200,7 +208,12 @@ fun DetailScreen(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
                     )
                 }
-                val uploaderListing = detail.uploader
+                // Before detail() lands (or when it fails), the ref itself often already knows the
+                // channel URL (listings + playlist rows persist it) -- link from that instead of
+                // degrading to plain text for the whole wait.
+                val uploaderListing = detail.uploader ?: shownRef.uploaderUrl?.let {
+                    Listing(sourceId = shownRef.sourceId, kind = Listing.Kind.CHANNEL, key = it, title = shownRef.uploader ?: "")
+                }
                 item {
                     when {
                         uploaderListing != null -> Text(
@@ -263,7 +276,7 @@ fun DetailScreen(
                         loading = tabsVm.similarLoading,
                         error = tabsVm.similarError,
                         retryEnabled = !tabsVm.similarBlocked,
-                        onRetry = { tabsVm.retrySimilar(source, shownRef) },
+                        onRetry = { tabsVm.retrySimilar(source, shownRef, detail.related) },
                         // Just opens Detail -- Detail autoplays the single video (PipePipe queue
                         // model, CLAUDE.md), so a chain of Similar taps unwinds one video per back.
                         onClick = onOpenDetail,
