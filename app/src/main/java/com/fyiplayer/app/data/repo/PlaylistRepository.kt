@@ -20,6 +20,7 @@ fun PlaylistItemEntity.toVideoRef(): VideoRef = VideoRef(
     thumbnailUrl = thumbnailUrl,
     durationSeconds = durationSeconds,
     uploader = uploader,
+    uploaderUrl = uploaderUrl,
 )
 
 class PlaylistRepository(private val playlists: PlaylistDao, private val items: PlaylistItemDao) {
@@ -44,6 +45,7 @@ class PlaylistRepository(private val playlists: PlaylistDao, private val items: 
                 sourceId = ref.sourceId,
                 title = ref.title,
                 uploader = ref.uploader,
+                uploaderUrl = ref.uploaderUrl,
                 durationSeconds = ref.durationSeconds,
                 thumbnailUrl = ref.thumbnailUrl,
                 sortIndex = sortIndex,

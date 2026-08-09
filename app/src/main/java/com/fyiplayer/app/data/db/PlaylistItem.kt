@@ -29,6 +29,10 @@ data class PlaylistItemEntity(
     val sourceId: String,
     val title: String,
     val uploader: String?,
+    /** Uploader's canonical channel URL -- without it, Detail can only show the uploader as plain
+     *  text, never a tappable link, until its own live re-fetch lands. Mirrors
+     *  `WatchHistoryEntity.uploaderUrl`. */
+    val uploaderUrl: String? = null,
     val durationSeconds: Int?,
     val thumbnailUrl: String?,
     val sortIndex: Int,

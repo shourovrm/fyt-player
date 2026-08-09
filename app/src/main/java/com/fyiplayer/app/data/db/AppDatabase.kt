@@ -58,6 +58,15 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/** v5 -> v6: a playlist row lacked the uploader's channel URL, so Detail could only ever show
+ *  the uploader as plain text for a video opened from a playlist -- never a tappable link, until
+ *  its own live re-fetch happened to land. Additive column, mirrors `MIGRATION_1_2`. */
+private val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE playlist_items ADD COLUMN uploaderUrl TEXT")
+    }
+}
+
 @Database(
     entities = [
         WatchHistoryEntity::class,
@@ -71,7 +80,7 @@ private val MIGRATION_4_5 = object : Migration(4, 5) {
         SubscriptionEntity::class,
         FollowedPlaylistEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -91,7 +100,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fyi-player.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
                 .also { instance = it }
         }
