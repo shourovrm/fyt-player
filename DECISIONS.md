@@ -2,6 +2,24 @@
 
 ## Current state
 
+2026-08-09 wave (4 parallel agents, integrated, tests green, device-UNverified): Similar tab now
+shows REAL recommendations — `VideoDetail.related` (extractor's `info.relatedItems`, free with the
+detail fetch, zero extra request); title search demoted to fallback for empty/absent related lists.
+DetailScreen gates `ensureSimilarLoaded` on `detailLoaded` or the fallback would fire first and
+latch (`similarLoadedFor`). Home merged feed sorts `uploadEpochMs` descending (new `VideoRef`
+field from `uploadDate.offsetDateTime()`; nulls last, stable; `sortByRecency` applied ONLY at
+Home's merge — channel tabs/playlists keep service order, Shorts interleave untouched). Playlist
+rows now persist `uploaderUrl` (schema v6, additive column — the WatchHistory v1→2 bug all over
+again) and Detail's fallback header links the channel straight off the ref instead of plain text.
+Share-with/open-with: manifest SEND(text/plain) + VIEW filters (youtube/youtu.be/facebook/
+fb.watch/twitter/x hosts), `singleTask` + `onNewIntent`; first https URL in the text →
+`nav.openDetail` via a `PendingSharedUrl` compose-state seam (cold start waits for NavHost).
+YouTube rides tier0, FB/Twitter fall through to yt-dlp tier1 — no per-host code.
+`PlaybackSession.play()` now does `stop()+clearMediaItems()` first: new-queue start while
+something else played left the old item running (audio + frame) on the shared surface ~1 s until
+the async resolve landed — the "shorts shows previous video" flash. clearMediaItems is what
+actually closes PlayerView's shutter (stop alone can skip the same-period check).
+
 2026-08-08 "No connection" ROOT CAUSE FIXED (device-verified: the exact 403 video now plays):
 signed-in sessions swapped the fork's player client to `tv_downgraded` (TVHTML5), whose
 ciphered-signature URLs googlevideo 403s for popular videos even after correct sig/n decode.
@@ -98,14 +116,11 @@ header, metadata, channel tap-through, Similar/Comments tabs below), listing, se
 and the full player — chrome, gestures, quality/speed sheets, mini player, queue bar,
 seek-thumbnail mapping.
 
-Detail's "more from this channel" section is now two tabs (`DetailTabsViewModel`): **Similar**
-(search on the video's own title, honestly labelled as search matches, never "recommended" — the
-engine has no related/recommended list and rejects mix/radio playlists, both confirmed live) and
-**Comments** (unchanged threading/replies, now fed by the state holder instead of owning its own
+Detail's "more from this channel" section is two tabs (`DetailTabsViewModel`): **Similar** (real
+recommendations from `VideoDetail.related` since 2026-08-09, title search as fallback only) and
+**Comments** (unchanged threading/replies, fed by the state holder instead of owning its own
 fetch). Each tab fetches at most once per video, gated the same idempotent way
-`ListingViewModel.ensureLoaded` is. `YoutubeSource.detail()` still fetches channel uploads into
-`VideoDetail.related` (untouched, per this wave's constraints) but the UI no longer reads that
-field — a now-pointless extra engine call worth trimming in a future wave.
+`ListingViewModel.ensureLoaded` is.
 
 And: library (likes / playlists / history, multi-select, resume bars), playlist detail with
 reorder, the download queue + foreground service + downloads screen, the shorts pager, and library
@@ -131,11 +146,12 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Next
 
-- Device-verify the 2026-08-08 field-report wave (v0.2.0 APK at repo root): retry-after-background,
-  gesture zones, queue semantics, suggestions, autoplay, shorts quality, LIVE badges, crash row.
-- "Back through Similar chain goes home" report NOT reproduced in code (nav pushes one entry per
-  tap, no popUpTo) — suspect the eaten back-edge-swipe (fixed) or a crash; re-test on device, use
-  the new Last-crash row if it recurs.
+- Device-verify the 2026-08-09 wave (v0.2.2): Similar recommendations, home recency sort, playlist
+  channel link (needs a NEWLY-added playlist item — old rows have null uploaderUrl), share-with
+  from YouTube/FB/Twitter apps cold+warm, shorts-entry flash gone.
+- "Back through Similar chain goes home" STILL reported by user on 2026-08-09 despite my live
+  device verification passing on v0.2.1 — get exact repro steps (which screen, fullscreen or not,
+  queue involved?) before touching code; check Last-crash row.
 - **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
   built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
   (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
@@ -554,3 +570,14 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-08 | googlevideo progressive read in 10 MB ranged windows (ChunkedRangeDataSource) |
   One open-ended /videoplayback request is paced to ~realtime; bounded ranges arrive full speed
   (downloader already proved it). PipePipe achieves the same via synthesized-DASH range fetches.
+- 2026-08-09 | Similar = VideoDetail.related (extractor recommendations), search fallback only |
+  Free with detail fetch; the "engine exposes no related list" premise died with the yt-dlp era.
+- 2026-08-09 | Home merged feed sorted by new VideoRef.uploadEpochMs desc, nulls last | Cross-
+  channel recency order; DateWrapper approximation fine for a sort key. Home merge point only.
+- 2026-08-09 | playlist_items gained uploaderUrl (schema v6) | Same bug class as WatchHistory
+  v1→2; without it playlist-opened videos showed uploader as dead text.
+- 2026-08-09 | Share-with/open-with via singleTask + PendingSharedUrl seam into nav.openDetail |
+  Reuses the host-agnostic resolver chain; zero per-host wiring beyond the manifest filter.
+- 2026-08-09 | PlaybackSession.play() stops+clears before starting a new queue | Old item kept
+  rendering into the shared surface during the async resolve (shorts-entry flash); clearMediaItems
+  needed, stop() alone can leave PlayerView's shutter open.
