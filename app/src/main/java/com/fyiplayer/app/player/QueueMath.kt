@@ -23,6 +23,37 @@ object QueueMath {
         return order
     }
 
+    /** Inserts [atQueueIndex] into [order] at play-position [atPlayPosition], shifting every
+     *  existing queue index >= [atQueueIndex] up by one. */
+    fun insertOrder(order: List<Int>, atQueueIndex: Int, atPlayPosition: Int): List<Int> {
+        val shifted = order.map { if (it >= atQueueIndex) it + 1 else it }
+        val pos = atPlayPosition.coerceIn(0, shifted.size)
+        return shifted.toMutableList().apply { add(pos, atQueueIndex) }
+    }
+
+    /** Appends [queueIndex] to the end of the shuffle order. Used when a new item is added to
+     *  the end of the queue and should simply follow the existing play order. */
+    fun appendOrder(order: List<Int>, queueIndex: Int): List<Int> =
+        order + queueIndex
+
+    /** Remaps every queue index in [order] after a queue item is moved from [from] to [to]. */
+    fun moveOrder(order: List<Int>, from: Int, to: Int): List<Int> {
+        if (from == to) return order
+        return order.map { mapIndexAfterMove(it, from, to) }
+    }
+
+    private fun mapIndexAfterMove(index: Int, from: Int, to: Int): Int = when {
+        index == from -> to
+        from < to && index in (from + 1)..to -> index - 1
+        from > to && index in to..(from - 1) -> index + 1
+        else -> index
+    }
+
+    /** Removes [queueIndex] from [order] and shifts every remaining queue index > [queueIndex]
+     *  down by one. */
+    fun removeOrder(order: List<Int>, queueIndex: Int): List<Int> =
+        order.filter { it != queueIndex }.map { if (it > queueIndex) it - 1 else it }
+
     private fun sequence(size: Int, order: List<Int>?): List<Int> = order ?: (0 until size).toList()
     private fun positionOf(index: Int, seq: List<Int>): Int = seq.indexOf(index).let { if (it < 0) 0 else it }
 
