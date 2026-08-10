@@ -69,7 +69,7 @@ fun parseBackupHtml(html: String): BackupDocument {
     val end = html.indexOf(DATA_CLOSE, from)
     if (end < 0) throw BackupFormatException("This backup file is truncated.")
     val doc = try {
-        backupJson.decodeFromString(BackupDocument.serializer(), unescapeForScript(html.substring(from, end)))
+        backupJson.decodeFromString(BackupDocument.serializer(), html.substring(from, end))
     } catch (e: Exception) {
         throw BackupFormatException("This backup file is damaged.", e)
     }
@@ -117,8 +117,6 @@ private fun escapeHtml(text: String): String = buildString(text.length) {
  * so a reader that skips the un-escape step parses the same value anyway.
  */
 private fun escapeForScript(payload: String): String = payload.replace("<", "\\u003C")
-
-private fun unescapeForScript(payload: String): String = payload.replace("\\u003C", "<")
 
 private const val STYLE = """
 body{font:15px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:52rem;color:#16191c;background:#fff}
