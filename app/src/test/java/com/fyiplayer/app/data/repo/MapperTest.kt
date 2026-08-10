@@ -4,6 +4,7 @@ import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.db.SubscriptionEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 // Pure entity<->VideoRef mapping, no Room/Android involved -- runs under testDebugUnitTest.
@@ -67,6 +68,53 @@ class MapperTest {
         assertEquals(ref.pageUrl, playlistItemRef.pageUrl)
         assertEquals(ref.title, playlistItemRef.title)
         assertEquals(ref.uploader, playlistItemRef.uploader)
+    }
+
+    @Test
+    fun canonicalThumbnailUrlStripsSignatureQuery() {
+        assertEquals(
+            "https://i.ytimg.com/vi/abc/hqdefault.jpg",
+            canonicalThumbnailUrl("https://i.ytimg.com/vi/abc/hqdefault.jpg?sqp=-sqp&rs=rs-sig"),
+        )
+    }
+
+    @Test
+    fun canonicalThumbnailUrlLeavesBareUrlUnchanged() {
+        assertEquals(
+            "https://i.ytimg.com/vi/abc/hqdefault.jpg",
+            canonicalThumbnailUrl("https://i.ytimg.com/vi/abc/hqdefault.jpg"),
+        )
+    }
+
+    @Test
+    fun canonicalThumbnailUrlNullIsNull() {
+        assertNull(canonicalThumbnailUrl(null))
+    }
+
+    @Test
+    fun watchHistoryEntityStripsThumbnailSignature() {
+        val signed = ref.copy(thumbnailUrl = "https://i.ytimg.com/vi/abc/hqdefault.jpg?sqp=-sqp&rs=rs-sig")
+        val entity = signed.toWatchHistoryEntity(watchedAt = 1L)
+
+        assertEquals("https://i.ytimg.com/vi/abc/hqdefault.jpg", entity.thumbnailUrl)
+        // in-memory ref keeps the signed URL
+        assertEquals(signed.thumbnailUrl, signed.thumbnailUrl)
+    }
+
+    @Test
+    fun likeEntityStripsThumbnailSignature() {
+        val signed = ref.copy(thumbnailUrl = "https://i.ytimg.com/vi/abc/hqdefault.jpg?sqp=-sqp&rs=rs-sig")
+        val entity = signed.toLikeEntity(likedAt = 1L)
+
+        assertEquals("https://i.ytimg.com/vi/abc/hqdefault.jpg", entity.thumbnailUrl)
+    }
+
+    @Test
+    fun playlistItemEntityStripsThumbnailSignature() {
+        val signed = ref.copy(thumbnailUrl = "https://i.ytimg.com/vi/abc/hqdefault.jpg?sqp=-sqp&rs=rs-sig")
+        val entity = signed.toPlaylistItemEntity(playlistId = 1L, sortIndex = 0, addedAt = 1L)
+
+        assertEquals("https://i.ytimg.com/vi/abc/hqdefault.jpg", entity.thumbnailUrl)
     }
 
     @Test

@@ -22,7 +22,7 @@ fun VideoRef.toLikeEntity(likedAt: Long): LikeEntity = LikeEntity(
     title = title,
     uploader = uploader,
     durationSeconds = durationSeconds,
-    thumbnailUrl = thumbnailUrl,
+    thumbnailUrl = canonicalThumbnailUrl(thumbnailUrl),
     likedAt = likedAt,
 )
 
