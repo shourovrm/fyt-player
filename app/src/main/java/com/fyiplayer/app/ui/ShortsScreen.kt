@@ -136,8 +136,8 @@ internal fun ShortsPager(
     // branch while vm.showPlayer is true. Same DisposableEffect shape as DetailScreen's fullscreen
     // toggle: restored false on every exit path, including leaving the Shorts tab entirely.
     DisposableEffect(Unit) {
-        FullscreenChrome.active = true
-        onDispose { FullscreenChrome.active = false }
+        FullscreenChrome.acquire()
+        onDispose { FullscreenChrome.release() }
     }
 
     // Start (or resync) the shared session on this feed. A returning composition -- nav back from

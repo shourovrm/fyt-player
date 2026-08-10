@@ -195,7 +195,13 @@ private fun isFullPlayerRoute(route: String?): Boolean =
  * inset visibility, which DESIGN.md's pitfalls call out as always getting it wrong.
  */
 internal object FullscreenChrome {
-    var active by mutableStateOf(false)
+    // Claim-counted, not a boolean: during a nav transition the incoming screen composes before
+    // the outgoing one disposes, so Detail's onDispose used to stomp the shorts pager's `true`
+    // (nav bar stayed up on shorts opened from Similar). Last-writer-wins can't express overlap.
+    private var claims by mutableStateOf(0)
+    val active: Boolean get() = claims > 0
+    fun acquire() { claims++ }
+    fun release() { if (claims > 0) claims-- }
 }
 
 /** System-bar insets as last DELIVERED to the window -- fed by MainActivity's decor listener,
