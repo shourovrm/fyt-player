@@ -24,11 +24,16 @@ private const val CHUNK_BYTES = 10L * 1024 * 1024
  * from non-web clients (seen live on this device). The inner DataSpec is therefore always
  * position=0/length=UNSET so the upstream HTTP source has no reason to add a Range header.
  *
- * Total size comes from the URL's own `clen` parameter (googlevideo attaches it to progressive
- * URLs) or ExoPlayer's requested span; a /videoplayback URL carrying neither falls back to one
- * open-ended passthrough request -- the old pacing, but never a wrong length.
+ * Total size comes from the URL's own `clen` parameter, ExoPlayer's requested span, or -- for
+ * query-style URLs only -- a tiny `range=0-0` probe that reads the total from the
+ * `Content-Range` response header. visionos progressive URLs often carry no `clen` (see
+ * DECISIONS Gotchas), which is exactly the probe's case. HLS SEGMENT URLs must never be probed:
+ * googlevideo encodes their params in the PATH (no query string), rejects an appended `range=`
+ * query param with HTTP 400, and a probe there would be a wasted round trip on every single
+ * segment fetch (seen live) -- hence the query-string gate. A URL where everything fails falls
+ * back to one open-ended passthrough request: the old pacing, but never a wrong length.
  *
- * Non-/videoplayback URLs (HLS segments, subtitles, other hosts) pass through untouched.
+ * Non-/videoplayback URLs (subtitles, other hosts) pass through untouched.
  */
 internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSource {
 
@@ -42,10 +47,16 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
 
     override fun open(dataSpec: DataSpec): Long {
         val isVideoPlayback = dataSpec.uri.encodedPath?.startsWith("/videoplayback") == true
-        val total =
-            if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.position + dataSpec.length
-            else dataSpec.uri.getQueryParameter("clen")?.toLongOrNull() ?: C.LENGTH_UNSET.toLong()
-        chunked = isVideoPlayback && total != C.LENGTH_UNSET.toLong()
+        val explicitTotal = if (dataSpec.length != C.LENGTH_UNSET.toLong()) {
+            dataSpec.position + dataSpec.length
+        } else {
+            dataSpec.uri.getQueryParameter("clen")?.toLongOrNull() ?: C.LENGTH_UNSET.toLong()
+        }
+        val probedTotal = if (isVideoPlayback && explicitTotal == C.LENGTH_UNSET.toLong() &&
+            !dataSpec.uri.query.isNullOrEmpty()
+        ) probeTotal(dataSpec) else null
+        val total = resolveChunkTotal(isVideoPlayback, explicitTotal, probedTotal)
+        chunked = total != C.LENGTH_UNSET.toLong()
         if (!chunked) return upstream.open(dataSpec)
 
         spec = dataSpec
@@ -55,20 +66,41 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
         return endExclusive - position
     }
 
+    private fun probeTotal(dataSpec: DataSpec): Long? {
+        val opened = try {
+            upstream.open(rangeSpec(dataSpec, 0, 0))
+            true
+        } catch (_: Throwable) {
+            false
+        }
+        return try {
+            if (opened) {
+                upstream.responseHeaders.entries
+                    .firstOrNull { it.key.equals("content-range", ignoreCase = true) }
+                    ?.value?.firstOrNull()
+                    ?.let(::parseContentRange)
+            } else null
+        } finally {
+            if (opened) {
+                try { upstream.close() } catch (_: Throwable) { }
+            }
+        }
+    }
+
     /** Opens the next bounded window at [position] via the `range=` param. */
     private fun openChunk(): Long {
         val windowEnd = minOf(position + CHUNK_BYTES, endExclusive) // exclusive
-        val base = spec!!
+        return upstream.open(rangeSpec(spec!!, position, windowEnd - 1))
+    }
+
+    private fun rangeSpec(base: DataSpec, start: Long, endInclusive: Long): DataSpec {
         val uri = base.uri.buildUpon().clearQuery().apply {
-            // rebuild every param except any stale range, then append ours
             base.uri.queryParameterNames.filter { it != "range" }.forEach { name ->
                 base.uri.getQueryParameters(name).forEach { appendQueryParameter(name, it) }
             }
-            appendQueryParameter("range", "$position-${windowEnd - 1}")
+            appendQueryParameter("range", "$start-$endInclusive")
         }.build()
-        return upstream.open(
-            base.buildUpon().setUri(uri).setPosition(0).setLength(C.LENGTH_UNSET.toLong()).build(),
-        )
+        return base.buildUpon().setUri(uri).setPosition(0).setLength(C.LENGTH_UNSET.toLong()).build()
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
@@ -93,4 +125,23 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
         spec = null
         upstream.close()
     }
+}
+
+internal fun parseContentRange(value: String?): Long? {
+    if (value == null) return null
+    val parts = value.split(" ").filter { it.isNotEmpty() }
+    if (parts.size < 2 || !parts[0].equals("bytes", ignoreCase = true)) return null
+    val rangeSpec = parts[1]
+    val slashIndex = rangeSpec.indexOf('/')
+    if (slashIndex == -1 || slashIndex == rangeSpec.length - 1) return null
+    val totalStr = rangeSpec.substring(slashIndex + 1)
+    if (totalStr == "*") return null
+    return totalStr.toLongOrNull()
+}
+
+internal fun resolveChunkTotal(isVideoPlayback: Boolean, explicitTotal: Long, probedTotal: Long?): Long {
+    if (!isVideoPlayback) return C.LENGTH_UNSET.toLong()
+    if (explicitTotal != C.LENGTH_UNSET.toLong()) return explicitTotal
+    if (probedTotal != null && probedTotal != C.LENGTH_UNSET.toLong()) return probedTotal
+    return C.LENGTH_UNSET.toLong()
 }
