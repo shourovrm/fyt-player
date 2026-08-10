@@ -5,6 +5,7 @@ import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.ListingPage
+import com.fyiplayer.app.core.ResultKind
 import com.fyiplayer.app.core.SearchPage
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.SpriteSheet
@@ -342,7 +343,8 @@ private fun ChannelInfoItem.toChannelRef(): VideoRef = VideoRef(
     remoteId = url,
     title = name,
     thumbnailUrl = thumbnailUrl,
-    viewCountText = compactCount(subscriberCount)?.let { "$it subscribers" },
+    kind = ResultKind.CHANNEL,
+    subscriberCount = subscriberCount,
 )
 
 private fun PlaylistInfoItem.toPlaylistListing(): Listing =
@@ -371,6 +373,7 @@ private fun PlaylistInfoItem.toPlaylistVideoRef(): VideoRef? {
         thumbnailUrl = thumbnailUrl,
         uploader = uploaderName,
         viewCountText = streamCount.takeIf { it > 0 }?.let { "$it videos" },
+        kind = ResultKind.PLAYLIST,
     )
 }
 

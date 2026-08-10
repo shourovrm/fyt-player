@@ -44,8 +44,11 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.fyiplayer.app.core.ResultKind
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.ui.theme.fyiExtras
+import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * Shared results-list rendering: Home and Listing both funnel into this instead of duplicating
@@ -126,6 +129,28 @@ internal fun formatDuration(seconds: Int): String {
     else "$m:${s.toString().padStart(2, '0')}"
 }
 
+/** Channel rows show subscriber count instead of the video-only uploader/views/age line. */
+private fun resultMetaText(ref: VideoRef): String {
+    if (ref.kind == ResultKind.CHANNEL) {
+        val subs = ref.subscriberCount
+        if (subs != null && subs >= 0) return "${compactCount(subs)} subscribers"
+    }
+    return listOfNotNull(ref.uploader, ref.viewCountText, shortAge(ref.uploadedText)).joinToString(" · ")
+}
+
+// Duplicated from NewPipeYoutubeSource.compactCount -- UI can't import from source/, extraction
+// stays behind the VideoSource seam.
+private fun compactCount(count: Long): String {
+    if (count < 1000) return count.toString()
+    val (divisor, suffix) = when {
+        count < 1_000_000 -> 1_000.0 to "K"
+        count < 1_000_000_000 -> 1_000_000.0 to "M"
+        else -> 1_000_000_000.0 to "B"
+    }
+    val tenths = (count / divisor * 10).roundToInt()
+    return if (tenths % 10 == 0) "${tenths / 10}$suffix" else "${"%.1f".format(Locale.US, tenths / 10.0)}$suffix"
+}
+
 private val ROW_THUMB = DpSize(120.dp, 67.5.dp)
 
 /** The one result row the whole app renders (Home, Listing, Detail's related). TAP opens the
@@ -156,7 +181,7 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
             Text(ref.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             // Channel · views · age, non-null parts only -- a listing that carried none of these
             // renders no meta line at all rather than a row of dangling separators.
-            val meta = listOfNotNull(ref.uploader, ref.viewCountText, shortAge(ref.uploadedText)).joinToString(" · ")
+            val meta = resultMetaText(ref)
             if (meta.isNotBlank()) {
                 Text(
                     meta,
