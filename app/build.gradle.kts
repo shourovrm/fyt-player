@@ -23,8 +23,8 @@ android {
         applicationId = "com.fyiplayer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.2"
+        versionCode = 5
+        versionName = "0.2.3"
         // single sideload APK: arm64-v8a only, keeps the python/ffmpeg payload from tripling size
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -40,8 +40,9 @@ android {
 
     buildTypes {
         release {
-            // minify off until the app runs end to end; R8 keep rules must land first
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
         }
     }
