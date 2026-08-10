@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
+import com.fyiplayer.app.core.Protocol
 import com.fyiplayer.app.core.StreamResolver
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.DownloadItem
@@ -123,7 +124,7 @@ class DownloadQueue private constructor(
         } catch (e: ExtractionError) {
             return ResolveOutcome.Failed(e.userMessage())
         }
-        val options = deriveDownloadOptions(resolved.formats)
+        val options = deriveDownloadOptions(resolved.formats, includeManifests = ref.sourceId != "youtube")
         if (options.isEmpty()) return ResolveOutcome.Failed("No downloadable video or audio track found.")
         return ResolveOutcome.Ready(resolved.ref, options)
     }
@@ -470,17 +471,21 @@ private fun deleteDownloadFiles(dir: File, ref: VideoRef): Boolean {
  * appended last when the engine reported one. Any option routed through the synthetic tier-2
  * selector is dropped -- that id can never be downloaded (see [WEBVIEW_FORMAT_ID]).
  */
-internal fun deriveDownloadOptions(formats: List<MediaFormat>): List<DownloadOption> {
-    val heights = formats.mapNotNull { it.height }.filter { it > 0 }.distinct().sortedDescending()
+internal fun deriveDownloadOptions(formats: List<MediaFormat>, includeManifests: Boolean = true): List<DownloadOption> {
+    // StreamDownloader writes bytes to a file, so a manifest "format" would save an .m3u8
+    // playlist as the finished video (seen live with visionos HLS). The engine path keeps
+    // manifests: yt-dlp fetches segments itself, and some non-YouTube sites are HLS-only.
+    val pool = if (includeManifests) formats else formats.filter { it.protocol == Protocol.PROGRESSIVE }
+    val heights = pool.mapNotNull { it.height }.filter { it > 0 }.distinct().sortedDescending()
     val seenSelectors = mutableSetOf<String>()
     val videoOptions = heights.mapNotNull { ceiling ->
-        val selection = FormatSelector.select(formats, ceiling).selection ?: return@mapNotNull null
+        val selection = FormatSelector.select(pool, ceiling).selection ?: return@mapNotNull null
         val picked = selectionSummary(selection)
         if (picked.selector.isBlank() || picked.selector.contains(WEBVIEW_FORMAT_ID)) return@mapNotNull null
         if (!seenSelectors.add(picked.selector)) return@mapNotNull null
         DownloadOption(picked.selector, "${picked.height ?: ceiling}p", picked.bytes)
     }
-    val audioOption = FormatSelector.select(formats, Int.MAX_VALUE, audioOnly = true).selection?.let { selection ->
+    val audioOption = FormatSelector.select(pool, Int.MAX_VALUE, audioOnly = true).selection?.let { selection ->
         val picked = selectionSummary(selection)
         if (picked.selector.isBlank() || picked.selector.contains(WEBVIEW_FORMAT_ID)) null
         else DownloadOption(picked.selector, "Audio only", picked.bytes)
