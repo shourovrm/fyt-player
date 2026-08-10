@@ -2,6 +2,18 @@
 
 ## Current state
 
+2026-08-10 wave (v0.2.3; device-verified on the A059 EXCEPT the three flagged in Next): R8+
+resource shrinking ON (59.5 MB APK,
+proguard-rules.pro, search/play/download exercised under minify); canonical thumbnail URLs at all
+three persist seams (`data/repo/ThumbnailUrl.kt`); shuffle order remapped through every queue
+mutator; backup HTML parse no longer double-unescapes; typed channel rows (ResultKind/
+subscriberCount, "21.1M subscribers" renders); ChunkedRangeDataSource probes totals for clen-less
+QUERY-STYLE /videoplayback only (HLS segments are path-encoded, range= query on them = HTTP 400);
+Detail re-entry takes playback (Similar-chain back mismatch fix); FullscreenChrome claim-counted
+(shorts-from-Similar full-bleed fix); YouTube downloads offer progressive-only options and
+StreamDownloader refuses manifests (was saving .m3u8 as the video). Similar-chain BACK itself
+verified correct, 3 hops each way.
+
 2026-08-09 wave (4 parallel agents, integrated, tests green, device-UNverified): Similar tab
 STAYS title-search — recommendations landed and were reverted same day (user preference, see
 Tried/rejected). Home merged feed sorts `uploadEpochMs` descending (new `VideoRef`
@@ -147,9 +159,18 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Device-verify the 2026-08-09 wave (v0.2.2): home recency sort, playlist
   channel link (needs a NEWLY-added playlist item — old rows have null uploaderUrl), share-with
   from YouTube/FB/Twitter apps cold+warm, shorts-entry flash gone.
-- "Back through Similar chain goes home" STILL reported by user on 2026-08-09 despite my live
-  device verification passing on v0.2.1 — get exact repro steps (which screen, fullscreen or not,
-  queue involved?) before touching code; check Last-crash row.
+- "Back through Similar chain goes home" RESOLVED 2026-08-10: back itself walks the chain
+  correctly (device-verified, 3 hops). The real complaint was the deeper video still PLAYING
+  over the shallower page after back — fixed (Detail re-entry takes playback). Residual foot-gun:
+  bottom-nav Home tab stays tappable on Detail and `navigateToTab`'s popBackStack(home) discards
+  the whole chain in one tap — if reports continue, that's the remaining suspect (fix would be
+  hiding the nav bar on Detail routes, a UX decision → mockup first).
+- User-verify v0.2.3: R8 build (66→~59.5 MB), channel rows "N subscribers", shorts-from-Similar
+  full-bleed — all three device-verified by me already. STILL DEVICE-UNVERIFIED (USB dropped
+  mid-check): back-return playback switch, YouTube download real mp4 (was .m3u8), no per-segment
+  probe 400s. Verify these first on reconnect.
+- Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
+  (playback rides HLS manifests now) — verify when a progressive-only video shows up.
 - **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
   built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
   (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
@@ -229,6 +250,13 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   WebViewJsDecoder must stay registered before any resolve.
 - googlevideo `range=` param windows answer HTTP 200 (not 206) and past-EOF gives an empty 200
   body, never 416.
+- visionos playback rides HLS: FormatSelector prefers manifests, so googlevideo traffic is mostly
+  SEGMENT fetches whose params are PATH-encoded (no query string — `c=null` in MediaHttp logs is
+  normal). Appending a `range=` QUERY param to those answers HTTP 400; never range path-style
+  URLs. Query-string presence is the progressive-vs-segment discriminator.
+- A YouTube "1080p" download option can map to the HLS master (manifest wins FormatSelector);
+  StreamDownloader saving it produces a .m3u8 file as the "video". Downloads must select from
+  progressive formats only (engine path keeps manifests — yt-dlp fetches segments itself).
 
 - A feed that reads its enabled-source set from DataStore sees an EMPTY set on the first
   composition. Loading then and latching `loaded = true` is why Home and Shorts both silently
@@ -417,7 +445,16 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   header injection, which upstream supports fine. Revisit only if the player-client swap turns out
   to be required for age-gated content.
 - R8/minify on release — off for now. Keep rules for the engine and Room must land first, and a
-  broken release build is worse than a large one.
+  broken release build is worse than a large one. (LANDED 2026-08-10: conservative keeps for
+  extractor/Rhino/yt-dlp/Room/serialization in proguard-rules.pro, device-verified.)
+- Once-per-nav-entry autoplay latch on Detail (rememberSaveable `autoplayed`) — REMOVED
+  2026-08-10: backing from C to B left C playing over B's page (user-reported mismatch). Detail
+  re-entry now takes playback whenever the session plays a different pageUrl; same-video re-entry
+  stays a no-op so reopening from the mini player never restarts.
+- Boolean FullscreenChrome.active — replaced with claim counting 2026-08-10: nav-transition
+  overlap (incoming pager composes before outgoing Detail disposes) let Detail's onDispose stomp
+  the pager's `true`; nav bar stayed visible on shorts-from-Similar. Never a single global
+  boolean for overlapping lifetimes.
 
 - Suggestion fetch failures collapse to emptyList — a dead suggestion endpoint must never render
   as a search error. `SearchSuggestions.fetch` swallows everything by design.
@@ -582,3 +619,20 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-09 | PlaybackSession.play() stops+clears before starting a new queue | Old item kept
   rendering into the shared surface during the async resolve (shorts-entry flash); clearMediaItems
   needed, stop() alone can leave PlayerView's shutter open.
+- 2026-08-10 | R8 + resource shrinking on release, conservative keep rules | 74→59.5 MB; rest is
+  Python/ffmpeg .so bulk R8 can't touch. Search/playback/downloads exercised on device.
+- 2026-08-10 | Canonical thumbnails at every persist seam (canonicalThumbnailUrl) | Likes and
+  playlist items stored signed ytimg URLs — rot + identify; history already stripped, now shared.
+- 2026-08-10 | Shuffle order remapped in playNext/enqueue/move/removeAt (QueueMath helpers) |
+  Mutators edited `queue` but not `order`; stale indices desynced next/previous under shuffle.
+- 2026-08-10 | Backup parse stops unescaping < | JSON string escapes decode natively;
+  the extra unescape corrupted titles containing the literal text.
+- 2026-08-10 | Typed channel search results (ResultKind + subscriberCount on VideoRef) | Replaces
+  the viewCountText="N subscribers" stopgap; UI formats display, source stays typed.
+- 2026-08-10 | ChunkedRangeDataSource range=0-0 probe gated to query-style URLs | HLS segment
+  URLs are path-encoded and 400 any range= query param — ungated probe cost one wasted request
+  per segment (seen live before the gate).
+- 2026-08-10 | Detail re-entry takes playback; FullscreenChrome claim-counted | Similar-chain
+  back mismatch + nav bar over shorts-from-Similar, both user-reported, both device-verified.
+- 2026-08-10 | YouTube download options exclude manifests; StreamDownloader refuses them | 1080p
+  mapped to the HLS master and saved a .m3u8 as the finished video.
