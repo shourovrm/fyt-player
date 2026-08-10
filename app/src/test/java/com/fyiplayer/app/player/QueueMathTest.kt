@@ -94,4 +94,48 @@ class QueueMathTest {
         assertEquals(0, QueueMath.nextIndex(0, 1, RepeatMode.ONE))
         assertEquals(0, QueueMath.nextIndex(0, 1, RepeatMode.ALL)) // wraps to itself
     }
+
+    // queue [A, B, C, D], shuffle order plays C(2), A(0), D(3), B(1); current is D at index 3
+    @Test fun `removeAt remaps shuffle order and preserves the current item`() {
+        val order = listOf(2, 0, 3, 1)
+        val current = 3
+        val remapped = QueueMath.removeOrder(order, 0) // remove A
+        assertEquals(listOf(1, 2, 0), remapped)
+        val newCurrent = current - 1 // D shifts from 3 to 2
+        assertEquals(0, QueueMath.nextIndex(newCurrent, 3, RepeatMode.OFF, remapped))
+        assertEquals(1, QueueMath.previousIndex(newCurrent, 3, RepeatMode.OFF, remapped))
+    }
+
+    // queue [A, B, C, D], current B at index 1, shuffle order C(2), A(0), D(3), B(1)
+    @Test fun `playNext inserts ahead in shuffle order and preserves the current item`() {
+        val order = listOf(2, 0, 3, 1)
+        val current = 1
+        val insertAt = current + 1
+        val playPos = order.indexOf(current)
+        val remapped = QueueMath.insertOrder(order, insertAt, playPos + 1)
+        assertEquals(listOf(3, 0, 4, 1, 2), remapped)
+        assertEquals(2, QueueMath.nextIndex(current, 5, RepeatMode.OFF, remapped))
+        assertEquals(4, QueueMath.previousIndex(current, 5, RepeatMode.OFF, remapped))
+    }
+
+    @Test fun `enqueue appends to shuffle order and keeps next and previous in bounds`() {
+        val order = listOf(2, 0, 3, 1)
+        val current = 1
+        val remapped = QueueMath.appendOrder(order, 4)
+        assertEquals(listOf(2, 0, 3, 1, 4), remapped)
+        assertEquals(4, QueueMath.nextIndex(current, 5, RepeatMode.OFF, remapped))
+        assertEquals(3, QueueMath.previousIndex(current, 5, RepeatMode.OFF, remapped))
+    }
+
+    // queue [A, B, C, D], current D at 3, shuffle order C(2), A(0), D(3), B(1); move C to the front
+    @Test fun `move remaps shuffle order and current index consistently`() {
+        val order = listOf(2, 0, 3, 1)
+        val from = 2
+        val to = 0
+        val remapped = QueueMath.moveOrder(order, from, to)
+        assertEquals(listOf(0, 1, 3, 2), remapped)
+        val newCurrent = 3 // D stays at index 3
+        assertEquals(2, QueueMath.nextIndex(newCurrent, 4, RepeatMode.OFF, remapped))
+        assertEquals(1, QueueMath.previousIndex(newCurrent, 4, RepeatMode.OFF, remapped))
+    }
 }

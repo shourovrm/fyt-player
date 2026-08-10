@@ -286,6 +286,10 @@ object PlaybackSession {
         if (queue.isEmpty()) { play(listOf(ref), 0); return }
         val insertAt = index + 1
         queue = queue.toMutableList().apply { add(insertAt, ref) }
+        order = order?.let {
+            val playPos = it.indexOf(index)
+            QueueMath.insertOrder(it, insertAt, playPos + 1)
+        }
         // insertion always lands exactly where a prefetch would have; simplest correct thing is
         // to drop it and let prefetchNext redo the resolve against the now-current queue.
         dropPrefetchedWindowSlot()
@@ -297,7 +301,9 @@ object PlaybackSession {
     fun enqueue(ref: VideoRef) {
         ensureInit()
         if (queue.isEmpty()) { play(listOf(ref), 0); return }
+        val newIndex = queue.size
         queue = queue + ref
+        order = order?.let { QueueMath.appendOrder(it, newIndex) }
         publishQueueState()
         // Root cause of "Queue does nothing": every other mutator (playNext/move/removeAt) calls
         // prefetchNext() after touching `queue`, so it re-derives from the grown list. This one
@@ -357,6 +363,7 @@ object PlaybackSession {
         val affectsWindow = from >= index || to >= index
         val item = queue[from]
         queue = queue.toMutableList().apply { removeAt(from); add(to, item) }
+        order = order?.let { QueueMath.moveOrder(it, from, to) }
         index = when {
             from == index -> to
             from < index && to >= index -> index - 1
@@ -487,6 +494,7 @@ object PlaybackSession {
         val affectsWindow = i >= index // current or anything after it can desync the prefetch slot
         queue = queue.toMutableList().apply { removeAt(i) }
         if (queue.isEmpty()) { clear(); return }
+        order = order?.let { QueueMath.removeOrder(it, i) }
         if (affectsWindow) dropPrefetchedWindowSlot()
         when {
             i < index -> index -= 1
