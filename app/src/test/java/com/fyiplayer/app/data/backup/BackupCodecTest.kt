@@ -69,4 +69,26 @@ class BackupCodecTest {
         assertEquals(nasty, parsed.liked.single().title)
         assertEquals(nasty, parsed.liked.single().uploader)
     }
+
+    @Test
+    fun `title containing literal backslash-u003C text round-trips unchanged`() {
+        val title = "\\u003C"
+        val doc = BackupDocument(
+            exportedAtMillis = 1L,
+            liked = listOf(BackupVideo("youtube", "https://example.com/watch?v=x", title, null, null)),
+        )
+        val parsed = parseBackupHtml(renderBackupHtml(doc))
+        assertEquals(title, parsed.liked.single().title)
+    }
+
+    @Test
+    fun `title containing actual less-than character round-trips unchanged`() {
+        val title = "a<b"
+        val doc = BackupDocument(
+            exportedAtMillis = 1L,
+            liked = listOf(BackupVideo("youtube", "https://example.com/watch?v=x", title, null, null)),
+        )
+        val parsed = parseBackupHtml(renderBackupHtml(doc))
+        assertEquals(title, parsed.liked.single().title)
+    }
 }
