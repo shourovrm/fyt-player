@@ -9,6 +9,10 @@ package com.fyiplayer.app.core
  * [MediaFormat.url] is signed, short-lived and often IP-bound — it stays in memory and dies there.
  */
 
+/** What a search result represents at the contract level. Defaults to [VIDEO] so every existing
+ *  listing keeps working while search-originated rows can declare themselves explicitly. */
+enum class ResultKind { VIDEO, CHANNEL, PLAYLIST }
+
 /** A video as listed. Enough to render a result row and to re-resolve later. */
 data class VideoRef(
     val sourceId: String,
@@ -37,6 +41,10 @@ data class VideoRef(
     val isLive: Boolean = false,
     /** A scheduled premiere that hasn't started yet. False when the listing didn't say. */
     val isUpcoming: Boolean = false,
+    /** Search-result kind; [ResultKind.VIDEO] for every non-search row and legacy listings. */
+    val kind: ResultKind = ResultKind.VIDEO,
+    /** Typed subscriber count for [ResultKind.CHANNEL]; display-only formatting lives in UI. */
+    val subscriberCount: Long? = null,
 )
 
 /** One page of results. [nextPage] is an opaque token the same source hands back to itself. */
