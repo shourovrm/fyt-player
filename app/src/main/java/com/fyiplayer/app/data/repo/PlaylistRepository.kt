@@ -23,6 +23,19 @@ fun PlaylistItemEntity.toVideoRef(): VideoRef = VideoRef(
     uploaderUrl = uploaderUrl,
 )
 
+fun VideoRef.toPlaylistItemEntity(playlistId: Long, sortIndex: Int, addedAt: Long): PlaylistItemEntity = PlaylistItemEntity(
+    playlistId = playlistId,
+    pageUrl = pageUrl,
+    sourceId = sourceId,
+    title = title,
+    uploader = uploader,
+    uploaderUrl = uploaderUrl,
+    durationSeconds = durationSeconds,
+    thumbnailUrl = canonicalThumbnailUrl(thumbnailUrl),
+    sortIndex = sortIndex,
+    addedAt = addedAt,
+)
+
 class PlaylistRepository(private val playlists: PlaylistDao, private val items: PlaylistItemDao) {
     fun observePlaylists(): Flow<List<Playlist>> = playlists.observeAll().map { list -> list.map { it.toPlaylist() } }
 
@@ -38,20 +51,7 @@ class PlaylistRepository(private val playlists: PlaylistDao, private val items: 
 
     suspend fun addItem(playlistId: Long, ref: VideoRef, addedAt: Long = System.currentTimeMillis()) {
         val sortIndex = items.maxSortIndex(playlistId) + 1
-        items.upsert(
-            PlaylistItemEntity(
-                playlistId = playlistId,
-                pageUrl = ref.pageUrl,
-                sourceId = ref.sourceId,
-                title = ref.title,
-                uploader = ref.uploader,
-                uploaderUrl = ref.uploaderUrl,
-                durationSeconds = ref.durationSeconds,
-                thumbnailUrl = ref.thumbnailUrl,
-                sortIndex = sortIndex,
-                addedAt = addedAt,
-            ),
-        )
+        items.upsert(ref.toPlaylistItemEntity(playlistId, sortIndex, addedAt))
     }
 
     suspend fun removeItem(playlistId: Long, pageUrl: String) = items.delete(playlistId, pageUrl)
