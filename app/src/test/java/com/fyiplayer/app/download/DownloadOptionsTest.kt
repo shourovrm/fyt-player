@@ -94,4 +94,27 @@ class DownloadOptionsTest {
         assertEquals("480p", option.label)
         assertEquals(120_000_000L, option.approxBytes)
     }
+
+    @Test fun `manifests are excluded from options when includeManifests is false`() {
+        // visionos serves an HLS master alongside progressive streams; StreamDownloader saving
+        // that manifest produced a 70 KB .m3u8 as the "finished video" on device.
+        val formats = listOf(
+            fmt("hls1080", height = 1080, video = "avc", protocol = Protocol.HLS),
+            fmt("v720", height = 720, video = "avc", bytes = 400_000_000),
+            fmt("a", audio = "opus", bytes = 5_000_000),
+        )
+        val options = deriveDownloadOptions(formats, includeManifests = false)
+
+        assertEquals(listOf("v720+a", "a"), options.map { it.formatId })
+    }
+
+    @Test fun `manifests stay available for the engine path`() {
+        val formats = listOf(
+            fmt("hls1080", height = 1080, video = "avc", protocol = Protocol.HLS),
+            fmt("a", audio = "opus", bytes = 5_000_000),
+        )
+        val options = deriveDownloadOptions(formats)
+
+        assertEquals(listOf("hls1080", "a"), options.map { it.formatId })
+    }
 }

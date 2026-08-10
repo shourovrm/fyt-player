@@ -4,6 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaMuxer
 import com.fyiplayer.app.core.MediaFormat
+import com.fyiplayer.app.core.Protocol
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -61,6 +62,11 @@ internal class StreamDownloader(private val client: OkHttpClient) {
             val ids = selector.split('+')
             val first = formats.firstOrNull { it.formatId == ids[0] }
                 ?: return@withContext Outcome.Failed("this quality is no longer offered — pick again")
+            // A manifest URL is a playlist, not a media file: fetching it "succeeds" instantly
+            // and writes an .m3u8/.mpd as the finished video. Only concrete streams download.
+            if (first.protocol != Protocol.PROGRESSIVE) {
+                return@withContext Outcome.Failed("this quality is no longer offered — pick again")
+            }
             if (ids.size == 1) {
                 downloadSingle(first, dir, baseName, signal, onProgress)
             } else {
