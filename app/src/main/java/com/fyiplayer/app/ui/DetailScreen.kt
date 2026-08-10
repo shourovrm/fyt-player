@@ -37,7 +37,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -111,20 +110,18 @@ fun DetailScreen(
     // fullscreen lasts — restored on every exit path, including this composable leaving
     // composition outright (e.g. navigating away without explicitly toggling back first).
     DisposableEffect(fullscreen) {
-        FullscreenChrome.active = fullscreen
-        onDispose { FullscreenChrome.active = false }
+        if (fullscreen) FullscreenChrome.acquire()
+        onDispose { if (fullscreen) FullscreenChrome.release() }
     }
 
-    // Opening a watch page means "play this video": tapping into Library/History while something
-    // else plays must switch playback here, not leave the old video running underneath. Autoplay
-    // fires once per nav entry -- rememberSaveable survives back-stack restoration, so popping
-    // back to this screen after playback has moved on doesn't hijack it again. Retry is the one
-    // repeat case: THIS video sitting in a failed resolve replays on reopen.
-    var autoplayed by rememberSaveable(pageUrl) { mutableStateOf(false) }
+    // Being on a watch page means "this page's video plays": on every entry -- fresh open OR
+    // back-return from deeper in a Similar chain -- a session playing anything else switches
+    // here. The old once-per-nav-entry latch left the deeper video running over this page's
+    // description (user-reported mismatch). Same-video re-entry stays a no-op, so reopening the
+    // mini player's detail never restarts it; error state replays (retry-on-reopen).
     LaunchedEffect(pageUrl) {
         val st = PlaybackSession.state.value
-        if (!autoplayed && (st.current?.pageUrl != ref.pageUrl || st.error != null)) {
-            autoplayed = true
+        if (st.current?.pageUrl != ref.pageUrl || st.error != null) {
             PlaybackSession.play(listOf(ref), 0)
         }
     }
