@@ -155,6 +155,9 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Release-only. Debug variant is never built; there is no debug keystore in this repo.
 
 ## Next
+- Shorts-tab paging landed 2026-08-22 (grid + pager load-more, device-verified growing past the
+  old 64-item cap). UNVERIFIED: the "all caught up" end footer (needs every channel exhausted)
+  and pager-tail trigger in isolation (shares `loadMore`, grid path proven).
 
 - Device-verify the 2026-08-09 wave (v0.2.2): home recency sort, playlist
   channel link (needs a NEWLY-added playlist item — old rows have null uploaderUrl), share-with
@@ -639,3 +642,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-10 | YouTube download options exclude manifests; StreamDownloader refuses them | 1080p
   mapped to the HLS master and saved a .m3u8 as the finished video.
 - 2026-08-22 | channel search via fork ChannelTabs.SEARCH + shorts shelf in channel Search tab | yt-dlp flat JSON had no short flag; fork handler built from full `/search?query=` url (extractor reads query off originalUrl). Shorts flagged by <=60 s heuristic — platform gives none.
+- 2026-08-22 | Shorts tab pages: per-channel `ChannelShortsCursor` (buffer + token), `loadMore` appends an interleaved round, never re-merges | first page leftovers were thrown away by the per-channel cap; re-interleaving over shown items would reshuffle under the pager. Honest end footer when all cursors dry.

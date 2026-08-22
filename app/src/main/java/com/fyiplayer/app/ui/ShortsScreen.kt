@@ -80,6 +80,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
                 page = vm.pagerPage,
                 onPageChange = { vm.pagerPage = it },
                 onOpenDetail = onOpenDetail,
+                onLoadMore = vm::loadMore,
             )
         } else {
             ShortsGrid(
@@ -90,6 +91,10 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
                     vm.showPlayer = true
                 },
                 onLongPress = { actionSheetRef = it },
+                hasMore = feed.hasMore,
+                loadingMore = feed.loadingMore,
+                exhausted = feed.exhausted,
+                onLoadMore = vm::loadMore,
             )
         }
         !feed.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -128,6 +133,8 @@ internal fun ShortsPager(
     page: Int,
     onPageChange: (Int) -> Unit,
     onOpenDetail: (String) -> Unit,
+    /** Called when the swipe nears the end of [items]; no-op for finite listings (channel tab). */
+    onLoadMore: () -> Unit = {},
 ) {
     val playerState by PlaybackSession.state.collectAsState()
     val pagerState = rememberPagerState(initialPage = page.coerceIn(0, items.size - 1)) { items.size }
@@ -158,6 +165,9 @@ internal fun ShortsPager(
     LaunchedEffect(pagerState, items) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             onPageChange(page)
+            // Near the tail: ask for more. The pageCount lambda above reads items.size live, so
+            // appended clips extend the pager in place; LaunchedEffect(items) enqueues them.
+            if (page >= items.size - 3) onLoadMore()
             if (page !in items.indices) return@collect
             when (shortsNavAction(page, PlaybackSession.state.value.index)) {
                 ShortsNavAction.NEXT -> PlaybackSession.skipNext()
@@ -176,9 +186,6 @@ internal fun ShortsPager(
         val idx = playerState.index
         if (idx in items.indices && pagerState.currentPage != idx) pagerState.animateScrollToPage(idx)
     }
-
-    // No endless paging: the feed is one round per subscribed channel (HomeFeed.kt's shape), not
-    // a continuation token per source -- refreshFeed()/loadFeedIfNeeded() cover Shorts' whole feed.
 
     // FullscreenChrome.active (set above) is what makes AppScaffold stop consuming system-bar
     // insets for this frame, so fillMaxSize here really does reach every edge -- no manual inset

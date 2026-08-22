@@ -62,12 +62,65 @@ class ShortsFeedTest {
         assertEquals(ChannelFetchOutcome.Failed, result)
     }
 
-    @Test fun `fetchChannelShorts excludes watched and caps to the per-channel limit`() = runBlocking {
-        val page = SearchPage(items = (1..(FEED_ITEMS_PER_CHANNEL + 5)).map { ref("s$it") })
+    // Uncapped on purpose: the ViewModel shows FEED_ITEMS_PER_CHANNEL and buffers the rest, so a
+    // cap here would silently throw away the channel's first page beyond the first round.
+    @Test fun `fetchChannelShorts excludes watched, keeps the rest and the continuation`() = runBlocking {
+        val page = SearchPage(items = (1..(FEED_ITEMS_PER_CHANNEL + 5)).map { ref("s$it") }, nextPage = "tok")
         val watched = setOf(ref("s1").pageUrl)
-        val result = itemsOf(fetchChannelShorts(watched = watched) { page })
-        assertEquals(FEED_ITEMS_PER_CHANNEL, result.size)
-        assertTrue(result.none { it.pageUrl == ref("s1").pageUrl })
+        val result = fetchChannelShorts(watched = watched) { page } as ChannelFetchOutcome.Ok
+        assertEquals(FEED_ITEMS_PER_CHANNEL + 4, result.items.size)
+        assertTrue(result.items.none { it.pageUrl == ref("s1").pageUrl })
+        assertEquals("tok", result.nextPage)
+    }
+
+    private fun cursor(buffer: List<VideoRef> = emptyList(), nextPage: String? = null, exhausted: Boolean = false) =
+        ChannelShortsCursor(sourceId = "youtube", key = "c", buffer = buffer, nextPage = nextPage, exhausted = exhausted)
+
+    @Test fun `next serves from the buffer without fetching when it holds enough`() = runBlocking {
+        val (served, after) = cursor(buffer = (1..5).map { ref("b$it") }, nextPage = "tok").next(3, emptySet()) {
+            error("must not fetch")
+        }
+        assertEquals(listOf("b1", "b2", "b3"), served.map { it.remoteId })
+        assertEquals(listOf("b4", "b5"), after.buffer.map { it.remoteId })
+        assertTrue(after.hasMore)
+    }
+
+    @Test fun `next refills from the continuation, excluding watched, and advances the token`() = runBlocking {
+        val calls = mutableListOf<String?>()
+        val (served, after) = cursor(buffer = listOf(ref("b1")), nextPage = "t1").next(3, setOf(ref("w").pageUrl)) { page ->
+            calls += page
+            SearchPage(items = listOf(ref("w"), ref("p1"), ref("p2")), nextPage = "t2")
+        }
+        assertEquals(listOf("t1"), calls)
+        assertEquals(listOf("b1", "p1", "p2"), served.map { it.remoteId })
+        assertEquals("t2", after.nextPage)
+        assertTrue(after.hasMore)
+    }
+
+    @Test fun `a continuation that returns its own token ends the channel`() = runBlocking {
+        val (_, after) = cursor(nextPage = "same").next(3, emptySet()) { SearchPage(items = emptyList(), nextPage = "same") }
+        assertTrue(after.exhausted)
+        assertTrue(!after.hasMore)
+    }
+
+    @Test fun `refills are bounded per round so an all-watched tab never storms`() = runBlocking {
+        var calls = 0
+        val (served, after) = cursor(nextPage = "t0").next(3, setOf(ref("w").pageUrl)) { page ->
+            calls++
+            SearchPage(items = listOf(ref("w")), nextPage = "t$calls")
+        }
+        assertEquals(MAX_REFILLS_PER_ROUND, calls)
+        assertTrue(served.isEmpty())
+        assertTrue(after.hasMore) // token still live: the next scroll asks again
+    }
+
+    @Test fun `a fetch failure ends paging but still serves what was buffered`() = runBlocking {
+        val (served, after) = cursor(buffer = listOf(ref("b1")), nextPage = "t1").next(3, emptySet()) {
+            throw ExtractionError.Network("timed out")
+        }
+        assertEquals(listOf("b1"), served.map { it.remoteId })
+        assertTrue(after.exhausted)
+        assertTrue(!after.hasMore)
     }
 
     @Test fun `no subscriptions means no channels to fetch and an empty feed`() {

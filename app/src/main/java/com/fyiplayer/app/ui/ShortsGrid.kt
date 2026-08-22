@@ -8,21 +8,30 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,7 +51,22 @@ internal fun ShortsGrid(
     gridState: LazyGridState,
     onOpenPlayer: (Int) -> Unit,
     onLongPress: (VideoRef) -> Unit,
+    hasMore: Boolean = false,
+    loadingMore: Boolean = false,
+    exhausted: Boolean = false,
+    onLoadMore: () -> Unit = {},
 ) {
+    // Endless scroll, same idiom as ResultsListColumn: fire a couple of rows before the bottom.
+    val shouldLoadMore by remember(gridState) {
+        derivedStateOf {
+            val layout = gridState.layoutInfo
+            val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: -1
+            lastVisible >= layout.totalItemsCount - 6
+        }
+    }
+    LaunchedEffect(shouldLoadMore, hasMore, loadingMore) {
+        if (shouldLoadMore && hasMore && !loadingMore) onLoadMore()
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         state = gridState,
@@ -54,6 +78,24 @@ internal fun ShortsGrid(
         // key here is safe and lets a mid-scroll refresh keep tiles instead of re-laying them all.
         itemsIndexed(items, key = { _, ref -> ref.pageUrl }) { index, ref ->
             ShortsGridTile(ref, onClick = { onOpenPlayer(index) }, onLongPress = { onLongPress(ref) })
+        }
+        if (loadingMore) {
+            item(key = "loadingMore", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                }
+            }
+        }
+        // Honest end: every subscribed channel's shorts tab ran dry, not a stall.
+        if (exhausted) {
+            item(key = "exhausted", span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    "You're all caught up — no more Shorts from your subscriptions.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
