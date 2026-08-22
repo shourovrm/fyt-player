@@ -2,6 +2,8 @@
 
 ## Current state
 
+2026-08-22 wave (v0.2.4): channel search on the fork + shorts shelf; Shorts tab pages per channel.
+
 2026-08-10 wave (v0.2.3; device-verified on the A059 EXCEPT the three flagged in Next): R8+
 resource shrinking ON (59.5 MB APK,
 proguard-rules.pro, search/play/download exercised under minify); canonical thumbnail URLs at all
