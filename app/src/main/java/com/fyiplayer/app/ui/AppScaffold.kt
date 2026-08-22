@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
@@ -148,8 +149,13 @@ fun AppScaffold(
     ) { inner ->
         // consumeWindowInsets: without it, screens with their own nested Scaffold/TopAppBar apply
         // the status-bar inset a second time — a status-bar-height dead gap above their app bar.
+        // The display cutout is consumed too: in landscape the punch-hole becomes a 126px LEFT
+        // inset that M3's nested Scaffold/TopAppBar would pad on their own — a grey strip beside
+        // the player while the outer chrome spans full width (device-verified, rotation 1).
+        // This app is edge-to-edge under the cutout everywhere, so nothing below may re-pad it.
         Box(
             Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner)
+                .consumeWindowInsets(WindowInsets.displayCutout)
                 .nestedScroll(nestedScrollConnection),
         ) {
             content(navController)

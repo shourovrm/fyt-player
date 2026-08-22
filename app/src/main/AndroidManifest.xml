@@ -54,6 +54,11 @@
                 <data android:scheme="https" android:host="fb.watch" />
                 <data android:scheme="https" android:host="twitter.com" />
                 <data android:scheme="https" android:host="x.com" />
+                <data android:scheme="https" android:host="tiktok.com" />
+                <data android:scheme="https" android:host="www.tiktok.com" />
+                <data android:scheme="https" android:host="m.tiktok.com" />
+                <data android:scheme="https" android:host="vm.tiktok.com" />
+                <data android:scheme="https" android:host="vt.tiktok.com" />
             </intent-filter>
         </activity>
 

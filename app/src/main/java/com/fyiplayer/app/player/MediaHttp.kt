@@ -54,6 +54,11 @@ internal fun mediaHttpClient(): OkHttpClient = OkHttpClient.Builder()
         }
         val shaped = builder.build()
         val response = chain.proceed(shaped)
+        // Non-YouTube CDN refusal: host + header NAMES + code only. Never values (cookies,
+        // signed paths) -- enough to tell "Cookie never attached" from "Cookie rejected".
+        if (!shaped.url.encodedPath.startsWith("/videoplayback") && response.code in 400..499) {
+            android.util.Log.d("MediaHttp", "cdn ${shaped.url.host} code=${response.code} headers=${shaped.headers.names()}")
+        }
         if (shaped.url.encodedPath.startsWith("/videoplayback")) {
             // client name + booleans only -- the URL itself is signed and must never be logged
             android.util.Log.d(

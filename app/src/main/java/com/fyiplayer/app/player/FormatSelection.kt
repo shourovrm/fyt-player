@@ -50,7 +50,9 @@ object FormatSelector {
         val muxed = bestMuxed(formats, maxHeight)
 
         val pairedHeight = if (video != null && audio != null) video.height ?: 0 else -1
-        val muxedHeight = muxed?.height ?: -1
+        // A muxed stream with no published height (Facebook sd/hd) is still a stream: absent
+        // height ranks it lowest, it must not read as "no muxed stream at all".
+        val muxedHeight = if (muxed == null) -1 else muxed.height ?: 0
 
         return when {
             pairedHeight < 0 && muxedHeight < 0 ->

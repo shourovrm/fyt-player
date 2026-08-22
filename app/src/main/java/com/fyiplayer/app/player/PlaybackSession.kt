@@ -638,6 +638,14 @@ object PlaybackSession {
         val result = FormatSelector.select(resolved.formats, maxHeight())
         val selection = result.selection
         if (selection == null) {
+            // Shape only -- protocol/codecs/height per format, never a URL -- enough to see why
+            // a non-YouTube resolve produced nothing playable.
+            android.util.Log.d(
+                "PlaybackSession",
+                "no selection: ${result.reason}; formats=" + resolved.formats.joinToString { f ->
+                    "${f.protocol}/${f.container}/${f.videoCodec}+${f.audioCodec}/${f.height}"
+                },
+            )
             if (i == index) {
                 // the previous item must not keep playing (or auto-advance) under the error guardrail.
                 // Kill the ticker NOW: its cancel via onIsPlayingChanged is a posted event, and one
