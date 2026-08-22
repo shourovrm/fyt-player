@@ -2,6 +2,13 @@
 
 ## Current state
 
+2026-08-22 wave (v0.2.5): share/open-with plays Facebook (landscape) and TikTok (shorts pager)
+via yt-dlp tier1. Cookie header from yt-dlp's per-format `cookies` (TikTok CDN needs
+tt_chain_token/ttwid); codec-unknown progressive mp4 now selectable as muxed (Facebook sd/hd);
+tiktok hosts in the VIEW filter + `openSharedUrl` routes vertical-clip hosts to the shorts pager.
+Landscape white/grey left strip FIXED (AppScaffold consumes the display-cutout inset). yt-dlp
+in-app update works (bumped to 2026.08.19 on device).
+
 2026-08-22 wave (v0.2.4): channel search on the fork + shorts shelf; Shorts tab pages per channel.
 
 2026-08-10 wave (v0.2.3; device-verified on the A059 EXCEPT the three flagged in Next): R8+
@@ -244,6 +251,16 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
 
 ## Gotchas
+- TikTok CDN 403s without session cookies; yt-dlp's per-format `cookies` is Set-Cookie shaped
+  (name=val; Domain=..; Path=..) -- strip attributes to a `Cookie:` header (EngineResolver.cookieHeaderFrom).
+- TikTok IP-rate-limits repeated extraction: same request that gave 206 flips to 403 after ~10 hits,
+  and yt-dlp then wants curl_cffi impersonation (can't ship on Android; = bypass). Honest error only.
+- Facebook `Cannot parse data` hits ~2/3 of public URLs intermittently (yt-dlp extractor, upstream);
+  some fail on one network and play on another. Not fixable under the no-bypass rule.
+- Facebook sd/hd progressive mp4 arrive with NO vcodec/acodec keys -- treated as muxed(unknown),
+  else FormatSelector rejects them. `none` still means absent (video-only stays video-only).
+- Landscape cutout is a 126px LEFT system inset on this OEM; any nested Scaffold/TopAppBar re-pads
+  it into a grey strip unless AppScaffold consumes WindowInsets.displayCutout (device-verified).
 - Channel search rows carry NO shorts signal from YouTube (plain videoRenderer, /watch, overlay
   DEFAULT, 16:9 thumb — verified live 2026-08-22); `shortByDuration` (<=60 s) is the only tell.
 
@@ -645,3 +662,5 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   mapped to the HLS master and saved a .m3u8 as the finished video.
 - 2026-08-22 | channel search via fork ChannelTabs.SEARCH + shorts shelf in channel Search tab | yt-dlp flat JSON had no short flag; fork handler built from full `/search?query=` url (extractor reads query off originalUrl). Shorts flagged by <=60 s heuristic — platform gives none.
 - 2026-08-22 | Shorts tab pages: per-channel `ChannelShortsCursor` (buffer + token), `loadMore` appends an interleaved round, never re-merges | first page leftovers were thrown away by the per-channel cap; re-interleaving over shown items would reshuffle under the pager. Honest end footer when all cursors dry.
+- 2026-08-22 | share-with plays FB (Detail) + TikTok (shorts pager); cookie header + muxed-unknown-codec fixes; cutout inset consumed | FB public videos + TikTok routing device-verified; TikTok playback blocked by upstream IP rate-limit, honest error.
+- 2026-08-22 | v0.2.5 | share/play Facebook & TikTok, landscape border fix

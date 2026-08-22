@@ -72,3 +72,7 @@
 # Kotlin metadata used by serializer/companion lookups
 # ---------------------------------------------------------------------------
 -keep class kotlin.Metadata { *; }
+
+# Diagnostics log ExtractionError subclass NAMES only (never messages -- they can carry URLs).
+# Minified they come out as "(h)", which tells a bug report nothing. Names only, no members.
+-keepnames class com.fyiplayer.app.core.ExtractionError$* { }

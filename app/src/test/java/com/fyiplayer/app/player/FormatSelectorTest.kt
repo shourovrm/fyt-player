@@ -108,3 +108,20 @@ class FormatSelectorTest {
         assertNotNull(result.reason)
     }
 }
+
+class MuxedWithoutHeightTest {
+    // Facebook's sd/hd arrive with no height and engine-unprobed codecs; still the only stream.
+    @Test fun `a muxed stream with unknown height is selectable`() {
+        val muxed = fmt("hd", height = null, video = "unknown", audio = "unknown")
+        val result = FormatSelector.select(listOf(muxed), maxHeight = 1080)
+        assertEquals(FormatSelection.Single(muxed), result.selection)
+    }
+
+    @Test fun `a paired stream still beats an unknown-height muxed one`() {
+        val v = fmt("v", height = 720, video = "avc1")
+        val a = fmt("a", audio = "mp4a", bitrate = 128_000)
+        val muxed = fmt("hd", height = null, video = "unknown", audio = "unknown")
+        val result = FormatSelector.select(listOf(v, a, muxed), maxHeight = 1080)
+        assertEquals(FormatSelection.Paired(v, a), result.selection)
+    }
+}

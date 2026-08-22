@@ -18,6 +18,7 @@ import com.fyiplayer.app.player.QueueBar
 import com.fyiplayer.app.ui.AppScaffold
 import com.fyiplayer.app.ui.AppShell
 import com.fyiplayer.app.ui.openDetail
+import com.fyiplayer.app.ui.openSharedUrl
 import com.fyiplayer.app.ui.theme.FyiTheme
 
 /** First https URL found in shared/link-opened intent text -- share text is often prose with a
@@ -57,6 +58,8 @@ class MainActivity : ComponentActivity() {
         // continues via ViewCompat.onApplyWindowInsets so decor + children behave as before.
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { v, insets ->
             val sb = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            val cut = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.displayCutout())
+            android.util.Log.d("Insets", "rot=${display?.rotation} sb=[${sb.left},${sb.top},${sb.right},${sb.bottom}] cutout=[${cut.left},${cut.top},${cut.right},${cut.bottom}]")
             com.fyiplayer.app.ui.SystemBarInsetsState.update(sb.left, sb.top, sb.right, sb.bottom)
             androidx.core.view.ViewCompat.onApplyWindowInsets(v, insets)
         }
@@ -79,7 +82,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(nav, PendingSharedUrl.value) {
                         PendingSharedUrl.value?.let { url ->
                             PendingSharedUrl.value = null
-                            nav.openDetail(url)
+                            nav.openSharedUrl(url)
                         }
                     }
                     AppShell(nav)
