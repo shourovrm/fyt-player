@@ -51,3 +51,45 @@ class NewPipeYoutubeSourceTest {
         assertFalse(isUpcoming(null, now))
     }
 }
+
+/** The channel-search handler seam: the fork's extractor reads the query off the handler's
+ *  ORIGINAL url, so the url [NewPipeYoutubeSource.searchChannel] feeds it must round-trip. Pure
+ *  (link-handler factories never touch the network). */
+class NewPipeChannelSearchHandlerTest {
+    @Test
+    fun searchUrlYieldsSearchTabHandlerThatKeepsTheQuery() {
+        val factory = org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeChannelTabLinkHandlerFactory.getInstance()
+        val handler = factory.fromUrl(
+            com.fyiplayer.app.source.youtube.channelSearchUrl("https://www.youtube.com/channel/UCabc123/videos", "cats & dogs"),
+        )
+        assertEquals("channel/UCabc123", handler.id)
+        assertEquals(org.schabi.newpipe.extractor.linkhandler.ChannelTabs.SEARCH, handler.contentFilters.single().name)
+        assertEquals(
+            "cats & dogs",
+            org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeChannelTabLinkHandlerFactory
+                .getSearchQueryFromUrl(handler.originalUrl),
+        )
+    }
+}
+
+class ShortByDurationTest {
+    private fun ref(dur: Int?, short: Boolean = false) = com.fyiplayer.app.core.VideoRef(
+        sourceId = "youtube", pageUrl = "https://y/watch?v=x", remoteId = "x", title = "t",
+        durationSeconds = dur, isShort = short,
+    )
+
+    @Test fun atOrUnderSixtySecondsIsShort() {
+        assertTrue(ref(60).shortByDuration().isShort)
+        assertTrue(ref(17).shortByDuration().isShort)
+    }
+
+    @Test fun overSixtyOrUnknownStaysLongform() {
+        assertFalse(ref(61).shortByDuration().isShort)
+        assertFalse(ref(null).shortByDuration().isShort)
+        assertFalse(ref(0).shortByDuration().isShort)
+    }
+
+    @Test fun realFlagIsNeverCleared() {
+        assertTrue(ref(600, short = true).shortByDuration().isShort)
+    }
+}

@@ -81,7 +81,7 @@ Signed arm64-v8a release APK builds; 203 JVM unit tests green. Compose + Materia
 2026-08-06 wave: NewPipeExtractor v0.26.4 is BOTH tier-0 of the resolver chain AND the YouTube
 VideoSource (`source/newpipe/NewPipeYoutubeSource`, id stays "youtube"): search, channel tabs,
 playlists, detail, comments, seek thumbnails, shorts (providesShorts=true now). yt-dlp keeps
-downloads, searchChannel (delegated — NewPipe has no channel-scoped search) and resolver fallback.
+downloads, channel Courses tab and resolver fallback (searchChannel moved to the fork 2026-08-22).
 Paging via PageToken (JSON-serialized NewPipe Page). List cells now carry real
 views/age/uploader (device-verified). Library gained a Channels tab (subscriptions, multi-select
 unsubscribe) and followed remote playlists (schema v4, `followed_playlists`, merged into the
@@ -239,6 +239,8 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
 
 ## Gotchas
+- Channel search rows carry NO shorts signal from YouTube (plain videoRenderer, /watch, overlay
+  DEFAULT, 16:9 thumb — verified live 2026-08-22); `shortByDuration` (<=60 s) is the only tell.
 
 - Signed-in `tv_downgraded` (TVHTML5) URLs are ciphered and googlevideo 403s them for popular
   videos even with a correct sig/n decode. Never make it the default client again — visionos
@@ -636,3 +638,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   back mismatch + nav bar over shorts-from-Similar, both user-reported, both device-verified.
 - 2026-08-10 | YouTube download options exclude manifests; StreamDownloader refuses them | 1080p
   mapped to the HLS master and saved a .m3u8 as the finished video.
+- 2026-08-22 | channel search via fork ChannelTabs.SEARCH + shorts shelf in channel Search tab | yt-dlp flat JSON had no short flag; fork handler built from full `/search?query=` url (extractor reads query off originalUrl). Shorts flagged by <=60 s heuristic — platform gives none.

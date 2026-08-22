@@ -93,6 +93,10 @@ fun ChannelScreen(
         if (sel is ChannelUiTab.Content && sel.tab == ChannelTab.SHORTS) {
             val index = currentVideos.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
             onOpenShorts(currentVideos, index)
+        } else if (ref.isShort) {
+            // Search-shelf short: pager seeded with the shelf's shorts only, same as Home search.
+            val shorts = partitionShorts(currentVideos).first
+            onOpenShorts(shorts, shorts.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0))
         } else {
             onOpenDetail(ref)
         }
@@ -217,10 +221,12 @@ internal fun SelectableVideoList(
     onTap: (VideoRef) -> Unit,
     onToggle: (VideoRef) -> Unit,
     modifier: Modifier = Modifier,
+    topContent: (@Composable () -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     ResultsListColumn(
         items = items,
+        topContent = topContent,
         errors = errors,
         hasMore = hasMore,
         onLoadMore = onLoadMore,
@@ -330,10 +336,13 @@ private fun ChannelSearchBody(
                 val errors = state.error?.let {
                     listOf(ErrorRow("Search", it, onRetry = if (state.blocked) null else { { vm.runChannelSearch(listing, vm.searchQuery) } }))
                 } ?: emptyList()
+                // Same shape as global search (HomeScreen): shorts pulled into a shelf above the rows.
+                val (shortsItems, longformItems) = partitionShorts(state.items)
                 SelectableVideoList(
-                    items = state.items, errors = errors, hasMore = state.nextPage != null,
+                    items = longformItems, errors = errors, hasMore = state.nextPage != null,
                     isLoadingMore = state.loading && state.items.isNotEmpty(), onLoadMore = { vm.loadMoreSearch(listing) },
                     selecting = selecting, onTap = onTap, onToggle = onToggle, modifier = Modifier.fillMaxSize(),
+                    topContent = if (shortsItems.isEmpty()) null else { { ShortsShelf(shortsItems, onClick = onTap) } },
                 )
             }
         }

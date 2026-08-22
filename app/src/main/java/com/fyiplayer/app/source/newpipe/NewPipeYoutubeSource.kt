@@ -14,6 +14,7 @@ import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
 import com.fyiplayer.app.source.youtube.YoutubeSource
+import com.fyiplayer.app.source.youtube.channelSearchUrl
 import java.net.URI
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -56,8 +57,8 @@ private val HOSTS = setOf("youtube.com", "m.youtube.com", "www.youtube.com", "mu
  * [id] stays `"youtube"`: subscriptions/history/likes rows and every persisted [VideoRef.pageUrl]
  * carry that sourceId and must keep resolving unchanged.
  *
- * [YoutubeSource] is kept as a private delegate for the one call NewPipeExtractor has no API for
- * -- channel-scoped search ([searchChannel]) -- and remains, independently, the download engine.
+ * [YoutubeSource] is kept as a private delegate for the channel Courses tab (no NewPipe tab for
+ * it) and remains, independently, the download engine.
  */
 class NewPipeYoutubeSource(
     // ponytail: a second OkHttpClient, distinct from FyiApp's NewPipeResolver client. Harmless:
@@ -150,9 +151,24 @@ class NewPipeYoutubeSource(
         }
     }
 
-    // NewPipeExtractor has no channel-scoped search API at all -- yt-dlp stays the only path.
+    // The PipePipe fork has a SEARCH channel tab (upstream NewPipe does not): the extractor reads
+    // the query off the handler's ORIGINAL url, so the handler must be built from the full
+    // `<channel>/search?query=` url -- fromQuery would lose it. Rides the same StreamInfoItem mapper
+    // as global search, so isShort/isLive land the same way (yt-dlp's flat JSON carries no short flag).
     override suspend fun searchChannel(channelUrl: String, query: String, page: String?): SearchPage =
-        delegate.searchChannel(channelUrl, query, page)
+        withContext(Dispatchers.IO) {
+            NewPipeInit.ensure(client)
+            guarded {
+                val handler = ServiceList.YouTube.channelTabLHFactory.fromUrl(channelSearchUrl(channelUrl, query))
+                if (page == null) {
+                    val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
+                    SearchPage(items = info.relatedItems.mapNotNull { it.toStreamVideoRef()?.shortByDuration() }, nextPage = info.nextPage.tokenOrNull())
+                } else {
+                    val more = ChannelTabInfo.getMoreItems(ServiceList.YouTube, handler, page.toPage())
+                    SearchPage(items = more.items.mapNotNull { it.toStreamVideoRef()?.shortByDuration() }, nextPage = more.nextPage.tokenOrNull())
+                }
+            }
+        }
 
     override suspend fun detail(ref: VideoRef): VideoDetail = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
@@ -307,6 +323,15 @@ private fun InfoItem.toSearchVideoRef(): VideoRef? = when (this) {
 }
 
 private fun InfoItem.toStreamVideoRef(): VideoRef? = (this as? StreamInfoItem)?.toVideoRef()
+
+/** Channel-search rows carry NO shorts signal from the platform (verified live 2026-08-22: every
+ *  hit is a plain `videoRenderer`, `/watch` url, `WEB_PAGE_TYPE_WATCH`, overlay style DEFAULT,
+ *  16:9 thumbnail) -- duration is the only field that separates them. Channel-search only; every
+ *  other listing keeps the fork's real flag.
+ *  ponytail: <=60s heuristic. Shorts may run to 3 min now; widen if users hit 1-3 min shorts. */
+internal const val SHORT_MAX_SECONDS = 60
+internal fun VideoRef.shortByDuration(): VideoRef =
+    if (!isShort && durationSeconds?.let { it in 1..SHORT_MAX_SECONDS } == true) copy(isShort = true) else this
 
 /** [YoutubeSource]'s convention, kept exactly: remoteId is the bare video id, pageUrl is always
  *  the canonical watch URL -- never NewPipe's raw item.url, which can be a /shorts/ path. */
