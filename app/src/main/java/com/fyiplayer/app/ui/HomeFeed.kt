@@ -140,7 +140,8 @@ internal fun applyUnsupported(current: TabResult): TabResult =
  * fetch actually failed is a claim we have no evidence for.
  */
 internal sealed interface ChannelFetchOutcome {
-    data class Ok(val items: List<VideoRef>) : ChannelFetchOutcome
+    /** [nextPage]: the tab's continuation token, kept by feeds that page (Shorts); Home ignores it. */
+    data class Ok(val items: List<VideoRef>, val nextPage: String? = null) : ChannelFetchOutcome
     object NoContent : ChannelFetchOutcome
     object Failed : ChannelFetchOutcome
 }
