@@ -126,5 +126,8 @@ or a signed stream URL.
 
 ## License
 
-Not yet chosen. Note that PipePipeExtractor and NewPipeExtractor are GPL-3.0, which constrains
-what this project can be licensed under.
+The source in this repository is [MIT](LICENSE). Do what you like with it.
+
+The release APK also contains [PipePipeExtractor](https://github.com/InfinityLoop1308/PipePipeExtractor)
+(GPL-3.0) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), so the built app as a whole
+is distributed under the terms of the GPL-3.0.

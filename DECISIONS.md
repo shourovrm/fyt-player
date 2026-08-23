@@ -681,3 +681,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-23 | v0.2.6: FullscreenChrome release decided on key, not re-read state | onDispose saw fullscreen=false after exit, claim leaked (nav bar gone, page under status bar)
 2026-08-23 | v0.2.7: pager follow-effect reads live PlaybackSession.state, not keyed snapshot | stale index (Detail 0 / prior pager page) scrolled pager + JUMPed playback to wrong short on shelf tap
 2026-08-23 | v0.2.8: rename to FYT Player is label-only, applicationId unchanged | new applicationId = new app, no in-place update, library/settings/downloads lost
+2026-08-23 | LICENSE: MIT for this repo, APK effectively GPL-3.0 via PipePipeExtractor | user choice; README states both
