@@ -2,6 +2,10 @@
 
 ## Current state
 
+2026-08-23 (v0.2.8): app renamed to "FYT Player" -- launcher label, backup copy/filename, docs,
+rootProject.name only. applicationId stays `com.fyiplayer.app` (a new id = a new app on Android,
+no in-place update, all local data lost). README.md added; repo public at github.com/shourovrm/fyt-player.
+
 2026-08-23 (v0.2.7): shorts shelf tap opens the TAPPED clip (device-verified: Detail Similar
 shelf card 3 -> card 3 plays, swipe -> card 4). ShortsPager's playback->pager follow effect
 reads the LIVE session index + checks the queue is this feed; the `collectAsState` snapshot
@@ -676,3 +680,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-22 | v0.2.5 | share/play Facebook & TikTok, landscape border fix
 2026-08-23 | v0.2.6: FullscreenChrome release decided on key, not re-read state | onDispose saw fullscreen=false after exit, claim leaked (nav bar gone, page under status bar)
 2026-08-23 | v0.2.7: pager follow-effect reads live PlaybackSession.state, not keyed snapshot | stale index (Detail 0 / prior pager page) scrolled pager + JUMPed playback to wrong short on shelf tap
+2026-08-23 | v0.2.8: rename to FYT Player is label-only, applicationId unchanged | new applicationId = new app, no in-place update, library/settings/downloads lost

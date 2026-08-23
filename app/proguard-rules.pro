@@ -1,4 +1,4 @@
-# FYI Player release ProGuard/R8 rules
+# FYT Player release ProGuard/R8 rules
 #
 # Strategy: CONSERVATIVE for anything dynamic. Third-party libraries that ship
 # consumer rules (Media3, OkHttp, Coil, Compose, Room) rely on those rules.

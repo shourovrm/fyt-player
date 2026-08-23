@@ -71,7 +71,7 @@ fun BackupSettings() {
 
     SettingsSection("Backup") {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            TextButton(onClick = { exportLauncher.launch("fyi-player-backup.html") }) { Text("Export library") }
+            TextButton(onClick = { exportLauncher.launch("fyt-player-backup.html") }) { Text("Export library") }
             TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Text("Import library") }
         }
         status?.let {
