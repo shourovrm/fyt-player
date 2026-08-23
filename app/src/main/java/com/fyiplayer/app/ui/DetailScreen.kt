@@ -109,9 +109,13 @@ fun DetailScreen(
     // AppScaffold reads this to drop the nav bar and its inset padding for exactly as long as
     // fullscreen lasts — restored on every exit path, including this composable leaving
     // composition outright (e.g. navigating away without explicitly toggling back first).
+    // Decide on the key, never re-read `fullscreen` inside onDispose: by the time the old effect
+    // disposes the state already reads false, so a guard there skipped the release and the claim
+    // leaked (nav bar gone + page under the status bar on every route after a fullscreen exit).
     DisposableEffect(fullscreen) {
-        if (fullscreen) FullscreenChrome.acquire()
-        onDispose { if (fullscreen) FullscreenChrome.release() }
+        if (!fullscreen) return@DisposableEffect onDispose {}
+        FullscreenChrome.acquire()
+        onDispose { FullscreenChrome.release() }
     }
 
     // Being on a watch page means "this page's video plays": on every entry -- fresh open OR
