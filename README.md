@@ -53,8 +53,9 @@ TLS stack or reconstruct signatures. That line is what keeps it a client rather 
 
 Requires Android 8.0 or newer on a 64-bit ARM device (almost every phone since 2017).
 
-1. Download `fyt-player-<version>-arm64-release.apk` from the
-   [Releases](https://github.com/shourovrm/fyt-player/releases) page.
+1. Download the APK:
+   **[fyt-player.apk (latest release)](https://github.com/shourovrm/fyt-player/releases/latest/download/fyt-player.apk)**
+   — or pick a specific version on the [Releases](https://github.com/shourovrm/fyt-player/releases) page.
 2. Open it on the phone and allow installs from that source if asked.
 3. Updates install over the previous version; your library, settings and downloads are kept.
 
