@@ -69,6 +69,7 @@ class ChainResolver(
     @Synchronized
     override fun invalidate(pageUrl: String) {
         cache.remove(pageUrl)
+        tier0?.invalidate(pageUrl) // also drops NewPipeResolver's shared StreamInfo entry
     }
 
     override suspend fun resolve(ref: VideoRef): Resolved {

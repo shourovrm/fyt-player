@@ -234,20 +234,25 @@ fun PlayerScreen(
                                 showVolumeHud = true
                                 setStreamVolumePercent(context, volumePercent)
                             },
+                            // .value, not collectAsState: these fire from a gesture callback, not
+                            // composition, so a plain read gets the freshest position without
+                            // subscribing this whole screen to the 500ms tick (CLAUDE.md perf task).
                             onSeekDrag = { deltaPx ->
                                 val deltaMs = (deltaPx * 200).toLong()
-                                val base = seekPreviewMs ?: state.positionMs
-                                seekPreviewMs = (base + deltaMs).coerceIn(0L, state.durationMs.coerceAtLeast(1L))
+                                val progressNow = PlaybackSession.progress.value
+                                val base = seekPreviewMs ?: progressNow.positionMs
+                                seekPreviewMs = (base + deltaMs).coerceIn(0L, progressNow.durationMs.coerceAtLeast(1L))
                             },
                             onSeekDragEnd = {
                                 seekPreviewMs?.let { PlaybackSession.seekTo(it) }
                                 seekPreviewMs = null
                             },
                             onDoubleTapSeek = { total, isBurstStart ->
-                                if (isBurstStart) seekBurstBaseMs = state.positionMs
+                                val progressNow = PlaybackSession.progress.value
+                                if (isBurstStart) seekBurstBaseMs = progressNow.positionMs
                                 fastSeekTotal = total
                                 fastSeekToken++
-                                val target = (seekBurstBaseMs + total * 1000L).coerceIn(0L, state.durationMs.coerceAtLeast(1L))
+                                val target = (seekBurstBaseMs + total * 1000L).coerceIn(0L, progressNow.durationMs.coerceAtLeast(1L))
                                 PlaybackSession.seekTo(target)
                             },
                             onSingleTap = {
@@ -268,7 +273,10 @@ fun PlayerScreen(
                     GestureHud(volumePercent, isBrightness = false, modifier = Modifier.align(Alignment.CenterEnd).padding(24.dp))
                 }
                 seekPreviewMs?.let {
-                    SeekPreviewHud(formatPosition(it, state.durationMs), modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp))
+                    SeekPreviewHud(
+                        formatPosition(it, PlaybackSession.progress.value.durationMs),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp),
+                    )
                 }
                 fastSeekTotal?.let { total ->
                     val side = if (total >= 0) Alignment.CenterEnd else Alignment.CenterStart
@@ -305,13 +313,11 @@ fun PlayerScreen(
                         modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
                     )
                     ControlBar(
-                        state = state,
                         seekThumbs = seekThumbs,
                         fullscreen = fullscreen,
                         onToggleFullscreen = { interact(); onToggleFullscreen() },
                         captionsAvailable = state.availableCaptions.isNotEmpty(),
                         onOpenCaptions = { interact(); showCaptionSheet = true },
-                        canPreviewGrid = seekThumbs != null && state.durationMs > 0,
                         onOpenPreviewGrid = { interact(); showJumpGrid = true },
                         onScrubbingChange = { scrubbing = it },
                         modifier = Modifier.align(Alignment.BottomStart),
@@ -343,10 +349,11 @@ fun PlayerScreen(
                 }
                 val thumbs = seekThumbs
                 if (showJumpGrid && thumbs != null) {
+                    val progressNow = PlaybackSession.progress.value
                     JumpGridSheet(
                         seekThumbs = thumbs,
-                        durationSeconds = state.durationMs / 1000.0,
-                        positionSeconds = state.positionMs / 1000.0,
+                        durationSeconds = progressNow.durationMs / 1000.0,
+                        positionSeconds = progressNow.positionMs / 1000.0,
                         onJump = { seconds -> PlaybackSession.seekTo((seconds * 1000).toLong()); showJumpGrid = false },
                         onDismiss = { showJumpGrid = false },
                     )

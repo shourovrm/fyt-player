@@ -91,10 +91,28 @@ class FyiApp : Application() {
 
         // Local sig/n decoder: without it every ciphered-signature video depends on the remote
         // api.pipepipe.dev decoder, which this device's network cannot always resolve -- an
-        // undecoded sig/n is a guaranteed googlevideo 403. Warm the player metadata off-main.
+        // undecoded sig/n is a guaranteed googlevideo 403. Full prewarm (player fetch + WebView
+        // create + upload + compile) 1s after first resume, off the main thread, so it never
+        // competes with first-frame rendering and the first ciphered video pays nothing for it.
         val jsDecoder = WebViewJsDecoder(this, newPipeHttpClient)
         org.schabi.newpipe.extractor.services.youtube.YoutubeApiDecoder.setLocalDecoder(jsDecoder)
-        appScope.launch { runCatching { jsDecoder.getPlayerData("") } }
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            private var scheduled = false
+            override fun onActivityResumed(activity: android.app.Activity) {
+                if (scheduled) return
+                scheduled = true
+                unregisterActivityLifecycleCallbacks(this)
+                activity.window.decorView.postDelayed({
+                    appScope.launch(Dispatchers.IO) { runCatching { jsDecoder.prewarm() } }
+                }, 1_000)
+            }
+            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {}
+            override fun onActivityStarted(a: android.app.Activity) {}
+            override fun onActivityPaused(a: android.app.Activity) {}
+            override fun onActivityStopped(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {}
+        })
 
         YoutubeAuth.init(this)
         PlaybackSession.init(

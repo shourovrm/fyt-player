@@ -23,13 +23,13 @@ object FormatSelector {
     private fun MediaFormat.fitsCeiling(ceiling: Int) = height == null || height <= ceiling
 
     private fun bestVideoOnly(formats: List<MediaFormat>, ceiling: Int) =
-        formats.filter { it.isVideoOnly && it.fitsCeiling(ceiling) }.maxByOrNull { it.height ?: 0 }
+        formats.filter { it.isVideoOnly && !it.isManifest() && it.fitsCeiling(ceiling) }.maxByOrNull { it.height ?: 0 }
 
     private fun bestAudioOnly(formats: List<MediaFormat>) =
         formats.filter { it.isAudioOnly }.maxByOrNull { it.bitrate ?: 0 }
 
     private fun bestMuxed(formats: List<MediaFormat>, ceiling: Int) =
-        formats.filter { it.isMuxed && it.fitsCeiling(ceiling) }.maxByOrNull { it.height ?: 0 }
+        formats.filter { it.isMuxed && !it.isManifest() && it.fitsCeiling(ceiling) }.maxByOrNull { it.height ?: 0 }
 
     private fun bestManifest(formats: List<MediaFormat>, ceiling: Int) =
         formats.filter { it.isManifest() && it.fitsCeiling(ceiling) }.maxByOrNull { it.height ?: 0 }
@@ -41,13 +41,16 @@ object FormatSelector {
             return SelectionResult(FormatSelection.Single(audio))
         }
 
-        // A manifest carries its own adaptive ladder; ExoPlayer's own track selection inside it
-        // beats us hand-pairing two progressive streams, so it wins outright when it fits.
-        bestManifest(formats, maxHeight)?.let { return SelectionResult(FormatSelection.Single(it)) }
-
         val video = bestVideoOnly(formats, maxHeight)
         val audio = bestAudioOnly(formats)
         val muxed = bestMuxed(formats, maxHeight)
+        // Progressive first, manifest only as the fallback (live streams, HLS-only sources). An
+        // HLS start costs master + variant playlist round trips before the first media byte and
+        // bypasses ChunkedRangeDataSource; device-measured 2026-08-23: tap-to-audio 4.5s -> 3.2s
+        // cold, 3.5s -> 2.2s warm. Fixed quality under the user's cap, same as PipePipe.
+        if ((video == null || audio == null) && muxed == null) {
+            bestManifest(formats, maxHeight)?.let { return SelectionResult(FormatSelection.Single(it)) }
+        }
 
         val pairedHeight = if (video != null && audio != null) video.height ?: 0 else -1
         // A muxed stream with no published height (Facebook sd/hd) is still a stream: absent

@@ -238,8 +238,6 @@ internal fun ShortsPage(
 
         if (isActive) {
             ShortsSeekBar(
-                positionMs = playerState.positionMs,
-                durationMs = playerState.durationMs,
                 onScrub = { active, ms -> scrubbing = active; scrubMs = ms },
                 // FullscreenChrome makes this Box full-bleed (ShortsScreen.kt) -- nothing else
                 // consumes the nav-bar inset, so without windowInsetsPadding here the bar sat
@@ -261,7 +259,10 @@ internal fun ShortsPage(
             // both the seekbar band and a 2-line title + uploader + Details pill, same
             // eyeballed-padding approach the rest of this page already uses.
             val barWidth = maxWidth - 4.dp
-            val fraction = shortsProgressFraction(scrubMs, playerState.durationMs)
+            // .value, not collectAsState: a non-reactive snapshot read, so this whole page (not
+            // just the seek bar) doesn't recompose on every 500ms tick just to redraw the preview
+            // card's x-position, which only matters while the finger is already down.
+            val fraction = shortsProgressFraction(scrubMs, PlaybackSession.progress.value.durationMs)
             val thumbX = 2.dp + barWidth * fraction
             val previewX = (thumbX - ShortsSeekPreviewWidth / 2).coerceIn(0.dp, maxWidth - ShortsSeekPreviewWidth)
             SeekThumbnailPreview(
@@ -364,19 +365,21 @@ private fun RailButton(onClick: () -> Unit, content: @Composable () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ShortsSeekBar(
-    positionMs: Long,
-    durationMs: Long,
     onScrub: (isScrubbing: Boolean, positionMs: Long) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
+    // Collected HERE, not passed down from ShortsPage/ShortsPager -- only this bar (the active
+    // page's own) needs the 500ms tick; keeping it local means the tick never touches ShortsPage
+    // or the pager (CLAUDE.md perf task).
+    val progress by PlaybackSession.progress.collectAsState()
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValueMs by remember { mutableStateOf(0L) }
-    val shownMs = if (isScrubbing) scrubValueMs else positionMs
-    val fraction = shortsProgressFraction(shownMs, durationMs)
+    val shownMs = if (isScrubbing) scrubValueMs else progress.positionMs
+    val fraction = shortsProgressFraction(shownMs, progress.durationMs)
 
     Slider(
         value = shownMs.toFloat(),
-        valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+        valueRange = 0f..progress.durationMs.coerceAtLeast(1L).toFloat(),
         onValueChange = { value ->
             isScrubbing = true
             scrubValueMs = value.toLong()

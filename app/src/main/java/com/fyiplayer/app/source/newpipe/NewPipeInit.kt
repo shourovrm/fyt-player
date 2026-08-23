@@ -1,5 +1,7 @@
 package com.fyiplayer.app.source.newpipe
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.localization.ContentCountry
@@ -53,11 +55,15 @@ internal object NewPipeInit {
         NewPipe.setYoutubePlayerClient("visionos")
     }
 
+    // Guards withSignedInPlayerClient; suspend, unlike the `synchronized` it replaced, since the
+    // block now awaits StreamInfoCache.get (a suspend fetch), not a bare blocking call.
+    private val playerClientLock = Mutex()
+
     /** Runs [block] with the signed-in TVHTML5 player client, restoring visionos after. Only
      *  worth calling when a session exists -- anonymous tv_downgraded gains nothing. The client
      *  field is process-global in the fork, so this serializes on this object to keep a parallel
      *  prefetch resolve from riding the swapped client. */
-    fun <T> withSignedInPlayerClient(block: () -> T): T = synchronized(this) {
+    suspend fun <T> withSignedInPlayerClient(block: suspend () -> T): T = playerClientLock.withLock {
         NewPipe.setYoutubePlayerClient("tv_downgraded")
         try {
             block()

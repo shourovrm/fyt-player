@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,17 +53,20 @@ import com.fyiplayer.app.core.SeekThumbnails
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ControlBar(
-    state: PlayerState,
     seekThumbs: SeekThumbnails?,
     fullscreen: Boolean,
     onToggleFullscreen: () -> Unit,
     captionsAvailable: Boolean,
     onOpenCaptions: () -> Unit,
-    canPreviewGrid: Boolean,
     onOpenPreviewGrid: () -> Unit,
     onScrubbingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // Collected HERE, not by the caller (PlayerScreen) -- this is the one 500ms-ticking read in
+    // the whole player screen; keeping it local to the seek bar means the tick recomposes just
+    // this Column, not the entire player chrome tree (CLAUDE.md perf task).
+    val progress by PlaybackSession.progress.collectAsState()
+    val canPreviewGrid = seekThumbs != null && progress.durationMs > 0
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -72,8 +76,8 @@ internal fun ControlBar(
         var sliderWidthPx by remember { mutableStateOf(0) }
         var isScrubbing by remember { mutableStateOf(false) }
         var scrubValueMs by remember { mutableStateOf(0L) }
-        val shownMs = if (isScrubbing) scrubValueMs else state.positionMs
-        val durationMs = state.durationMs.coerceAtLeast(1L)
+        val shownMs = if (isScrubbing) scrubValueMs else progress.positionMs
+        val durationMs = progress.durationMs.coerceAtLeast(1L)
         val fraction = (shownMs.toFloat() / durationMs).coerceIn(0f, 1f)
 
         // Height pinned to the slider's own 40dp -- NOT left to wrap its children. The preview
@@ -154,7 +158,7 @@ internal fun ControlBar(
                     .coerceIn(0, (sliderWidthPx - previewWidthPx).coerceAtLeast(0))
                 SeekThumbnailPreview(
                     image = seekThumbs?.imageFor(scrubValueMs / 1000.0),
-                    timestampText = formatPosition(scrubValueMs, state.durationMs),
+                    timestampText = formatPosition(scrubValueMs, progress.durationMs),
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .offset { IntOffset(xPx, -(previewHeightPx + gapPx)) }
@@ -164,7 +168,7 @@ internal fun ControlBar(
         }
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(formatPosition(state.positionMs, state.durationMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
+            Text(formatPosition(progress.positionMs, progress.durationMs), color = Color.White, style = MaterialTheme.typography.labelSmall)
             Box(modifier = Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onOpenPreviewGrid, enabled = canPreviewGrid, modifier = Modifier.size(32.dp)) {

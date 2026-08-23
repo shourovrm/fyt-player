@@ -15,6 +15,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import android.os.Looper
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
@@ -54,8 +55,6 @@ data class PlayerState(
     val queue: List<VideoRef> = emptyList(),
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
-    val positionMs: Long = 0,
-    val durationMs: Long = 0,
     val error: ExtractionError? = null,
     val selectedHeight: Int? = null,
     val availableHeights: List<Int> = emptyList(),
@@ -70,6 +69,17 @@ data class PlayerState(
     // this once known, instead of forcing landscape on a portrait video (see applyAspectOrientation).
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
+)
+
+/** Position/duration only, ticked every 500ms by [PlaybackSession.tickPosition] -- split out of
+ *  [PlayerState] because folding these into it made every state.collectAsState() reader (mini
+ *  player, queue bar, the whole PlayerScreen, the shorts pager and every page it hands PlayerState
+ *  to) recompose twice a second even when it shows none of this. Only the narrow progress-bar /
+ *  elapsed-time composables should collect [PlaybackSession.progress]; [PlayerState] now changes
+ *  on real events only (item change, play/pause, queue edits, speed...). */
+data class PlaybackProgress(
+    val positionMs: Long = 0,
+    val durationMs: Long = 0,
 )
 
 /**
@@ -117,6 +127,9 @@ object PlaybackSession {
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
+
+    private val _progress = MutableStateFlow(PlaybackProgress())
+    val progress: StateFlow<PlaybackProgress> = _progress.asStateFlow()
 
     val exoPlayer: ExoPlayer get() = player
 
@@ -166,6 +179,7 @@ object PlaybackSession {
         this.loadPosition = loadPosition
         this.savePosition = savePosition
         appContext = context.applicationContext
+        MediaItemFactory.init(appContext)
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         // Sideloaded captions ride SingleSampleMediaSource, which hands the renderer RAW subtitle
         // samples — media3's "legacy decoding" path, disabled by default since 1.4. Without this
@@ -203,7 +217,19 @@ object PlaybackSession {
                     .forEach { it.experimentalSetLegacyDecodingEnabled(true) }
             }
         }
-        player = ExoPlayer.Builder(appContext, renderersFactory).build().apply {
+        // Default LoadControl targets 2.5s-to-first-frame / 50s max buffer, tuned for on-device
+        // local files. Shortened min/max (12s/20s) trades some rebuffer resilience for faster
+        // start on a network stream; matches what PipePipe ships for the same reason.
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 12_000,
+                /* maxBufferMs = */ 20_000,
+                /* bufferForPlaybackMs = */ 2_000,
+                /* bufferForPlaybackAfterRebufferMs = */ 3_000,
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+        player = ExoPlayer.Builder(appContext, renderersFactory).setLoadControl(loadControl).build().apply {
             // audio focus and becoming-noisy belong on the player, not the media session
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -277,6 +303,7 @@ object PlaybackSession {
             index = index, queueSize = queue.size, queue = queue,
             isPlaying = player.isPlaying, speed = player.playbackParameters.speed,
         )
+        _progress.value = PlaybackProgress()
         startAt(index)
     }
 
@@ -404,13 +431,15 @@ object PlaybackSession {
     /** Recovers the current item: re-resolves and re-prepares in place, same machinery as the
      *  expired-URL path above and [onPlayerError]'s auto re-resolve, just triggered manually --
      *  the Retry action on an error state, or [togglePlayPause] finding the player dead. Position
-     *  is read from [PlayerState.positionMs] rather than the player: a failed resolve already
-     *  cleared the player's own source (see [resolveItem]'s catch blocks), so the player's own
-     *  [ExoPlayer.getCurrentPosition] can no longer be trusted for where playback actually was. */
+     *  is read from [progress] rather than the player: a failed resolve already cleared the
+     *  player's own source (see [resolveItem]'s catch blocks), so the player's own
+     *  [ExoPlayer.getCurrentPosition] can no longer be trusted for where playback actually was --
+     *  [tickPosition] stops writing [progress] the moment the error path cancels [tickerJob], so
+     *  its last value is exactly the frozen resume point. */
     fun retryCurrent() {
         ensureInit()
         val ref = queue.getOrNull(index) ?: return
-        val resumeAt = _state.value.positionMs
+        val resumeAt = _progress.value.positionMs
         resolver.invalidate(ref.pageUrl) // resolver may have cached the dead/stale result
         _state.update { it.copy(error = null) }
         startAt(index, resumeAtMs = resumeAt)
@@ -537,6 +566,7 @@ object PlaybackSession {
         player.stop()
         player.clearMediaItems()
         _state.value = PlayerState()
+        _progress.value = PlaybackProgress()
         // nothing left to play: drop the notification/session instead of leaving a stale one up
         appContext.stopService(Intent(appContext, PlaybackService::class.java))
     }
@@ -749,9 +779,7 @@ object PlaybackSession {
             var ticks = 0
             while (isActive) {
                 val position = player.currentPosition.coerceAtLeast(0)
-                _state.update {
-                    it.copy(positionMs = position, durationMs = player.duration.coerceAtLeast(0))
-                }
+                _progress.value = PlaybackProgress(position, player.duration.coerceAtLeast(0))
                 if (player.isPlaying) checkSponsorSkip(position)
                 if (++ticks % 10 == 0) persistPosition() // every ~5s while playing
                 delay(500)

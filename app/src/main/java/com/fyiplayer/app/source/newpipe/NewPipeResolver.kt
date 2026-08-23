@@ -13,7 +13,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.MediaFormat as NpMediaFormat
-import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -43,7 +42,7 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
     override suspend fun resolve(ref: VideoRef): Resolved = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
         val info = try {
-            StreamInfo.getInfo(ServiceList.YouTube, ref.pageUrl)
+            StreamInfoCache.get(ref.pageUrl)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -53,8 +52,11 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
             // TVHTML5 URLs are ciphered and googlevideo 403s them for popular videos.
             if (mapped is ExtractionError.AccessChallenge && YoutubeAuth.cookieHeader() != null) {
                 try {
+                    // force=true: the cached entry (if any) is the anonymous fetch that just hit
+                    // the wall -- refetch and replace it so detail()/seekThumbnails() see the
+                    // signed-in result too, not the stale walled one.
                     val retried = NewPipeInit.withSignedInPlayerClient {
-                        StreamInfo.getInfo(ServiceList.YouTube, ref.pageUrl)
+                        StreamInfoCache.get(ref.pageUrl, force = true)
                     }
                     return@withContext toResolved(ref, retried)
                 } catch (e2: CancellationException) {
@@ -66,6 +68,12 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
             throw mapped
         }
         toResolved(ref, info)
+    }
+
+    /** Drops the shared StreamInfo entry too -- a stale one would re-feed the same expired URL to
+     *  detail()/seekThumbnails() even after the resolve cache above forgot it. */
+    override fun invalidate(pageUrl: String) {
+        StreamInfoCache.invalidate(pageUrl)
     }
 }
 

@@ -2,6 +2,23 @@
 
 ## Current state
 
+2026-08-23 (v0.2.9) PERF wave, device-measured tap-to-first-audio (same 3 videos, same network):
+before 4.5s cold / 3.1-3.7s warm; after 2.6-3.2s cold / 1.9-2.9s warm; PipePipe 2.9 / 1.7-2.0.
+What landed: (1) ONE StreamInfo fetch per video (`source/newpipe/StreamInfoCache.kt`, in-flight
+dedup + 60min TTL, fetch runs on its own scope so a cancelled Detail effect can't fail the
+playback resolve awaiting it; `ChainResolver.invalidate` -> `tier0.invalidate` clears it; age-wall
+retry forces refresh). (2) `DefaultLoadControl` 12s/20s/2s/3s (PipePipe values). (3)
+`ChunkedRangeDataSource` first window doubles as the probe (reads Content-Range), a `range=`
+refusal falls through to passthrough like the old probe did. (4) position/duration split out of
+`PlayerState` into `PlaybackSession.progress` -- only progress bars collect it, the 500ms tick no
+longer recomposes MiniPlayer/QueueBar/PlayerScreen/ShortsPager. (5) `WebViewJsDecoder.prewarm()`
+1s after first resume: WebView + player upload + compile off the play path (1.7s measured). (6)
+64MB `SimpleCache` (`player/MediaCache.kt`) outside the chunked source; keys are `yt|id|itag|lmt`
+or sha256(url) -- never a raw signed URL on disk. (7) BIGGEST single win: `FormatSelector` now
+prefers a progressive video+audio pair over the HLS manifest (manifest = fallback for live/HLS-
+only). HLS cost two playlist round trips before the first byte and bypassed range chunking.
+Non-YouTube (FB/TikTok/X): verified one yt-dlp run per open already; 2/4/6 apply to them as-is.
+
 2026-08-23 (v0.2.8): app renamed to "FYT Player" -- launcher label, backup copy/filename, docs,
 rootProject.name only. applicationId stays `com.fyiplayer.app` (a new id = a new app on Android,
 no in-place update, all local data lost). README.md added; repo public at github.com/shourovrm/fyt-player.
@@ -682,3 +699,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-23 | v0.2.7: pager follow-effect reads live PlaybackSession.state, not keyed snapshot | stale index (Detail 0 / prior pager page) scrolled pager + JUMPed playback to wrong short on shelf tap
 2026-08-23 | v0.2.8: rename to FYT Player is label-only, applicationId unchanged | new applicationId = new app, no in-place update, library/settings/downloads lost
 2026-08-23 | LICENSE: MIT for this repo, APK effectively GPL-3.0 via PipePipeExtractor | user choice; README states both
+2026-08-23 | v0.2.9 perf wave: single StreamInfo fetch, LoadControl 2s, probe folded into first window, progress StateFlow split, decoder prewarm, 64MB media cache | measured ~1.5-2s slower than PipePipe per start; three concurrent StreamInfo fetches + HLS were the bulk
+2026-08-23 | FormatSelector: progressive pair beats HLS manifest; manifest only as fallback | HLS start = master+variant playlist RTTs before first byte and no range chunking; 4.5s->3.2s cold measured
+2026-08-23 | Media disk cache keys: yt|id|itag|lmt for googlevideo, sha256(url) otherwise | SimpleCache index persists keys; a raw signed URL on disk would break the persist-canonical-only rule
