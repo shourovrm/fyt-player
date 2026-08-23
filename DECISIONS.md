@@ -2,6 +2,11 @@
 
 ## Current state
 
+2026-08-23 (v0.2.7): shorts shelf tap opens the TAPPED clip (device-verified: Detail Similar
+shelf card 3 -> card 3 plays, swipe -> card 4). ShortsPager's playback->pager follow effect
+reads the LIVE session index + checks the queue is this feed; the `collectAsState` snapshot
+it is keyed on is one composition stale and carried the previous queue's index.
+
 2026-08-23 (v0.2.6): FullscreenChrome claim leak FIXED (device-verified: Detail fullscreen ->
 back -> back to Home keeps nav bar + status-bar padding). Any Compose `onDispose` must decide
 on the effect KEY, never re-read the state it is keyed on -- by dispose time it already holds
@@ -670,3 +675,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-22 | share-with plays FB (Detail) + TikTok (shorts pager); cookie header + muxed-unknown-codec fixes; cutout inset consumed | FB public videos + TikTok routing device-verified; TikTok playback blocked by upstream IP rate-limit, honest error.
 - 2026-08-22 | v0.2.5 | share/play Facebook & TikTok, landscape border fix
 2026-08-23 | v0.2.6: FullscreenChrome release decided on key, not re-read state | onDispose saw fullscreen=false after exit, claim leaked (nav bar gone, page under status bar)
+2026-08-23 | v0.2.7: pager follow-effect reads live PlaybackSession.state, not keyed snapshot | stale index (Detail 0 / prior pager page) scrolled pager + JUMPed playback to wrong short on shelf tap
