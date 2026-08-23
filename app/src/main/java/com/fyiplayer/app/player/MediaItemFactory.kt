@@ -1,10 +1,12 @@
 package com.fyiplayer.app.player
 
+import android.content.Context
 import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
@@ -28,6 +30,15 @@ object MediaItemFactory {
     // paced to roughly realtime and playback stutters on anything above SD.
     private val httpClient = mediaHttpClient()
 
+    // Set by init(): needed for the disk cache dir. Nullable so a missed init() degrades to no
+    // caching instead of a crash -- caching is an optimization, playback must not depend on it.
+    @Volatile private var appContext: Context? = null
+
+    /** Call once at process startup (before first playback) so media bytes get disk-cached. */
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
+
     // Default policy retries a dead signed URL for ~30-90s (backoff) before onPlayerError ever
     // fires -- that's where PlaybackSession's re-resolve lives. Failing fast on the codes that
     // mean "this URL is dead" (see isExpiredHttpError/EXPIRED_HTTP_CODES) turns that into seconds.
@@ -42,7 +53,18 @@ object MediaItemFactory {
         val http = OkHttpDataSource.Factory(httpClient).setDefaultRequestProperties(headers)
         // googlevideo progressive gets read in bounded windows (see ChunkedRangeDataSource);
         // everything else passes through the wrapper untouched.
-        return DataSource.Factory { ChunkedRangeDataSource(http.createDataSource()) }
+        val chunked = DataSource.Factory { ChunkedRangeDataSource(http.createDataSource()) }
+        val context = appContext ?: return chunked // init() never called: no cache, still plays
+        // Cache sits OUTSIDE ChunkedRangeDataSource: it must see the caller's original DataSpec
+        // (position/length), not one already rewritten with a range= window -- otherwise every
+        // chunk would key/span differently and the cache could never assemble one whole file.
+        return CacheDataSource.Factory()
+            .setCache(MediaCache.get(context))
+            .setCacheKeyFactory(FyiCacheKeyFactory)
+            .setUpstreamDataSourceFactory(chunked)
+            // A dead cache entry (partial/corrupt write) must not block playback -- fall through
+            // to upstream instead of failing the load.
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
     // Feeds the lockscreen/notification (MediaSessionService reads it off the player's current

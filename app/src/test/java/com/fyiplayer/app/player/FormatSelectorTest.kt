@@ -56,16 +56,19 @@ class FormatSelectorTest {
         assertEquals("muxed720", single.format.formatId)
     }
 
-    @Test fun `a suitable manifest format is preferred over hand-pairing`() {
+    @Test fun `a progressive pair is preferred over a manifest, manifest is the fallback`() {
         val formats = listOf(
             fmt("hls", height = 1080, protocol = Protocol.HLS),
             fmt("v1080", height = 1080, video = "avc"),
             fmt("a", audio = "opus", bitrate = 128_000),
             fmt("muxed720", height = 720, video = "avc", audio = "aac"),
         )
-        val result = FormatSelector.select(formats, maxHeight = 1080)
-        val single = result.selection as FormatSelection.Single
-        assertEquals("hls", single.format.formatId)
+        val paired = FormatSelector.select(formats, maxHeight = 1080).selection as FormatSelection.Paired
+        assertEquals("v1080", paired.video.formatId)
+        assertEquals("a", paired.audio.formatId)
+
+        val hlsOnly = FormatSelector.select(listOf(formats[0], formats[2]), maxHeight = 1080).selection as FormatSelection.Single
+        assertEquals("hls", hlsOnly.format.formatId)
     }
 
     @Test fun `a manifest above the ceiling is skipped, not force-fit`() {

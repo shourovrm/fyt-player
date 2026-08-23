@@ -25,13 +25,16 @@ private const val CHUNK_BYTES = 10L * 1024 * 1024
  * position=0/length=UNSET so the upstream HTTP source has no reason to add a Range header.
  *
  * Total size comes from the URL's own `clen` parameter, ExoPlayer's requested span, or -- for
- * query-style URLs only -- a tiny `range=0-0` probe that reads the total from the
- * `Content-Range` response header. visionos progressive URLs often carry no `clen` (see
- * DECISIONS Gotchas), which is exactly the probe's case. HLS SEGMENT URLs must never be probed:
- * googlevideo encodes their params in the PATH (no query string), rejects an appended `range=`
- * query param with HTTP 400, and a probe there would be a wasted round trip on every single
- * segment fetch (seen live) -- hence the query-string gate. A URL where everything fails falls
- * back to one open-ended passthrough request: the old pacing, but never a wrong length.
+ * query-style URLs only -- the FIRST real window's own `Content-Range` response header. There is
+ * no separate probe request: visionos progressive URLs often carry no `clen` (see DECISIONS
+ * Gotchas), so that first window would be sent either way -- reading the total off its response
+ * instead of a throwaway `range=0-0` saves one full round trip before any real byte arrives. If
+ * that response has no usable `Content-Range` (server ignored the range param), chunking is
+ * abandoned and the request is replayed once as an open-ended passthrough -- never a wrong length.
+ *
+ * HLS SEGMENT URLs must never be chunked: googlevideo encodes their params in the PATH (no query
+ * string), and rejects an appended `range=` query param with HTTP 400 (seen live) -- hence the
+ * query-string gate below, checked before any window is opened.
  *
  * Non-/videoplayback URLs (subtitles, other hosts) pass through untouched.
  */
@@ -46,46 +49,46 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
         upstream.addTransferListener(transferListener)
 
     override fun open(dataSpec: DataSpec): Long {
-        val isVideoPlayback = dataSpec.uri.encodedPath?.startsWith("/videoplayback") == true
-        val explicitTotal = if (dataSpec.length != C.LENGTH_UNSET.toLong()) {
-            dataSpec.position + dataSpec.length
-        } else {
-            dataSpec.uri.getQueryParameter("clen")?.toLongOrNull() ?: C.LENGTH_UNSET.toLong()
-        }
-        val probedTotal = if (isVideoPlayback && explicitTotal == C.LENGTH_UNSET.toLong() &&
-            !dataSpec.uri.query.isNullOrEmpty()
-        ) probeTotal(dataSpec) else null
-        val total = resolveChunkTotal(isVideoPlayback, explicitTotal, probedTotal)
-        chunked = total != C.LENGTH_UNSET.toLong()
-        if (!chunked) return upstream.open(dataSpec)
+        if (!isChunkable(dataSpec.uri.encodedPath, dataSpec.uri.query)) return upstream.open(dataSpec)
 
         spec = dataSpec
         position = dataSpec.position
-        endExclusive = total
-        openChunk()
-        return endExclusive - position
-    }
+        val total = explicitTotal(dataSpec.position, dataSpec.length, dataSpec.uri.getQueryParameter("clen"))
 
-    private fun probeTotal(dataSpec: DataSpec): Long? {
+        if (total != C.LENGTH_UNSET.toLong()) {
+            endExclusive = total
+            chunked = true
+            openChunk()
+            return endExclusive - position
+        }
+
+        // Total unknown: the first window itself doubles as the probe -- open it and read the
+        // total off its own Content-Range, no separate range=0-0 request first. Some URL shapes
+        // 400 on a `range=` query (seen live); that failure must fall through to passthrough
+        // exactly like the old probe did, never escape as a player error.
         val opened = try {
-            upstream.open(rangeSpec(dataSpec, 0, 0))
+            upstream.open(rangeSpec(dataSpec, position, position + CHUNK_BYTES - 1))
             true
         } catch (_: Throwable) {
             false
         }
-        return try {
-            if (opened) {
-                upstream.responseHeaders.entries
-                    .firstOrNull { it.key.equals("content-range", ignoreCase = true) }
-                    ?.value?.firstOrNull()
-                    ?.let(::parseContentRange)
-            } else null
-        } finally {
-            if (opened) {
-                try { upstream.close() } catch (_: Throwable) { }
-            }
+        val probedTotal = if (opened) contentRangeTotal() else null
+        if (probedTotal == null) {
+            // Server refused or ignored the range param -- abandon chunking, replay once as a
+            // plain open-ended passthrough rather than ever report a wrong length.
+            if (opened) try { upstream.close() } catch (_: Throwable) { }
+            chunked = false
+            return upstream.open(dataSpec)
         }
+        chunked = true
+        endExclusive = probedTotal
+        return endExclusive - position
     }
+
+    private fun contentRangeTotal(): Long? = upstream.responseHeaders.entries
+        .firstOrNull { it.key.equals("content-range", ignoreCase = true) }
+        ?.value?.firstOrNull()
+        ?.let(::parseContentRange)
 
     /** Opens the next bounded window at [position] via the `range=` param. */
     private fun openChunk(): Long {
@@ -127,6 +130,17 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
     }
 }
 
+/** HLS segment URLs are path-encoded (no query string) -- only query-style /videoplayback URLs
+ *  are ever eligible for range-window chunking; an appended `range=` query 400s on the others. */
+internal fun isChunkable(encodedPath: String?, query: String?): Boolean =
+    encodedPath?.startsWith("/videoplayback") == true && !query.isNullOrEmpty()
+
+/** ExoPlayer's own requested span wins over the URL's `clen` -- both describe the same total,
+ *  and a caller-supplied length is the more authoritative of the two. */
+internal fun explicitTotal(position: Long, length: Long, clenParam: String?): Long =
+    if (length != C.LENGTH_UNSET.toLong()) position + length
+    else clenParam?.toLongOrNull() ?: C.LENGTH_UNSET.toLong()
+
 internal fun parseContentRange(value: String?): Long? {
     if (value == null) return null
     val parts = value.split(" ").filter { it.isNotEmpty() }
@@ -137,11 +151,4 @@ internal fun parseContentRange(value: String?): Long? {
     val totalStr = rangeSpec.substring(slashIndex + 1)
     if (totalStr == "*") return null
     return totalStr.toLongOrNull()
-}
-
-internal fun resolveChunkTotal(isVideoPlayback: Boolean, explicitTotal: Long, probedTotal: Long?): Long {
-    if (!isVideoPlayback) return C.LENGTH_UNSET.toLong()
-    if (explicitTotal != C.LENGTH_UNSET.toLong()) return explicitTotal
-    if (probedTotal != null && probedTotal != C.LENGTH_UNSET.toLong()) return probedTotal
-    return C.LENGTH_UNSET.toLong()
 }

@@ -17,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,10 @@ public final class WebViewJsDecoder implements YoutubeJavaScriptDecoder {
     private String loadedPlayerId;
     private String preparedPlayerId;
     private String preparedPlayerCode;
+    // Set true only after a full decodeBatch round-trip (upload + compile + evaluate)
+    // succeeds; prewarm() is a no-op once this is true so a real decode never redoes work.
+    private boolean solverReady;
+    private boolean prewarming;
 
     public WebViewJsDecoder(final Context context, final OkHttpClient httpClient) {
         this.context = context.getApplicationContext();
@@ -68,6 +73,29 @@ public final class WebViewJsDecoder implements YoutubeJavaScriptDecoder {
         runtime = SharedWebViewRuntime.get(this.context);
         preferences = this.context.getSharedPreferences(
                 PLAYER_CACHE_PREFS, Context.MODE_PRIVATE);
+    }
+
+    /** Runs the whole cold path once at app start -- player metadata fetch, WebView creation,
+     *  player upload and compile -- so the first real ciphered-signature video does not pay for
+     *  it mid-playback. Never throws: a failed prewarm just leaves the first decode to do the
+     *  work itself, same as before this existed. */
+    public synchronized void prewarm() {
+        if (solverReady || prewarming) {
+            return;
+        }
+        prewarming = true;
+        final long start = SystemClock.elapsedRealtime();
+        try {
+            final PlayerData playerData = getPlayerData("");
+            decodeBatch(playerData.getPlayerId(), Collections.emptyList(),
+                    Collections.emptyList());
+            Log.i(TAG, "prewarm=" + (SystemClock.elapsedRealtime() - start) + "ms"
+                    + " player=" + playerData.getPlayerId());
+        } catch (final Exception e) {
+            Log.w(TAG, "Could not prewarm local decoder", e);
+        } finally {
+            prewarming = false;
+        }
     }
 
     @Override
@@ -150,6 +178,7 @@ public final class WebViewJsDecoder implements YoutubeJavaScriptDecoder {
             request.put("requests", requests);
             final long localStart = SystemClock.elapsedRealtime();
             if (!playerId.equals(loadedPlayerId)) {
+                solverReady = false;
                 final String playerCode = playerId.equals(preparedPlayerId)
                         && preparedPlayerCode != null
                         ? preparedPlayerCode : fetchPlayer(playerId);
@@ -164,6 +193,7 @@ public final class WebViewJsDecoder implements YoutubeJavaScriptDecoder {
             final YoutubeApiDecoder.BatchDecodeResult local = parseResult(localJson,
                     throttlingParameters != null && !throttlingParameters.isEmpty(),
                     signatures != null && !signatures.isEmpty());
+            solverReady = true;
             Log.i(TAG, "player=" + playerId
                     + " cold=" + localJson.optBoolean("cold")
                     + " v8=" + localJson.optLong("elapsedMs") + "ms"

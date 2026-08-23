@@ -54,9 +54,7 @@ fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
     val ref = state.current ?: return
 
     val position = queuePositionLabel(state.queueSize, state.index)
-    val subtitle = listOfNotNull(position, ref.sourceId.uppercase(), formatPosition(state.positionMs, state.durationMs))
-        .joinToString(" · ")
-    val progress = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
+    val sourceLabel = ref.sourceId.uppercase()
 
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp, modifier = modifier.fillMaxWidth()) {
         Box {
@@ -85,13 +83,7 @@ fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
                 }
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text(ref.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    MiniPlayerSubtitle(position, sourceLabel)
                 }
                 IconButton(onClick = { PlaybackSession.togglePlayPause() }, modifier = Modifier.size(48.dp)) {
                     if (state.isPlaying) {
@@ -110,15 +102,37 @@ fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
                     Icon(Icons.Filled.Close, contentDescription = "Stop playback")
                 }
             }
-            Box(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height(MINI_PROGRESS_HEIGHT)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
-            }
+            MiniPlayerProgressBar(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth())
         }
+    }
+}
+
+/** Elapsed/total time label -- collects [PlaybackSession.progress] itself (not the caller) so the
+ *  500ms tick recomposes only this small Text, not the whole [MiniPlayer] row. */
+@Composable
+private fun MiniPlayerSubtitle(position: String?, sourceLabel: String) {
+    val progress by PlaybackSession.progress.collectAsState()
+    val subtitle = listOfNotNull(position, sourceLabel, formatPosition(progress.positionMs, progress.durationMs))
+        .joinToString(" · ")
+    Text(
+        subtitle,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** The thin progress line -- same isolation reason as [MiniPlayerSubtitle]. */
+@Composable
+private fun MiniPlayerProgressBar(modifier: Modifier = Modifier) {
+    val progress by PlaybackSession.progress.collectAsState()
+    val fraction = if (progress.durationMs > 0) (progress.positionMs.toFloat() / progress.durationMs).coerceIn(0f, 1f) else 0f
+    Box(
+        modifier
+            .height(MINI_PROGRESS_HEIGHT)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
     }
 }

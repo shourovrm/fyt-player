@@ -41,7 +41,6 @@ import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.search.filter.Filter
 import org.schabi.newpipe.extractor.search.filter.FilterItem
 import org.schabi.newpipe.extractor.stream.Description
-import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.StreamType
 
@@ -172,7 +171,9 @@ class NewPipeYoutubeSource(
 
     override suspend fun detail(ref: VideoRef): VideoDetail = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        val info = guarded { StreamInfo.getInfo(ServiceList.YouTube, ref.pageUrl) }
+        // Shared with NewPipeResolver.resolve/seekThumbnails: one StreamInfo fetch per video url,
+        // not three (see StreamInfoCache).
+        val info = guarded { StreamInfoCache.get(ref.pageUrl) }
         val uploaderListing = info.uploaderUrl?.let {
             Listing(sourceId = SOURCE_ID, kind = Listing.Kind.CHANNEL, key = it, title = info.uploaderName ?: "")
         }
@@ -237,7 +238,7 @@ class NewPipeYoutubeSource(
 
     override suspend fun seekThumbnails(ref: VideoRef): SeekThumbnails? = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        val info = guarded { StreamInfo.getInfo(ServiceList.YouTube, ref.pageUrl) }
+        val info = guarded { StreamInfoCache.get(ref.pageUrl) }
         val best = info.previewFrames.orEmpty().maxByOrNull { it.totalCount } ?: return@withContext null
         try {
             // Counts only, never URLs. Storyboard shape from this client changes with the fork's
