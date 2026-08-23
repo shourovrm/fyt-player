@@ -26,5 +26,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "fyi-player"
+rootProject.name = "fyt-player"
 include(":app")

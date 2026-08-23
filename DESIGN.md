@@ -1,4 +1,4 @@
-# FYI Player — design template
+# FYT Player — design template
 
 The blueprint to build against. Read with `CLAUDE.md`, which holds the standing rules.
 This describes the target shape, not a finished app. Nothing here has been built yet.

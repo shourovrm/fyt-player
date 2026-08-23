@@ -1,4 +1,4 @@
-# FYI Player
+# FYT Player
 
 Android app (Kotlin, Compose, single Activity): browse, play, queue and download videos from mainstream social and video platforms via a yt-dlp-class extraction backend. Sideloaded APK. Background playback is a first-class feature. Target shape lives in `DESIGN.md`.
 

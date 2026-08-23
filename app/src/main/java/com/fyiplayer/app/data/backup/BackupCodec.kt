@@ -26,15 +26,15 @@ fun renderBackupHtml(doc: BackupDocument): String {
     return buildString {
         append("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
         append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n")
-        append("<title>FYI Player library backup</title>\n")
+        append("<title>FYT Player library backup</title>\n")
         append("<style>").append(STYLE).append("</style>\n</head>\n<body>\n")
-        append("<h1>FYI Player library backup</h1>\n")
+        append("<h1>FYT Player library backup</h1>\n")
         append("<p class=\"meta\">")
         append(doc.playlists.size).append(" playlists &middot; ")
         append(doc.playlists.sumOf { it.items.size }).append(" playlist videos &middot; ")
         append(doc.liked.size).append(" liked &middot; ")
         append(doc.history.size).append(" watch history</p>\n")
-        append("<p class=\"note\">Import this file back into FYI Player (Settings &rarr; Backup) to restore it. ")
+        append("<p class=\"note\">Import this file back into FYT Player (Settings &rarr; Backup) to restore it. ")
         append("No cookies, passcodes or thumbnail links are stored in this file.</p>\n")
 
         for (playlist in doc.playlists) {
@@ -64,7 +64,7 @@ fun renderBackupHtml(doc: BackupDocument): String {
  */
 fun parseBackupHtml(html: String): BackupDocument {
     val start = html.indexOf(DATA_OPEN)
-    if (start < 0) throw BackupFormatException("This isn't a FYI Player backup file.")
+    if (start < 0) throw BackupFormatException("This isn't a FYT Player backup file.")
     val from = start + DATA_OPEN.length
     val end = html.indexOf(DATA_CLOSE, from)
     if (end < 0) throw BackupFormatException("This backup file is truncated.")
@@ -74,7 +74,7 @@ fun parseBackupHtml(html: String): BackupDocument {
         throw BackupFormatException("This backup file is damaged.", e)
     }
     if (doc.version > BACKUP_VERSION) {
-        throw BackupFormatException("This backup was made by a newer version of FYI Player.")
+        throw BackupFormatException("This backup was made by a newer version of FYT Player.")
     }
     return doc
 }

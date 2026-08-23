@@ -1,6 +1,6 @@
 # Session summary — 86303cd0
 
-FYI Player, waves 1–5 build + on-device verification. Parallel subagent development, YouTube first.
+FYT Player, waves 1–5 build + on-device verification. Parallel subagent development, YouTube first.
 
 ## 1. Requests and intent
 
