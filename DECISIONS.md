@@ -2,6 +2,11 @@
 
 ## Current state
 
+2026-08-23 (v0.2.6): FullscreenChrome claim leak FIXED (device-verified: Detail fullscreen ->
+back -> back to Home keeps nav bar + status-bar padding). Any Compose `onDispose` must decide
+on the effect KEY, never re-read the state it is keyed on -- by dispose time it already holds
+the new value.
+
 2026-08-22 wave (v0.2.5): share/open-with plays Facebook (landscape) and TikTok (shorts pager)
 via yt-dlp tier1. Cookie header from yt-dlp's per-format `cookies` (TikTok CDN needs
 tt_chain_token/ttwid); codec-unknown progressive mp4 now selectable as muxed (Facebook sd/hd);
@@ -664,3 +669,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-08-22 | Shorts tab pages: per-channel `ChannelShortsCursor` (buffer + token), `loadMore` appends an interleaved round, never re-merges | first page leftovers were thrown away by the per-channel cap; re-interleaving over shown items would reshuffle under the pager. Honest end footer when all cursors dry.
 - 2026-08-22 | share-with plays FB (Detail) + TikTok (shorts pager); cookie header + muxed-unknown-codec fixes; cutout inset consumed | FB public videos + TikTok routing device-verified; TikTok playback blocked by upstream IP rate-limit, honest error.
 - 2026-08-22 | v0.2.5 | share/play Facebook & TikTok, landscape border fix
+2026-08-23 | v0.2.6: FullscreenChrome release decided on key, not re-read state | onDispose saw fullscreen=false after exit, claim leaked (nav bar gone, page under status bar)
