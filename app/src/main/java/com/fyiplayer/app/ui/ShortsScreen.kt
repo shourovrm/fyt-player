@@ -182,8 +182,15 @@ internal fun ShortsPager(
     // onPlaybackStateChanged) with nothing driving the pager -- follow it back, per DESIGN.md §8's
     // "a nav route does not track a queue that advances underneath it" (this reads the state
     // directly via collectAsState above; only the *reaction* -- animating the pager -- runs here).
+    // Read the LIVE session index, never the `playerState` snapshot this effect is keyed on: on
+    // first composition that snapshot still holds the previous queue's index (Detail's 0, or a
+    // prior pager's last page) while play()/playAt() above already moved the session to the
+    // tapped page -- following the stale value scrolled the pager to the wrong short, whose
+    // settle then JUMPed playback there too. Queue check: never follow a queue that isn't this feed.
     LaunchedEffect(playerState.index) {
-        val idx = playerState.index
+        val live = PlaybackSession.state.value
+        if (live.queue.firstOrNull()?.pageUrl != items.firstOrNull()?.pageUrl) return@LaunchedEffect
+        val idx = live.index
         if (idx in items.indices && pagerState.currentPage != idx) pagerState.animateScrollToPage(idx)
     }
 
