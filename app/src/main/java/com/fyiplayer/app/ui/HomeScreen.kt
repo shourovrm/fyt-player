@@ -3,6 +3,8 @@ package com.fyiplayer.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +52,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
+import com.fyiplayer.app.core.Topic
+import com.fyiplayer.app.settings.OnboardingSheet
 import com.fyiplayer.app.core.VideoRef
 
 /**
@@ -71,6 +77,7 @@ fun HomeScreen(
     val searchHistory by vm.searchHistory().collectAsStateWithLifecycle(initialValue = emptyList())
     var searchFieldFocused by remember { mutableStateOf(false) }
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
+    val onboardingDone by app.prefs.onboardingDone.collectAsStateWithLifecycle(initialValue = true)
 
     val isSearching = vm.query.isNotBlank()
     val focusManager = LocalFocusManager.current
@@ -241,24 +248,69 @@ fun HomeScreen(
                 }
             }
             else -> {
-                PullToRefreshBox(
-                    isRefreshing = vm.feed.loading,
-                    onRefresh = { vm.refreshFeed(browseSources) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    HomeFeedSection(
-                        feed = vm.feed,
-                        onClick = ::openResult,
-                        onLongPress = { actionSheetRef = it },
-                        listState = listState,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                Column(Modifier.fillMaxSize()) {
+                    val exploreTopics by app.prefs.exploreTopics.collectAsStateWithLifecycle(initialValue = emptySet())
+                    val topics = Topic.entries.filter { it.name in exploreTopics }
+                    if (topics.isNotEmpty()) TopicChipsRow(topics, selected = vm.selectedTopic, onSelect = { vm.selectTopic(it) })
+                    val topic = vm.selectedTopic
+                    if (topic == null) {
+                        PullToRefreshBox(
+                            isRefreshing = vm.feed.loading,
+                            onRefresh = { vm.refreshFeed(browseSources) },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            HomeFeedSection(
+                                feed = vm.feed,
+                                onClick = ::openResult,
+                                onLongPress = { actionSheetRef = it },
+                                listState = listState,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    } else {
+                        val result = vm.topicResults[topic] ?: TabResult(topic.label, loading = true)
+                        val errors = if (result.error != null) {
+                            val retry: (() -> Unit)? = if (result.blocked) null else ({ vm.selectTopic(topic) })
+                            listOf(ErrorRow(result.displayName, result.error, onRetry = retry))
+                        } else {
+                            emptyList()
+                        }
+                        ResultsListColumn(
+                            items = result.items,
+                            errors = errors,
+                            hasMore = false,
+                            onLoadMore = {},
+                            onClick = ::openResult,
+                            onLongPress = { actionSheetRef = it },
+                            listState = listState,
+                            modifier = Modifier.weight(1f),
+                            skeletonRows = if (result.loading && result.items.isEmpty()) 6 else 0,
+                        )
+                    }
                 }
             }
         }
     }
 
     actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
+    if (!onboardingDone) OnboardingSheet(app.prefs)
+}
+
+/** Home's "Explore" chips: "For you" (the subscriptions feed, [selected] null) then each [Topic]
+ *  in declaration order. Horizontally scrollable -- four topics already crowd a phone width once
+ *  "For you" is counted. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TopicChipsRow(topics: List<Topic>, selected: Topic?, onSelect: (Topic?) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("For you") })
+        topics.forEach { topic ->
+            FilterChip(selected = selected == topic, onClick = { onSelect(topic) }, label = { Text(topic.label) })
+        }
+    }
 }
 
 /**

@@ -200,6 +200,10 @@ data class Comment(
     val authorAvatarUrl: String? = null,
 )
 
+/** A curated topic shelf on Home's "Explore" chip row -- YouTube's official topic channel per
+ *  entry, not a generic category. */
+enum class Topic(val label: String) { NEWS("News"), MOVIES("Movies"), SPORTS("Sports"), MUSIC("Music"), LIVE("Live") }
+
 /** One platform. Listing and URL recognition only — media resolution is [StreamResolver]'s job. */
 interface VideoSource {
     val id: String
@@ -263,6 +267,12 @@ interface VideoSource {
      * and that tile simply gets no preview.
      */
     fun previewThumbnails(ref: VideoRef): SeekThumbnails? = null
+
+    /** A single-page shelf of videos for one curated [Topic] (Home's "Explore" chips). Default
+     *  throws so a source that has not implemented it degrades to an explained empty state. No
+     *  pagination -- one browse fetch is the whole feature. */
+    suspend fun topic(topic: Topic): SearchPage =
+        throw ExtractionError.Unsupported("$displayName has no topic feeds")
 
     /** True when this source can fetch comments, so callers never probe-and-catch. */
     val providesComments: Boolean get() = false

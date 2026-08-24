@@ -24,6 +24,8 @@ class Prefs(private val context: Context) {
 
     private companion object {
         val ENABLED_SOURCES = stringSetPreferencesKey("enabled_sources")
+        val EXPLORE_TOPICS = stringSetPreferencesKey("explore_topics")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val MAX_RES_WIFI = intPreferencesKey("max_res_wifi")
         val MAX_RES_MOBILE = intPreferencesKey("max_res_mobile")
         val CONTAINER = stringPreferencesKey("container")
@@ -43,6 +45,15 @@ class Prefs(private val context: Context) {
     // only platform live today; default matches SourceRegistry without this file naming it
     val enabledSources: Flow<Set<String>> = flow(ENABLED_SOURCES, setOf("youtube"))
     suspend fun setEnabledSources(v: Set<String>) = set(ENABLED_SOURCES, v)
+
+    /** Topic names ([com.fyiplayer.app.core.Topic.name]) shown as Home's Explore chips. Live is
+     *  opt-in: PipePipe's "trending" kiosk is really this feed and it reads as noise next to News. */
+    val exploreTopics: Flow<Set<String>> = flow(EXPLORE_TOPICS, setOf("NEWS", "MOVIES", "SPORTS", "MUSIC"))
+    suspend fun setExploreTopics(v: Set<String>) = set(EXPLORE_TOPICS, v)
+
+    /** First-run language/country prompt (Home shows it until this flips). */
+    val onboardingDone: Flow<Boolean> = flow(ONBOARDING_DONE, false)
+    suspend fun setOnboardingDone() = set(ONBOARDING_DONE, true)
 
     val maxResolutionWifi: Flow<Int> = flow(MAX_RES_WIFI, 1080)
     suspend fun setMaxResolutionWifi(v: Int) = set(MAX_RES_WIFI, v)
