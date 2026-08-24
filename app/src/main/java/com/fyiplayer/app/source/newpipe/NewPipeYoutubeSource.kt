@@ -10,6 +10,7 @@ import com.fyiplayer.app.core.SearchPage
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.SpriteSheet
 import com.fyiplayer.app.core.TAB_UNAVAILABLE_PREFIX
+import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
@@ -264,6 +265,11 @@ class NewPipeYoutubeSource(
         SeekThumbnails(intervalSeconds = best.durationPerFrame / 1000.0, sprites = sprites)
     }
 
+    override suspend fun topic(topic: Topic): SearchPage = withContext(Dispatchers.IO) {
+        NewPipeInit.ensure(client)
+        YoutubeTopicFeed.fetch(topic)
+    }
+
     // previewThumbnails(ref): left at the VideoSource default (null, no I/O) -- there is nothing
     // in a VideoRef alone to build a preview strip from, per the interface's no-I/O contract.
     // homepage(): left at the default Unsupported throw -- Home is subscription-built, see DECISIONS.md.
@@ -277,7 +283,7 @@ class NewPipeYoutubeSource(
     }
 }
 
-private inline fun <T> guarded(block: () -> T): T = try {
+internal inline fun <T> guarded(block: () -> T): T = try {
     block()
 } catch (e: CancellationException) {
     throw e
@@ -323,7 +329,7 @@ private fun InfoItem.toSearchVideoRef(): VideoRef? = when (this) {
     else -> null // anything else: no VideoRef shape fits a mixed search hit
 }
 
-private fun InfoItem.toStreamVideoRef(): VideoRef? = (this as? StreamInfoItem)?.toVideoRef()
+internal fun InfoItem.toStreamVideoRef(): VideoRef? = (this as? StreamInfoItem)?.toVideoRef()
 
 /** Channel-search rows carry NO shorts signal from the platform (verified live 2026-08-22: every
  *  hit is a plain `videoRenderer`, `/watch` url, `WEB_PAGE_TYPE_WATCH`, overlay style DEFAULT,

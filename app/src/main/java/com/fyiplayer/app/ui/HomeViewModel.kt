@@ -9,6 +9,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.SourceRegistry
+import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
 import com.fyiplayer.app.data.repo.HistoryRepository
@@ -18,7 +20,11 @@ import com.fyiplayer.app.source.newpipe.SearchSuggestions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
@@ -52,6 +58,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     internal var feed: FeedState by mutableStateOf(FeedState())
         private set
     private var feedJob: Job? = null
+
+    /** Home's "Explore" chip row: null is the existing feed (For you), a [Topic] switches the
+     *  list below to that topic's shelf. */
+    var selectedTopic: Topic? by mutableStateOf(null)
+    internal val topicResults = mutableStateMapOf<Topic, TabResult>()
+
+    init {
+        // Topic shelves are per-country (charts and topic channels both take gl); a region change
+        // must drop the cached page or the chip keeps showing the old country until app restart.
+        combine(prefs.contentLanguage, prefs.contentCountry) { l, c -> l to c }
+            .drop(1)
+            .onEach {
+                activeJobs.keys.filter { it.startsWith("topic:") }.forEach { activeJobs.remove(it)?.cancel() }
+                topicResults.clear()
+                selectedTopic?.let { selectTopic(it) }
+            }
+            .launchIn(viewModelScope)
+    }
 
     // one in-flight job per "search:<id>" key -- refuses a duplicate load and lets a superseded
     // query's jobs be cancelled by prefix.
@@ -139,6 +163,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 hasSubscriptions = true,
                 failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed },
             )
+        }
+    }
+
+    /** Switches Home's chip selection and lazily fetches that topic's shelf once -- a re-select of
+     *  an already-loaded (or in-flight) topic is a no-op, same "cached for the ViewModel's
+     *  lifetime" convention as [feed]. [t] null (For you) needs no fetch of its own. */
+    fun selectTopic(t: Topic?) {
+        selectedTopic = t
+        if (t == null) return
+        val key = "topic:${t.name}"
+        if (activeJobs[key]?.isActive == true) return
+        // Loaded with no error: cached for the ViewModel's lifetime. A loaded-with-error state
+        // falls through so Retry (re-calls this) actually refetches instead of no-op'ing.
+        val existing = topicResults[t]
+        if (existing?.loaded == true && existing.error == null) return
+        val source = SourceRegistry.bySourceId("youtube") ?: return
+        topicResults[t] = TabResult(t.label, loading = true)
+        activeJobs[key] = viewModelScope.launch {
+            val cur = topicResults[t] ?: TabResult(t.label)
+            topicResults[t] = runCatching { source.topic(t) }
+                .fold(
+                    onSuccess = { applySuccess(cur, null, it) },
+                    onFailure = { e -> if (e is CancellationException) throw e else outcomeFor(cur, null, e) },
+                )
         }
     }
 
