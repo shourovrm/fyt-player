@@ -268,7 +268,7 @@ private fun LikesTab(
     onUnlike: (String) -> Unit,
 ) {
     if (videos.isEmpty()) {
-        LibraryEmptyState("No likes yet", "Tap the heart on any video and it lands here, newest first.")
+        LibraryEmptyState("No likes yet", "")
         return
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) 88.dp else 0.dp)) {
@@ -573,7 +573,7 @@ internal fun LibraryEmptyState(title: String, body: String) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(
+        if (body.isNotEmpty()) Text(
             body,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -78,20 +79,15 @@ fun EngineSettings() {
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = 12.dp),
             )
-            Text(
-                "yt-dlp update channel",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EngineChannel.entries.forEach { c ->
-                    FilterChip(selected = c == channel, onClick = { channel = c }, label = { Text(c.label) })
-                }
-            }
             Row(
-                Modifier.padding(top = 8.dp),
+                Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Text(
+                    "yt-dlp update channel",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
                 TextButton(
                     enabled = !updating,
                     onClick = {
@@ -112,6 +108,11 @@ fun EngineSettings() {
                 ) { Text("Update yt-dlp") }
                 if (updating) {
                     CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp).size(16.dp))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EngineChannel.entries.forEach { c ->
+                    FilterChip(selected = c == channel, onClick = { channel = c }, label = { Text(c.label) })
                 }
             }
             result?.let {
