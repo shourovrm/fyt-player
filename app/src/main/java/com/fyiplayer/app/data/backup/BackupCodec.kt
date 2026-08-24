@@ -33,7 +33,7 @@ fun renderBackupHtml(doc: BackupDocument): String {
         append(doc.playlists.size).append(" playlists &middot; ")
         append(doc.playlists.sumOf { it.items.size }).append(" playlist videos &middot; ")
         append(doc.liked.size).append(" liked &middot; ")
-        append(doc.history.size).append(" watch history</p>\n")
+        append(doc.channels.size).append(" channels</p>\n")
         append("<p class=\"note\">Import this file back into FYT Player (Settings &rarr; Backup) to restore it. ")
         append("No cookies, passcodes or thumbnail links are stored in this file.</p>\n")
 
@@ -46,9 +46,9 @@ fun renderBackupHtml(doc: BackupDocument): String {
             append("<h2>Liked <span class=\"count\">").append(doc.liked.size).append("</span></h2>\n")
             appendVideos(doc.liked)
         }
-        if (doc.history.isNotEmpty()) {
-            append("<h2>Watch history <span class=\"count\">").append(doc.history.size).append("</span></h2>\n")
-            appendVideos(doc.history)
+        if (doc.channels.isNotEmpty()) {
+            append("<h2>Channels <span class=\"count\">").append(doc.channels.size).append("</span></h2>\n")
+            appendChannels(doc.channels)
         }
 
         // Payload goes last so a large library doesn't push the readable part below the fold.
@@ -94,6 +94,19 @@ private fun StringBuilder.appendVideos(videos: List<BackupVideo>) {
         }
         video.uploader?.let { append(" &middot; ").append(escapeHtml(it)) }
         append("</span></li>\n")
+    }
+    append("</ol>\n")
+}
+
+private fun StringBuilder.appendChannels(channels: List<BackupChannel>) {
+    if (channels.isEmpty()) {
+        append("<p class=\"empty\">Empty.</p>\n")
+        return
+    }
+    append("<ol>\n")
+    for (channel in channels) {
+        append("<li><a href=\"").append(escapeHtml(channel.channelUrl)).append("\">")
+        append(escapeHtml(channel.title)).append("</a></li>\n")
     }
     append("</ol>\n")
 }

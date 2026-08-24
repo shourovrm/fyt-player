@@ -21,9 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.data.backup.BackupDocument
 import com.fyiplayer.app.data.backup.BackupIo
 import com.fyiplayer.app.data.backup.BackupPlan
-import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
+import com.fyiplayer.app.data.repo.SubscriptionRepository
 import com.fyiplayer.app.ui.rememberFyiApp
 import kotlinx.coroutines.launch
 
@@ -37,7 +37,7 @@ fun BackupSettings() {
     val scope = rememberCoroutineScope()
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
-    val history = remember { HistoryRepository(app.database.watchHistoryDao()) }
+    val subscriptions = remember { SubscriptionRepository(app.database.subscriptionDao()) }
 
     var pendingDoc by remember { mutableStateOf<BackupDocument?>(null) }
     var pendingPlan by remember { mutableStateOf<BackupPlan?>(null) }
@@ -48,7 +48,7 @@ fun BackupSettings() {
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             try {
-                BackupIo.export(app, uri, likes, playlists, history)
+                BackupIo.export(app, uri, likes, playlists, subscriptions)
                 status = "Library exported."; isError = false
             } catch (e: Exception) {
                 status = e.message ?: "Export failed."; isError = true
@@ -61,7 +61,7 @@ fun BackupSettings() {
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             try {
-                val (doc, plan) = BackupIo.preview(app, uri, likes, playlists, history)
+                val (doc, plan) = BackupIo.preview(app, uri, likes, playlists, subscriptions)
                 pendingDoc = doc; pendingPlan = plan
             } catch (e: Exception) {
                 status = e.message ?: "Import failed."; isError = true
@@ -96,7 +96,7 @@ fun BackupSettings() {
                         "Nothing new to add -- everything in this file is already in your library."
                     } else {
                         "Adds ${plan.newPlaylists} playlists, ${plan.newPlaylistItems} playlist videos, " +
-                            "${plan.newLiked} liked videos and ${plan.newHistory} history entries. " +
+                            "${plan.newLiked} liked videos and ${plan.newChannels} channels. " +
                             "Nothing already saved is changed or removed."
                     },
                 )
@@ -105,9 +105,9 @@ fun BackupSettings() {
                 TextButton(onClick = {
                     scope.launch {
                         try {
-                            val applied = BackupIo.apply(doc, likes, playlists, history)
+                            val applied = BackupIo.apply(doc, likes, playlists, subscriptions)
                             status = "Added ${applied.newPlaylists} playlists, ${applied.newPlaylistItems} playlist " +
-                                "videos, ${applied.newLiked} liked videos, ${applied.newHistory} history entries."
+                                "videos, ${applied.newLiked} liked videos, ${applied.newChannels} channels."
                             isError = false
                         } catch (e: Exception) {
                             status = e.message ?: "Import failed."; isError = true

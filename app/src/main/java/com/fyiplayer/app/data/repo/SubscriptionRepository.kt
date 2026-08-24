@@ -42,4 +42,10 @@ class SubscriptionRepository(private val dao: SubscriptionDao) {
 
     /** The Library eye toggle -- channel stays subscribed, just opts out of Home/Shorts. */
     suspend fun setShowInFeed(channelUrl: String, show: Boolean) = dao.setShowInFeed(channelUrl, show)
+
+    /** Unconditional subscribe (backup import) -- unlike [toggle], never unsubscribes. Only call
+     *  for a channelUrl not already subscribed: the DAO's REPLACE conflict strategy would reset
+     *  subscribedAt/showInFeed on an existing row otherwise. */
+    suspend fun subscribe(channelUrl: String, sourceId: String, title: String) =
+        dao.subscribe(SubscriptionEntity(channelUrl, sourceId, title, System.currentTimeMillis()))
 }

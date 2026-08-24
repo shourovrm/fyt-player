@@ -19,7 +19,7 @@ class BackupCodecTest {
             ),
         ),
         liked = listOf(BackupVideo("youtube", "https://example.com/watch?v=c", "Video C", 10, "Uploader C")),
-        history = listOf(BackupVideo("youtube", "https://example.com/watch?v=d", "Video D", 20, "Uploader D")),
+        channels = listOf(BackupChannel("youtube", "https://example.com/channel/d", "Channel D")),
     )
 
     @Test
@@ -51,6 +51,20 @@ class BackupCodecTest {
         assertEquals(1, doc.version)
         assertEquals(100L, doc.exportedAtMillis)
         assertTrue(doc.playlists.isEmpty())
+    }
+
+    @Test
+    fun `a version-1 file carrying a history array parses with empty channels`() {
+        // v1 never had `channels`; v2 dropped `history`. A real v1 export still has a `history`
+        // array in it -- ignoreUnknownKeys must eat it rather than fail the whole import.
+        val json = """{"version":1,"exportedAtMillis":100,"playlists":[],"liked":[],""" +
+            """"history":[{"sourceId":"youtube","pageUrl":"https://example.com/v=z","title":"Z"}]}"""
+        val html = "<script id=\"fyi-player-backup\" type=\"application/json\">\n$json\n</script>"
+
+        val doc = parseBackupHtml(html)
+
+        assertEquals(1, doc.version)
+        assertTrue(doc.channels.isEmpty())
     }
 
     @Test
