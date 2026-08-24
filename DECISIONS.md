@@ -2,6 +2,15 @@
 
 ## Current state
 
+2026-08-24 (v0.2.12), device-verified fresh-install:
+- `ContentSettings` (Language & region) now uses the same `LocaleDropdown` as the onboarding
+  sheet instead of a `FilterChip` row -- one picker style everywhere, not chips here and
+  dropdowns there.
+- Search tab row ("All"/"YouTube") was showing with a single enabled source: it gated on
+  `tabIds.size > 1`, but `tabIds` always prepends a synthetic "All" entry on top of
+  `browseSources`, so the count was never 1 even with one source. Gated on `browseSources.size > 1`
+  instead. Search now shows the result list directly with one source enabled, no tab row.
+
 2026-08-24 (v0.2.11) Explore topics + onboarding + backup rework + settings cleanup, all
 device-verified fresh-install:
 - **Explore chips** on Home (`source/newpipe/YoutubeTopicFeed.kt`): News/Sports/Music via YouTube's
