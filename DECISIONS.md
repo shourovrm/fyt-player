@@ -2,6 +2,24 @@
 
 ## Current state
 
+2026-08-24 (v0.2.13) fullscreen bars + shorts wakelock + in-app update, DEVICE-UNVERIFIED (no
+adb device attached at build time — verify on reconnect):
+- **Fullscreen nav/status bar reappearing** (3-button-nav OEMs): the single entry hide got undone
+  by the OEM re-showing bars after the in-process rotation and after return-to-app. Fix: bounded
+  fullscreen-scoped re-hides in PlayerScreen (orientation key + ON_RESUME), reusing
+  `setSystemBarsVisible`. NOT bars-follow-chrome (still banned, see Tried/rejected) — PipePipe
+  re-asserts the same way; safe because layout ignores bar visibility while fullscreen
+  (`contentWindowInsets = WindowInsets(0)`), so re-hides can't churn insets. Exit path untouched.
+- **Shorts screen timeout**: `setKeepScreenOn` was only wired in PlayerScreen; ShortsPager now
+  holds the same isPlaying-keyed wakelock.
+- **In-app update** (`update/UpdateCheck.kt`, `update/ApkInstaller.kt`): GitHub
+  releases/latest (unauthenticated; tag_name minus "v", first .apk asset), `isNewer` numeric
+  segment compare (unit-tested, garbage tag -> false). Auto check once per process
+  (FyiApp.onCreate, silent offline) -> dismissible banner above content in AppScaffold (hidden on
+  full-player routes; dismissal per version in Prefs.dismissedUpdateVersion). Settings > App:
+  "Check for updates" button with inline states (checking/latest/found+Get/offline). Install via
+  DownloadManager + ACTION_VIEW (visit-logs port); REQUEST_INSTALL_PACKAGES added to manifest.
+
 2026-08-24 (v0.2.12), device-verified fresh-install:
 - `ContentSettings` (Language & region) now uses the same `LocaleDropdown` as the onboarding
   sheet instead of a `FilterChip` row -- one picker style everywhere, not chips here and
@@ -744,3 +762,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-23 | FormatSelector: progressive pair beats HLS manifest; manifest only as fallback | HLS start = master+variant playlist RTTs before first byte and no range chunking; 4.5s->3.2s cold measured
 2026-08-23 | Media disk cache keys: yt|id|itag|lmt for googlevideo, sha256(url) otherwise | SimpleCache index persists keys; a raw signed URL on disk would break the persist-canonical-only rule
 2026-08-24 | keep org.apache.commons.compress.archivers.zip.** in R8 | ExtraFieldUtils registers classes by reflection; shrunk build crashed first-run python unzip on FRESH install only (adb install -r over old data skipped unzip, masked it). Verify releases with uninstall + install. v0.2.10
+2026-08-24 | Fullscreen bar re-hide: bounded re-asserts (rotation + resume, fullscreen-scoped) via setSystemBarsVisible | OEM re-shows bars after in-process rotation and return-to-app; safe unlike bars-follow-chrome because fullscreen layout ignores bar visibility, so no inset churn. v0.2.13
+2026-08-24 | ShortsPager gets isPlaying-keyed setKeepScreenOn | screen timed out mid-short; detail player was the only caller
+2026-08-24 | In-app update via GitHub releases/latest + DownloadManager install (visit-logs port) | sideloaded app, releases page is the only channel; per-version banner dismissal, manual check in Settings > App

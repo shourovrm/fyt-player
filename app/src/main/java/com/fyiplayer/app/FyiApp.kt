@@ -17,6 +17,7 @@ import com.fyiplayer.app.source.newpipe.NewPipeInit
 import com.fyiplayer.app.source.newpipe.NewPipeResolver
 import com.fyiplayer.app.source.newpipe.WebViewJsDecoder
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
+import com.fyiplayer.app.update.UpdateCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -82,6 +83,9 @@ class FyiApp : Application() {
         prefs.sponsorBlock.onEach { sponsorBlockEnabled = it }.launchIn(appScope)
         prefs.autoplayNext.onEach { autoplayNextEnabled = it }.launchIn(appScope)
         prefs.savePlayPosition.onEach { savePlayPositionEnabled = it }.launchIn(appScope)
+
+        // Once per process; silent offline. The top banner appears if a newer release exists.
+        appScope.launch { UpdateCheck.autoCheck() }
 
         // Latches into NewPipeInit before the first extractor call and re-applies on every
         // settings change, so language/country needs no app restart.
