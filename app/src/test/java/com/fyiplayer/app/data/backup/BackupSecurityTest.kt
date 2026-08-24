@@ -1,5 +1,6 @@
 package com.fyiplayer.app.data.backup
 
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,6 +32,14 @@ class BackupSecurityTest {
         viewCountText = "1.2M views (ref=SECRET_VIEWCOUNT_TOKEN)",
     )
 
+    private val sensitiveChannel = Listing(
+        sourceId = "youtube",
+        kind = Listing.Kind.CHANNEL,
+        key = "https://example.com/channel/abc",
+        title = "A normal channel title",
+        thumbnailUrl = "https://cdn.example.com/avatar.jpg?sig=SECRET_AVATAR_TOKEN",
+    )
+
     @Test
     fun `export drops thumbnail and channel-session urls before they reach the document`() {
         val backupVideo = sensitiveRef.toBackupVideo()
@@ -45,7 +54,7 @@ class BackupSecurityTest {
         val doc = buildBackupDocument(
             liked = listOf(sensitiveRef),
             playlists = listOf("My playlist" to listOf(sensitiveRef)),
-            history = listOf(sensitiveRef),
+            channels = listOf(sensitiveChannel),
             exportedAtMillis = 1L,
         )
 
@@ -54,6 +63,7 @@ class BackupSecurityTest {
         assertFalse(html.contains("SECRET_THUMB_TOKEN"))
         assertFalse(html.contains("SECRET_SESSION_TOKEN"))
         assertFalse(html.contains("SECRET_VIEWCOUNT_TOKEN"))
+        assertFalse(html.contains("SECRET_AVATAR_TOKEN"))
         assertFalse(html.contains("cdn.example.com"))
 
         // Tripwire scoped to the machine payload: the page's own prose says in plain English that
@@ -62,8 +72,10 @@ class BackupSecurityTest {
         val payload = html.substringAfter("type=\"application/json\">").substringBefore("</script>")
         assertFalse(payload.lowercase().contains("cookie"))
 
-        // What SHOULD be there: the canonical page URL and the display text.
+        // What SHOULD be there: the canonical page/channel URLs and the display text.
         assertTrue(html.contains(sensitiveRef.pageUrl))
         assertTrue(html.contains(sensitiveRef.title))
+        assertTrue(html.contains(sensitiveChannel.key))
+        assertTrue(html.contains(sensitiveChannel.title))
     }
 }

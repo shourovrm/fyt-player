@@ -2,9 +2,9 @@ package com.fyiplayer.app.data.backup
 
 import android.content.Context
 import android.net.Uri
-import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
+import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.flow.first
 
 /**
@@ -20,14 +20,14 @@ object BackupIo {
         uri: Uri,
         likes: LikesRepository,
         playlists: PlaylistRepository,
-        history: HistoryRepository,
+        subscriptions: SubscriptionRepository,
     ) {
         val playlistPairs = playlists.observePlaylists().first()
             .map { it.name to playlists.observeItems(it.id).first() }
         val doc = buildBackupDocument(
             liked = likes.observe().first(),
             playlists = playlistPairs,
-            history = history.observe().first(),
+            channels = subscriptions.observeAllRows().first().map { it.listing },
             exportedAtMillis = System.currentTimeMillis(),
         )
         val html = renderBackupHtml(doc)
@@ -41,13 +41,13 @@ object BackupIo {
         uri: Uri,
         likes: LikesRepository,
         playlists: PlaylistRepository,
-        history: HistoryRepository,
+        subscriptions: SubscriptionRepository,
     ): Pair<BackupDocument, BackupPlan> {
         val html = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
             ?: throw BackupFormatException("Could not open the chosen file for reading.")
         val doc = parseBackupHtml(html)
-        val existing = readExisting(doc, likes, playlists, history)
-        val plan = planImport(doc, existing.playlistItems, existing.liked, existing.history)
+        val existing = readExisting(doc, likes, playlists, subscriptions)
+        val plan = planImport(doc, existing.playlistItems, existing.liked, existing.channels)
         return doc to plan
     }
 
@@ -57,9 +57,9 @@ object BackupIo {
         doc: BackupDocument,
         likes: LikesRepository,
         playlists: PlaylistRepository,
-        history: HistoryRepository,
+        subscriptions: SubscriptionRepository,
     ): BackupPlan {
-        val existing = readExisting(doc, likes, playlists, history)
+        val existing = readExisting(doc, likes, playlists, subscriptions)
 
         var newPlaylists = 0
         var newItems = 0
@@ -77,24 +77,29 @@ object BackupIo {
         var newLiked = 0
         for (item in doc.liked) if (item.pageUrl !in existing.liked) { likes.like(item.toVideoRef()); newLiked++ }
 
-        var newHistory = 0
-        for (item in doc.history) if (item.pageUrl !in existing.history) { history.record(item.toVideoRef()); newHistory++ }
+        var newChannels = 0
+        for (channel in doc.channels) {
+            if (channel.channelUrl !in existing.channels) {
+                subscriptions.subscribe(channel.channelUrl, channel.sourceId, channel.title)
+                newChannels++
+            }
+        }
 
-        return BackupPlan(newPlaylists, newItems, newLiked, newHistory)
+        return BackupPlan(newPlaylists, newItems, newLiked, newChannels)
     }
 
     private class Existing(
         val playlistIdByName: Map<String, Long>,
         val playlistItems: Map<String, Set<String>>,
         val liked: Set<String>,
-        val history: Set<String>,
+        val channels: Set<String>,
     )
 
     private suspend fun readExisting(
         doc: BackupDocument,
         likes: LikesRepository,
         playlists: PlaylistRepository,
-        history: HistoryRepository,
+        subscriptions: SubscriptionRepository,
     ): Existing {
         val idByName = playlists.observePlaylists().first().associate { it.name to it.id }
         val items = doc.playlists.associate { p ->
@@ -105,7 +110,7 @@ object BackupIo {
             playlistIdByName = idByName,
             playlistItems = items,
             liked = likes.observe().first().map { it.pageUrl }.toSet(),
-            history = history.observe().first().map { it.pageUrl }.toSet(),
+            channels = subscriptions.observeAllRows().first().map { it.listing.key }.toSet(),
         )
     }
 }

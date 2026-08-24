@@ -1,5 +1,6 @@
 package com.fyiplayer.app.data.backup
 
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 
 /**
@@ -26,15 +27,19 @@ fun BackupVideo.toVideoRef(): VideoRef = VideoRef(
     uploader = uploader,
 )
 
+// key is the channel's canonical page URL for a CHANNEL-kind Listing (see Listing docs in
+// core/Contracts.kt) -- the only kind SubscriptionRepository ever produces here.
+fun Listing.toBackupChannel(): BackupChannel = BackupChannel(sourceId, key, title)
+
 /** Assembles the document from already-fetched lists. Pure -- callers do the DB reads. */
 fun buildBackupDocument(
     liked: List<VideoRef>,
     playlists: List<Pair<String, List<VideoRef>>>,
-    history: List<VideoRef>,
+    channels: List<Listing>,
     exportedAtMillis: Long,
 ): BackupDocument = BackupDocument(
     exportedAtMillis = exportedAtMillis,
     playlists = playlists.map { (name, items) -> BackupPlaylist(name, items.map { it.toBackupVideo() }) },
     liked = liked.map { it.toBackupVideo() },
-    history = history.map { it.toBackupVideo() },
+    channels = channels.map { it.toBackupChannel() },
 )
