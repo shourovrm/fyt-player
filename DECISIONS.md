@@ -2,8 +2,13 @@
 
 ## Current state
 
-2026-08-24 (v0.2.13) fullscreen bars + shorts wakelock + in-app update, DEVICE-UNVERIFIED (no
-adb device attached at build time — verify on reconnect):
+2026-08-24 (v0.2.13) fullscreen bars + shorts wakelock + in-app update, DEVICE-VERIFIED
+(Nothing Phone, gesture nav): fullscreen entry+rotation = no bars; Home->relaunch while
+fullscreen = bars stay hidden (ON_RESUME re-assert); exit = no right-shift; shorts pager holds
+KEEP_SCREEN_ON while playing, cleared on pause; Settings manual check hit live GitHub API ->
+"You're on the latest version" (0.2.13 > released 0.2.12). Banner untestable until a release
+newer than installed exists. Still unverified on a 3-button-nav OEM device (the original
+reporter's hardware):
 - **Fullscreen nav/status bar reappearing** (3-button-nav OEMs): the single entry hide got undone
   by the OEM re-showing bars after the in-process rotation and after return-to-app. Fix: bounded
   fullscreen-scoped re-hides in PlayerScreen (orientation key + ON_RESUME), reusing
