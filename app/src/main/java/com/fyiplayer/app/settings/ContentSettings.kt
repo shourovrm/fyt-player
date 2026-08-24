@@ -21,7 +21,7 @@ import com.fyiplayer.app.data.prefs.Prefs
 import kotlinx.coroutines.launch
 
 // ISO 639-1, English first/default; curated to what NewPipeExtractor's YouTube client accepts.
-private val LANGUAGES = listOf(
+internal val LANGUAGES = listOf(
     "en" to "English", "es" to "Spanish", "hi" to "Hindi", "bn" to "Bengali", "ar" to "Arabic",
     "pt" to "Portuguese", "ru" to "Russian", "ja" to "Japanese", "de" to "German", "fr" to "French",
     "it" to "Italian", "tr" to "Turkish", "ko" to "Korean", "vi" to "Vietnamese", "id" to "Indonesian",
@@ -29,7 +29,7 @@ private val LANGUAGES = listOf(
 )
 
 // ISO 3166-1 alpha-2, US first/default.
-private val COUNTRIES = listOf(
+internal val COUNTRIES = listOf(
     "US" to "United States", "BD" to "Bangladesh", "IN" to "India", "GB" to "United Kingdom",
     "DE" to "Germany", "FR" to "France", "JP" to "Japan", "KR" to "South Korea", "BR" to "Brazil",
     "RU" to "Russia", "TR" to "Turkey", "ID" to "Indonesia", "PK" to "Pakistan", "NG" to "Nigeria",
