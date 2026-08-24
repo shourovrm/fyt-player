@@ -76,10 +76,10 @@ fun setFullscreen(activity: Activity, fullscreen: Boolean) {
 
 
 /**
- * While fullscreen, system bars track the in-app chrome: a tap that reveals the control row
- * reveals the status/nav bars with it, auto-hide takes both away. [setFullscreen] stays the
- * entry/exit authority. The stale-inset wedge this churn can trigger on this OEM is covered by
- * SystemBarInsetsState.restoreLatched() on exit -- PipePipe's manual-reset trick.
+ * Re-asserts bar visibility while fullscreen: this OEM re-shows hidden bars after the in-process
+ * rotation and on return-to-app, so PlayerScreen re-hides at exactly those two moments.
+ * [setFullscreen] stays the entry/exit authority; per-controls bars-follow-chrome stays banned
+ * (DECISIONS "Tried / rejected": that churn wedges this OEM's inset delivery).
  */
 fun setSystemBarsVisible(activity: Activity, visible: Boolean) {
     val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)

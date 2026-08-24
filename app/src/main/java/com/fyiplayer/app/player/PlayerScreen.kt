@@ -33,8 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.ui.AspectRatioFrameLayout
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.SeekThumbnails
@@ -108,6 +111,19 @@ fun PlayerScreen(
     LaunchedEffect(fullscreen, state.videoWidth, state.videoHeight) {
         activity?.let { applyAspectOrientation(it, fullscreen, state.videoWidth, state.videoHeight) }
     }
+    // This OEM re-shows the hidden bars on its own after two events: the in-process rotation
+    // that follows fullscreen entry, and returning to the app (background/screen-off). Re-assert
+    // the hide at exactly those moments — bounded and fullscreen-scoped, NOT the per-controls
+    // bars-follow-chrome churn from DECISIONS "Tried / rejected" (that wedged inset delivery;
+    // PipePipe re-asserts the same way, made safe there and here by layout never depending on
+    // bar visibility while fullscreen).
+    val orientation = LocalConfiguration.current.orientation
+    LaunchedEffect(fullscreen, orientation) {
+        if (fullscreen) activity?.let { setSystemBarsVisible(it, false) }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (fullscreen) activity?.let { setSystemBarsVisible(it, false) }
+    }
     DisposableEffect(state.isPlaying) {
         activity?.let { setKeepScreenOn(it, state.isPlaying) }
         onDispose { activity?.let { setKeepScreenOn(it, false) } }
@@ -139,9 +155,9 @@ fun PlayerScreen(
     }
     // DELIBERATELY no bars-follow-chrome: the hide/show churn wedges this OEM's inset delivery
     // (the "page shifted right" bug) and even the latched-restore trick didn't hold on device.
-    // Bars change exactly twice per session (setFullscreen: hide on entry, show on exit); the
-    // status bar stays reachable via the system edge swipe. Do not re-add without a device-
-    // verified fix for the wedge.
+    // The only bar calls are setFullscreen's entry/exit pair plus the bounded re-hides above
+    // (rotation, resume — both fullscreen-scoped); the status bar stays reachable via the system
+    // edge swipe. Do not re-add bars-follow-chrome without a device-verified fix for the wedge.
 
     LaunchedEffect(fastSeekToken) {
         if (fastSeekTotal == null) return@LaunchedEffect
