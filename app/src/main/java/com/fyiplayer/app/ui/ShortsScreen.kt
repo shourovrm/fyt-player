@@ -18,11 +18,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.player.asActivity
+import com.fyiplayer.app.player.setKeepScreenOn
 import kotlinx.coroutines.flow.collect
 
 /**
@@ -145,6 +148,14 @@ internal fun ShortsPager(
     DisposableEffect(Unit) {
         FullscreenChrome.acquire()
         onDispose { FullscreenChrome.release() }
+    }
+
+    // Same contract as PlayerScreen: hold the screen awake only while actually playing. Without
+    // this the display timed out mid-short — the detail player was setKeepScreenOn's only caller.
+    val activity = LocalContext.current.asActivity()
+    DisposableEffect(playerState.isPlaying) {
+        activity?.let { setKeepScreenOn(it, playerState.isPlaying) }
+        onDispose { activity?.let { setKeepScreenOn(it, false) } }
     }
 
     // Start (or resync) the shared session on this feed. A returning composition -- nav back from
