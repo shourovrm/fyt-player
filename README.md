@@ -1,8 +1,8 @@
 # FYT Player
 
-Android video player for YouTube, Facebook and TikTok. Browse and search YouTube, open shared
+Android video player for YouTube, Facebook, Twitter/X and TikTok. Browse and search YouTube, open shared
 links from the other two, play in the background, keep a queue, download for offline. No ads, no
-account needed, sideloaded APK.
+account needed.
 
 ## Features
 
@@ -13,12 +13,12 @@ account needed, sideloaded APK.
 - Content region and language are settings, not whatever the server guesses.
 
 **Playback**
-- Background playback with lockscreen, notification, headset and Bluetooth controls.
+- Background playback.
 - Queue: play next, add to queue, reorder, shuffle, autoplay next.
 - Fullscreen with rotation, double-tap seek, swipe for brightness and volume, playback speed,
   quality picker, captions, seek-bar thumbnails.
 - Resumes where you left off. Optional SponsorBlock segment skipping.
-- Mini player stays on screen while you keep browsing.
+- Mini player stays on screen of the app while you keep browsing.
 - Separate default quality caps for Wi-Fi and mobile data.
 
 **Library**
@@ -38,7 +38,7 @@ account needed, sideloaded APK.
 
 | Platform | What works |
 |---|---|
-| YouTube | Everything above. Optional sign-in for age-restricted and members-only content. |
+| YouTube | Everything above. Optional sign-in for age-restricted and members-only content (currently not working.) |
 | Facebook | Play and download a video or reel from a shared link. No search, no page browsing — Facebook offers no public listing API, and the upstream extractor is intermittent on some videos. |
 | TikTok | Play a clip from a shared link in the vertical pager. No search, no feed. TikTok rate-limits by IP; after a batch of clips it answers 403 for a while, and the app shows that as unavailable. |
 | X / Twitter | Play a video from a shared link. |
@@ -46,16 +46,13 @@ account needed, sideloaded APK.
 ## What it refuses to do
 
 When a site puts up a wall — login, CAPTCHA, paywall, geo-block, age gate, DRM, rate limit — the
-app shows that state and stops. It does not retry in a loop, forge requests, impersonate a browser
-TLS stack or reconstruct signatures. That line is what keeps it a client rather than a scraper.
+app shows that state and stops.
 
 ## Install
 
 Requires Android 8.0 or newer on a 64-bit ARM device (almost every phone since 2017).
 
-1. Download the APK:
-   **[fyt-player.apk (latest release)](https://github.com/shourovrm/fyt-player/releases/latest/download/fyt-player.apk)**
-   — or pick a specific version on the [Releases](https://github.com/shourovrm/fyt-player/releases) page.
+1. Download the APK from the [latest release](https://github.com/shourovrm/fyt-player/releases/latest).
 2. Open it on the phone and allow installs from that source if asked.
 3. Updates install over the previous version; your library, settings and downloads are kept.
 

@@ -60,6 +60,9 @@
 # yt-dlp Android wrapper: Python runtime + ffmpeg native bridge
 # ---------------------------------------------------------------------------
 -keep class com.yausername.** { *; }
+# commons-compress registers zip extra-field classes by reflection (ExtraFieldUtils <clinit>);
+# shrinking them crashes first-run python unzip with "class ... is not a concrete class".
+-keep class org.apache.commons.compress.archivers.zip.** { *; }
 
 # ---------------------------------------------------------------------------
 # Native methods

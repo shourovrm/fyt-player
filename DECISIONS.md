@@ -282,6 +282,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
 
 ## Gotchas
+- Release verification = `adb uninstall` then `adb install`; `install -r` over old data skips yt-dlp python unzip and hides R8 first-run crashes.
 - TikTok CDN 403s without session cookies; yt-dlp's per-format `cookies` is Set-Cookie shaped
   (name=val; Domain=..; Path=..) -- strip attributes to a `Cookie:` header (EngineResolver.cookieHeaderFrom).
 - TikTok IP-rate-limits repeated extraction: same request that gave 206 flips to 403 after ~10 hits,
@@ -702,3 +703,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-23 | v0.2.9 perf wave: single StreamInfo fetch, LoadControl 2s, probe folded into first window, progress StateFlow split, decoder prewarm, 64MB media cache | measured ~1.5-2s slower than PipePipe per start; three concurrent StreamInfo fetches + HLS were the bulk
 2026-08-23 | FormatSelector: progressive pair beats HLS manifest; manifest only as fallback | HLS start = master+variant playlist RTTs before first byte and no range chunking; 4.5s->3.2s cold measured
 2026-08-23 | Media disk cache keys: yt|id|itag|lmt for googlevideo, sha256(url) otherwise | SimpleCache index persists keys; a raw signed URL on disk would break the persist-canonical-only rule
+2026-08-24 | keep org.apache.commons.compress.archivers.zip.** in R8 | ExtraFieldUtils registers classes by reflection; shrunk build crashed first-run python unzip on FRESH install only (adb install -r over old data skipped unzip, masked it). Verify releases with uninstall + install. v0.2.10
