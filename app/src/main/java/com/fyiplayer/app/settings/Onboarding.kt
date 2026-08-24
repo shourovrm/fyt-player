@@ -72,7 +72,7 @@ fun OnboardingSheet(prefs: Prefs) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LocaleDropdown(
+internal fun LocaleDropdown(
     label: String,
     options: List<Pair<String, String>>,
     selected: String,

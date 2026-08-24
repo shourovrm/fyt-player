@@ -199,7 +199,9 @@ fun HomeScreen(
                 SearchSuggestionsDropdown(suggestions = vm.suggestions, onPick = { vm.runSearch(it, browseSources) })
             }
             isSearching -> {
-                if (tabIds.size > 1) {
+                // tabIds always carries a synthetic "All" entry on top of browseSources, so
+                // tabIds.size is never 1 even with a single source -- gate on the real count.
+                if (browseSources.size > 1) {
                     ScrollableTabRow(selectedTabIndex = tabIds.indexOf(vm.selectedTab).coerceAtLeast(0), edgePadding = 12.dp) {
                         tabIds.forEach { id ->
                             val label = if (id == ALL_TAB_ID) "All" else browseSources.find { it.id == id }?.displayName ?: id
