@@ -153,12 +153,16 @@ fun AppScaffold(
         // inset that M3's nested Scaffold/TopAppBar would pad on their own — a grey strip beside
         // the player while the outer chrome spans full width (device-verified, rotation 1).
         // This app is edge-to-edge under the cutout everywhere, so nothing below may re-pad it.
-        Box(
+        Column(
             Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner)
                 .consumeWindowInsets(WindowInsets.displayCutout)
                 .nestedScroll(nestedScrollConnection),
         ) {
-            content(navController)
+            // Update banner rides above every tab, never over a full-bleed player surface.
+            if (!isFullPlayerRoute(route) && !FullscreenChrome.active) UpdateBanner()
+            Box(Modifier.weight(1f)) {
+                content(navController)
+            }
         }
     }
 }

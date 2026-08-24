@@ -40,6 +40,7 @@ class Prefs(private val context: Context) {
         val SPONSOR_BLOCK = booleanPreferencesKey("sponsor_block")
         val AUTOPLAY_NEXT = booleanPreferencesKey("autoplay_next")
         val SAVE_PLAY_POSITION = booleanPreferencesKey("save_play_position")
+        val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
     }
 
     // only platform live today; default matches SourceRegistry without this file naming it
@@ -97,6 +98,11 @@ class Prefs(private val context: Context) {
     suspend fun setAutoplayNext(v: Boolean) = set(AUTOPLAY_NEXT, v)
     val savePlayPosition: Flow<Boolean> = flow(SAVE_PLAY_POSITION, true)
     suspend fun setSavePlayPosition(v: Boolean) = set(SAVE_PLAY_POSITION, v)
+
+    /** Update banner's per-version dismissal: hides the banner for this release only, so the
+     *  next release banners again. */
+    val dismissedUpdateVersion: Flow<String> = flow(DISMISSED_UPDATE_VERSION, "")
+    suspend fun setDismissedUpdateVersion(v: String) = set(DISMISSED_UPDATE_VERSION, v)
 
     // SAF tree URI finished downloads get COPIED into; unset means app-private storage only, so
     // this has no default and bypasses the flow()/set() helpers, which require a non-null T.
