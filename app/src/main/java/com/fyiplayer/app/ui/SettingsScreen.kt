@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.settings.AccountSettings
+import com.fyiplayer.app.settings.AppSettings
 import com.fyiplayer.app.settings.BackupSettings
 import com.fyiplayer.app.settings.ContentSettings
 import com.fyiplayer.app.settings.DownloadSettings
@@ -19,8 +20,8 @@ import com.fyiplayer.app.settings.PlaybackSettings
 import com.fyiplayer.app.settings.SourcesSettings
 
 /** Sections (mockup-v2.png), top to bottom: sources, language & region, account, playback
- *  (resolution merged in), gestures, downloads (file format merged in), history, video engine,
- *  backup -- each its own file under `settings/`, this just lists them in order. */
+ *  (resolution merged in), gestures, downloads (file format merged in), history, app, video
+ *  engine, backup -- each its own file under `settings/`, this just lists them in order. */
 @Composable
 fun SettingsScreen() {
     val app = rememberFyiApp()
@@ -32,6 +33,7 @@ fun SettingsScreen() {
         item { GestureSettings(app.prefs) }
         item { DownloadSettings(app.prefs) }
         item { HistorySettings(app.prefs) }
+        item { AppSettings() }
         item { EngineSettings() }
         item { BackupSettings() }
     }

@@ -49,12 +49,10 @@ fun PlaybackSettings(prefs: Prefs) {
             checked = autoplayNext,
             onCheckedChange = { scope.launch { prefs.setAutoplayNext(it) } },
         )
-        // Honest about what this is: no recommendation system exists, just a title search.
         Text(
-            "When the queue ends, plays a similar video (title-based search)",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            "Default quality",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
         )
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text("Wi-Fi", style = MaterialTheme.typography.bodyMedium)
