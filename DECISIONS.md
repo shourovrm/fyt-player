@@ -2,6 +2,37 @@
 
 ## Current state
 
+2026-08-24 (v0.2.11) Explore topics + onboarding + backup rework + settings cleanup, all
+device-verified fresh-install:
+- **Explore chips** on Home (`source/newpipe/YoutubeTopicFeed.kt`): News/Sports/Music via YouTube's
+  official topic-channel `browse` (richGridRenderer richShelfRenderer, videoRenderer or the newer
+  lockupViewModel -- Music ships lockups only, News/Sports/Live still videoRenderer). Movies has no
+  free channel feed (its channel is a paid storefront) -- uses `charts.youtube.com` `browse`
+  (`FEmusic_analytics_charts_home`, chart_type=TRENDING_MOVIES), same request NewPipe 0.29's
+  "Trending movies and shows" kiosk sends. Charts carries chart position + release date, NEVER a
+  view count -- `viewCountText` stays null there (no per-item fetch to fake one, rule: no I/O per
+  list item). Which chips show is a Settings toggle (`Prefs.exploreTopics`, News/Movies/Sports/Music
+  on by default, Live off -- it's really PipePipe's "Recommended Lives" kiosk under a friendlier
+  name). Country/language change clears the cached topic pages and refetches (`HomeViewModel.init`
+  drops+refetches the selected topic on `contentLanguage`/`contentCountry` change).
+- **Onboarding**: first-run `ModalBottomSheet` over Home (`settings/Onboarding.kt`), two
+  `ExposedDropdownMenuBox` pickers reusing `ContentSettings`' LANGUAGES/COUNTRIES. Gotcha found
+  device-side: the system POST_NOTIFICATIONS permission prompt (MainActivity, pre-existing) can
+  appear over this sheet on first launch and its mere appearance fires `onDismissRequest` --
+  wiring that to `setOnboardingDone()` silently skipped onboarding. Fixed: `onDismissRequest = {}`,
+  only the Done button persists `Prefs.onboardingDone`.
+- **Backup**: HTML export/import now carries playlists + liked + subscribed channels; watch
+  history dropped entirely (`BackupModel` version bumped to 2, old files' `history` array ignored
+  via `ignoreUnknownKeys`, `channels` defaults empty for old files).
+- **Settings**: new "App" section (version, before Video engine); Autoplay-next helper line and
+  Likes-tab empty-state helper text removed (both read as filler); quality chips get an explicit
+  "Default quality" label; "Update yt-dlp" moved onto the "yt-dlp update channel" row.
+- **Fix (v0.2.10)**: R8 stripped `org.apache.commons.compress.archivers.zip.*` (registered by
+  reflection in `ExtraFieldUtils`), crashing yt-dlp's first-run python unzip -- but only on a
+  FRESH install; `adb install -r` over existing app data skips that unzip and hid the crash.
+  Fixed with a keep rule (`proguard-rules.pro`). Release verification from now on: uninstall then
+  install, never `-r` over a previous version, or a first-run-only crash like this won't surface.
+
 2026-08-23 (v0.2.9) PERF wave, device-measured tap-to-first-audio (same 3 videos, same network):
 before 4.5s cold / 3.1-3.7s warm; after 2.6-3.2s cold / 1.9-2.9s warm; PipePipe 2.9 / 1.7-2.0.
 What landed: (1) ONE StreamInfo fetch per video (`source/newpipe/StreamInfoCache.kt`, in-flight

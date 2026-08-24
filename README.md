@@ -2,7 +2,7 @@
 
 Android video player for YouTube, Facebook, Twitter/X and TikTok. Browse and search YouTube, open shared
 links from the other two, play in the background, keep a queue, download for offline. No ads, no
-account needed.
+account needed. Latest APK: [releases/latest](https://github.com/shourovrm/fyt-player/releases/latest)
 
 ## Features
 
@@ -23,7 +23,7 @@ account needed.
 
 **Library**
 - Watch history, likes, your own playlists, subscriptions.
-- Export the whole library to a single HTML file and import it back on another device.
+- Export playlists, likes and subscriptions to a single HTML file and import them back on another device.
 
 **Downloads**
 - Pick video or audio-only, pick a quality, queue several, pause / resume / cancel.
