@@ -7,7 +7,8 @@ account needed. Latest APK: [releases/latest](https://github.com/shourovrm/fyt-p
 ## Features
 
 **Browse and search**
-- Home feed from your subscriptions, search with suggestions, channel pages with Videos / Shorts /
+- Home feed from your subscriptions (subscribe to at least one channel or "For you" stays
+  empty), search with suggestions, channel pages with Videos / Shorts /
   Playlists / Live tabs, playlists, "Similar" and comments on every video.
 - Shorts tab: vertical swipe pager over your subscribed channels' shorts.
 - Content region and language are settings, not whatever the server guesses.
