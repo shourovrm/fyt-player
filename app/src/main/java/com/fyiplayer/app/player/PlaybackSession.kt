@@ -69,6 +69,9 @@ data class PlayerState(
     // this once known, instead of forcing landscape on a portrait video (see applyAspectOrientation).
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
+    // False from the moment an item becomes current until its first frame hits the surface --
+    // the window where the player's shutter is black. Shorts pages cover it with the thumbnail.
+    val firstFrameRendered: Boolean = false,
 )
 
 /** Position/duration only, ticked every 500ms by [PlaybackSession.tickPosition] -- split out of
@@ -628,7 +631,7 @@ object PlaybackSession {
             applyCaptionSelection(language)
             _state.update {
                 it.copy(
-                    current = ref, index = i, queueSize = queue.size, queue = queue, error = null,
+                    current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
                     selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                     availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                     isPlaying = player.isPlaying,
@@ -659,7 +662,7 @@ object PlaybackSession {
                 clearSponsorSegments()
                 _state.update {
                     it.copy(
-                        current = ref, index = i, queueSize = queue.size, queue = queue,
+                        current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
                         error = e, availableHeights = emptyList(), availableCaptions = emptyList(),
                     )
                 }
@@ -691,7 +694,7 @@ object PlaybackSession {
                 clearSponsorSegments()
                 _state.update {
                     it.copy(
-                        current = ref, index = i, queueSize = queue.size, queue = queue,
+                        current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
                         error = ExtractionError.Unsupported(result.reason ?: "no playable format"),
                         availableHeights = emptyList(), availableCaptions = emptyList(),
                     )
@@ -753,7 +756,7 @@ object PlaybackSession {
         applyCaptionSelection(language)
         _state.update {
             it.copy(
-                current = ref, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
+                current = ref, firstFrameRendered = false, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
                 selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                 availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                 // seed from the player: an advance between two already-playing items never fires
@@ -847,6 +850,10 @@ object PlaybackSession {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.update { it.copy(isPlaying = isPlaying) }
             tickPosition(isPlaying)
+        }
+
+        override fun onRenderedFirstFrame() {
+            _state.update { it.copy(firstFrameRendered = true) }
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
