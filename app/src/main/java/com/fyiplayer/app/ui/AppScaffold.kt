@@ -6,7 +6,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
@@ -122,12 +124,12 @@ fun AppScaffold(
             // One Column: queue bar + mini player sit above the nav bar and are part of the
             // Scaffold's bottom inset, so content is never hidden under them.
             Column {
-                // Detail hosts the full player, and there is exactly one shared video surface —
-                // mounting the mini bar there would steal it mid-playback.
-                if (!isFullPlayerRoute(route)) {
-                    queueBar(navController)
-                    miniPlayer(navController)
-                }
+                // Queue bar on every route incl. Detail (docked above the nav bar, and it stays
+                // when the nav auto-hides); never over a full-bleed surface. The mini player is
+                // different: Detail hosts the full player, and there is exactly one shared video
+                // surface — mounting the mini bar there would steal it mid-playback.
+                if (!FullscreenChrome.active) queueBar(navController)
+                if (!isFullPlayerRoute(route)) miniPlayer(navController)
                 AnimatedVisibility(
                     visible = barVisible && !FullscreenChrome.active,
                     enter = slideInVertically(tween(NAV_ANIM_MILLIS)) { it },
@@ -143,6 +145,11 @@ fun AppScaffold(
                             )
                         }
                     }
+                }
+                // The NavigationBar carries the gesture-nav inset; once it slides away the docked
+                // queue bar / mini player would sit under the gesture pill (device-verified).
+                if (!barVisible && !FullscreenChrome.active) {
+                    Spacer(Modifier.windowInsetsBottomHeight(systemBarInsets))
                 }
             }
         },

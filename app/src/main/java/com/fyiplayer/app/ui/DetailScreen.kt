@@ -54,7 +54,6 @@ import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.player.PlaybackSession
-import com.fyiplayer.app.player.QueueBar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.text.NumberFormat
@@ -229,9 +228,6 @@ fun DetailScreen(
                     }
                 }
                 item { VideoActionRow(rememberVideoActions(shownRef)) }
-                // AppScaffold drops its queue bar on detail routes (the page IS the player), so
-                // the queue lives here instead; QueueBar hides itself for a single-item queue.
-                item { QueueBar(onOpen = onOpenDetail) }
                 // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
                 // option (the old showCommentsTab-only gate no longer applies).
                 item {

@@ -2,8 +2,9 @@
 
 ## Current state
 
-2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: Detail renders `QueueBar` under the
-action row (AppScaffold drops its own on detail routes); sheet rows have no pageUrl key (duplicate
+2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: AppScaffold docks `QueueBar` above the nav bar on
+every non-fullscreen route incl. Detail (stays when nav auto-hides; nav-inset spacer under the
+docked bars when nav is hidden); sheet rows have no pageUrl key (duplicate
 enqueue crashed); row tap = playAt + openDetail, and playAt publishes `current` synchronously so
 Detail's entry guard does not replace the queue. Music chip = charts VIDEOS + DAILY. Queue
 never holds one pageUrl twice: enqueue returns false ("Already in queue" toast), play next moves
@@ -825,3 +826,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | Music chip = charts VIDEOS period DAILY (was WEEKLY) | user picked "Daily top music videos"; more local, moves faster
 2026-08-25 | QueueBar inside Detail LazyColumn; sheet rows unkeyed; row tap opens watch page; playAt publishes current before startAt | queue invisible on watch page, duplicate-key crash, tap only swapped media then Detail guard wiped queue
 2026-08-25 | queue dedup by pageUrl; enqueue false + toast, playNext moves existing entry after current | user rule: same video never queued twice
+2026-08-25 | queue bar docked in AppScaffold bottom on Detail too (not a LazyColumn item); inset spacer when nav hidden | user wants queue at bottom above nav, alone when nav hides; docked bars sat under gesture pill
