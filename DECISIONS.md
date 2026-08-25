@@ -2,6 +2,20 @@
 
 ## Current state
 
+2026-08-25 (v0.2.15) player chrome redesign, DEVICE-VERIFIED (Nothing Phone): Detail has NO top
+bar and no ⋮ (title lives once, under the video; the ⋮ sheet's only unique item, Play next, is
+still on long-press of cards elsewhere). Idle portrait = 3dp red line + 10dp dot on the video's
+bottom edge; touching the dot starts the drag AND brings the controls up (one Slider call site in
+ControlBar for both states -- a second call site orphaned the in-flight drag, isScrubbing stuck).
+Tapped = top-left ✕ (PlaybackSession.clear + pop) and ⌄ (pop, mini player keeps playing), centre
+⏮ ⏸ ⏭ with prev/next shown independently only when they exist (PipePipe rule), bottom row
+time · 720p · 1x · CC · fullscreen above the bar (portrait) / below it with 24dp side inset
+(fullscreen), gradient instead of the black band. Preview-grid button + OverflowControls deleted
+(JumpGridSheet/PreviewGridGlyph remain in PlayerOverlays, unused). Queue chip removed from the
+action row. Seek preview card 160/200dp, largest storyboard tile, tiles >=45px. Shorts: dot
+always visible, 5dp line while dragging, 50x90 tile card on drag. Mini player title was blank on
+bare-URL opens: DetailScreen hands the enriched ref to PlaybackSession.updateCurrentMeta.
+
 2026-08-25 seekbar/preview pass vs YouTube+PipePipe (device-verified): scrub card was squashed
 to ~27dp by the 40dp slider Box (now `wrapContentHeight(unbounded)`), storyboard level now
 largest-tile (160x90, was 80x45 = most-frames), card 160dp portrait / 200dp fullscreen with
@@ -797,3 +811,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | youtube /shorts/ share links route to the pager | landed in the landscape Detail player before
 2026-08-25 | Seek preview: unbounded height, largest storyboard tile, 160/200dp card, timestamp above, growing thumb | squashed+blurry card vs YouTube/PipePipe; the 40dp slider Box clamped the child, most-frames level = smallest tiles
 2026-08-25 | Shorts seekbar: always-visible 10dp dot | YouTube's red dot makes grab-and-drag discoverable; the thin line alone hid the handle
+2026-08-25 | Detail: no top bar/⋮; player gets ✕/⌄ top-left, PipePipe prev/next rule, bottom row with quality+speed, gradient, red bar on the video edge | user design after YouTube/PipePipe comparison; the title bar duplicated the body title and the ⋮ sheet duplicated the action row. v0.2.15
+2026-08-25 | ControlBar: ONE Slider call site for collapsed+expanded | a drag starting on the idle line expands the bar mid-gesture; two call sites = new Slider instance, old drag never finished
+2026-08-25 | PlaybackSession.updateCurrentMeta from DetailScreen | share/open-with starts playback on a title-less ref; mini player + notification showed no title
