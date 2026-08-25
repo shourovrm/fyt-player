@@ -240,7 +240,11 @@ class NewPipeYoutubeSource(
     override suspend fun seekThumbnails(ref: VideoRef): SeekThumbnails? = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
         val info = guarded { StreamInfoCache.get(ref.pageUrl) }
-        val best = info.previewFrames.orEmpty().maxByOrNull { it.totalCount } ?: return@withContext null
+        // Largest TILE wins, not most frames: the level with the most frames is the smallest
+        // tiles (80x45 for a 16:9 long video, 25x45 for a short -- seen live), and blown up to
+        // card size that was the "unclear" preview. PipePipe picks by resolution the same way.
+        val best = info.previewFrames.orEmpty()
+            .maxWithOrNull(compareBy({ it.frameWidth }, { it.totalCount })) ?: return@withContext null
         try {
             // Counts only, never URLs. Storyboard shape from this client changes with the fork's
             // player client; a wrong grid renders the whole sheet as a mini grid in the scrub card.

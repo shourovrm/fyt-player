@@ -401,13 +401,16 @@ private fun ShortsSeekBar(
         // area while the track/thumb art stays exactly as thin as the mockup calls for.
         modifier = modifier.height(40.dp),
         thumb = {
-            if (isScrubbing) {
-                Box(
-                    Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(Modifier.size(13.dp).clip(CircleShape).background(Color.White))
-                }
+            // Always a dot (YouTube Shorts' red dot): a visible handle is what makes "grab and
+            // drag" discoverable; idle 10dp, halo + 13dp while the finger is down.
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(if (isScrubbing) Color.White.copy(alpha = 0.18f) else Color.Transparent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(if (isScrubbing) 13.dp else 10.dp).clip(CircleShape).background(Color.White))
             }
         },
         track = {

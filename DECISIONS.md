@@ -2,6 +2,14 @@
 
 ## Current state
 
+2026-08-25 seekbar/preview pass vs YouTube+PipePipe (device-verified): scrub card was squashed
+to ~27dp by the 40dp slider Box (now `wrapContentHeight(unbounded)`), storyboard level now
+largest-tile (160x90, was 80x45 = most-frames), card 160dp portrait / 200dp fullscreen with
+titleMedium timestamp above it, thumb 12dp idle -> 20dp dragging, transport hidden while
+scrubbing, tiles <60px = pill only. Shorts bar keeps its thin line + an always-visible 10dp dot.
+Not done (proposed 5/6): bar on the video's bottom edge with a gradient instead of the black
+band; fullscreen 24dp inset; YouTube-style fill-the-video preview.
+
 2026-08-25 (v0.2.14) shorts pager smoothness wave, DEVICE-VERIFIED (Nothing Phone, WiFi+LTE,
 screenrecord frame analysis): (1) ONE PlayerView host under the VerticalPager, pages are
 overlays -- decoder surface resets per swipe went 2 -> 0; (2) active page keeps its thumbnail
@@ -787,3 +795,5 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | warmNext(): resolve N+1 in parallel with N's load | swipe before prefetch landed or a fling (playAt) paid two serial resolves
 2026-08-25 | Media HTTP 8s/8s timeouts, transport errors skip backoff, one auto re-prepare on network error | 29s spinner then dead on WiFi->LTE handover; PipePipe reloads from saved position for the same codes
 2026-08-25 | youtube /shorts/ share links route to the pager | landed in the landscape Detail player before
+2026-08-25 | Seek preview: unbounded height, largest storyboard tile, 160/200dp card, timestamp above, growing thumb | squashed+blurry card vs YouTube/PipePipe; the 40dp slider Box clamped the child, most-frames level = smallest tiles
+2026-08-25 | Shorts seekbar: always-visible 10dp dot | YouTube's red dot makes grab-and-drag discoverable; the thin line alone hid the handle

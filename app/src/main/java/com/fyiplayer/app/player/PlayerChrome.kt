@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.wrapContentHeight
 import com.fyiplayer.app.core.SeekThumbnails
 
 /**
@@ -125,11 +126,13 @@ internal fun ControlBar(
                     }
                 },
                 thumb = {
-                    // 28dp box is the grab target; the 10dp fill inside is all that's drawn.
+                    // 28dp box is the grab target; the dot inside is all that's drawn -- 12dp
+                    // idle (findable, PipePipe's 14dp was the easiest to grab of the three apps
+                    // compared), 20dp under the finger like YouTube/PipePipe.
                     Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
-                                .size(10.dp)
+                                .size(if (isScrubbing) 20.dp else 12.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primary),
                         )
@@ -141,14 +144,15 @@ internal fun ControlBar(
             )
             if (isScrubbing) {
                 val density = LocalDensity.current
-                val previewWidthPx = with(density) { SEEK_PREVIEW_WIDTH.roundToPx() }
+                val previewWidth = if (fullscreen) SEEK_PREVIEW_WIDTH_FULLSCREEN else SEEK_PREVIEW_WIDTH_PORTRAIT
+                val previewWidthPx = with(density) { previewWidth.roundToPx() }
                 val gapPx = with(density) { SEEK_PREVIEW_GAP.roundToPx() }
                 // Measured, not guessed: the card drops its thumbnail box when no image is
                 // available yet (see SeekThumbnailPreview), so its real height varies -- a fixed
                 // lift only fit one of the two cases. Seeded with a close estimate so the very
                 // first scrub frame doesn't visibly pop once the real measurement lands.
                 var previewHeightPx by remember {
-                    mutableStateOf(with(density) { (SEEK_PREVIEW_HEIGHT + 24.dp).roundToPx() })
+                    mutableStateOf(with(density) { (previewWidth * 9 / 16 + 40.dp).roundToPx() })
                 }
                 // Clamped to the slider's own width -- the track already spans the full available
                 // width (minus the Column's edge padding), so this keeps the card from poking past
@@ -159,8 +163,13 @@ internal fun ControlBar(
                 SeekThumbnailPreview(
                     image = seekThumbs?.imageFor(scrubValueMs / 1000.0),
                     timestampText = formatPosition(scrubValueMs, progress.durationMs),
+                    width = previewWidth,
                     modifier = Modifier
                         .align(Alignment.TopStart)
+                        // unbounded: this Box is pinned to 40dp (see above) and would otherwise
+                        // clamp the card to what's left after the timestamp -- the 79dp frame
+                        // came out ~27dp tall, a 3x vertical squash (reported: "too wide").
+                        .wrapContentHeight(align = Alignment.Top, unbounded = true)
                         .offset { IntOffset(xPx, -(previewHeightPx + gapPx)) }
                         .onGloballyPositioned { previewHeightPx = it.size.height },
                 )
