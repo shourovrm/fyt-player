@@ -1,6 +1,7 @@
 package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -18,12 +19,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.player.SharedVideoSurface
 import com.fyiplayer.app.player.asActivity
 import com.fyiplayer.app.player.setKeepScreenOn
 import kotlinx.coroutines.flow.collect
@@ -208,15 +212,28 @@ internal fun ShortsPager(
     // FullscreenChrome.active (set above) is what makes AppScaffold stop consuming system-bar
     // insets for this frame, so fillMaxSize here really does reach every edge -- no manual inset
     // math needed on this end.
-    VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-        val ref = items[page]
-        // Read state.index (collected above), not a mirrored copy: which page is "live" must
-        // never lag a frame behind the session or the wrong clip's title flashes.
-        ShortsPage(
-            ref = ref,
-            isActive = page == playerState.index,
-            playerState = playerState,
-            onOpenDetail = { RefCache.put(ref); onOpenDetail(ref.pageUrl) },
+    // ONE surface host, mounted once UNDER the pager, not one per page: moving the shared
+    // PlayerView between page hosts re-created its SurfaceTexture on every swipe, which reset
+    // the decoder's output surface twice per swipe ("setting surface generation" in logcat) and
+    // dropped its queued frames -- the ~0.5s black gap between clips. Pages are overlays now:
+    // the active page is transparent so the video shows through, inactive pages draw their
+    // thumbnail over it and slide across during the swipe.
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        SharedVideoSurface(
+            player = PlaybackSession.exoPlayer,
+            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+            modifier = Modifier.fillMaxSize(),
         )
+        VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+            val ref = items[page]
+            // Read state.index (collected above), not a mirrored copy: which page is "live" must
+            // never lag a frame behind the session or the wrong clip's title flashes.
+            ShortsPage(
+                ref = ref,
+                isActive = page == playerState.index,
+                playerState = playerState,
+                onOpenDetail = { RefCache.put(ref); onOpenDetail(ref.pageUrl) },
+            )
+        }
     }
 }

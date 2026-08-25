@@ -51,7 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.media3.ui.AspectRatioFrameLayout
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.VideoRef
@@ -62,7 +61,6 @@ import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.player.PlayerState
 import com.fyiplayer.app.player.QualitySheet
 import com.fyiplayer.app.player.SeekThumbnailPreview
-import com.fyiplayer.app.player.SharedVideoSurface
 import com.fyiplayer.app.player.SpeedSheet
 import com.fyiplayer.app.player.fetchSeekThumbnails
 import com.fyiplayer.app.player.imageFor
@@ -71,9 +69,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * One page of the shorts pager. Only the active page mounts [SharedVideoSurface] -- there is
- * exactly one shared surface for the whole process (CLAUDE.md), so an off-screen page must never
- * try to bind it too. Inactive pages fall back to their own listing thumbnail.
+ * One page of the shorts pager, drawn OVER the one shared surface that [ShortsPager] mounts under
+ * the pager. The active page is transparent (video shows through); inactive pages show their own
+ * listing thumbnail on black.
  *
  * Like/share/add-to-playlist act on this page's own [ref], independent of which page is actually
  * playing: the pager can briefly compose an outgoing and an incoming page together mid-swipe, and
@@ -122,12 +120,20 @@ internal fun ShortsPage(
         if (scrubbing && seekThumbs == null) seekThumbs = fetchSeekThumbnails(ref)
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+    // No surface here -- the one shared PlayerView sits under the pager (ShortsPager). The active
+    // page is a transparent overlay (video shows through); an inactive page paints black + its
+    // thumbnail so it hides the video while sliding over it.
+    BoxWithConstraints(Modifier.fillMaxSize().background(if (isActive) Color.Transparent else Color.Black)) {
         if (isActive) {
-            SharedVideoSurface(
-                player = PlaybackSession.exoPlayer,
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-                modifier = Modifier
+            // Between clips the player's shutter is black until the new first frame decodes
+            // (~0.3-0.5s measured; isBuffering never flips for a prefetched slot, so it can't be
+            // the signal). Keep this clip's own thumbnail up until onRenderedFirstFrame, so a
+            // swipe lands on a picture, never on black.
+            if (!playerState.firstFrameRendered && ref.thumbnailUrl != null) {
+                AsyncImage(model = ref.thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+            Box(
+                Modifier
                     .fillMaxSize()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
