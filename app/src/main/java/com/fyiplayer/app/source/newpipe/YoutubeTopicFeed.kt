@@ -35,7 +35,7 @@ internal object YoutubeTopicFeed {
         // Charts, not topic channels, for these two: the "Music" topic channel is a global
         // editorial feed and ignored the country setting (user-reported: always the US list).
         if (topic == Topic.MOVIES) return@guarded chart("TRENDING_MOVIES")
-        if (topic == Topic.MUSIC) return@guarded chart("VIDEOS", period = "WEEKLY")
+        if (topic == Topic.MUSIC) return@guarded chart("VIDEOS", period = "DAILY")
         val browseId = BROWSE_IDS.getValue(topic)
         val localization = NewPipe.getPreferredLocalization()
         val country = NewPipe.getPreferredContentCountry()
@@ -90,7 +90,8 @@ internal object YoutubeTopicFeed {
 
     /** Public charts.youtube.com browse -- the same request upstream NewPipe's "Trending" kiosks
      *  send, no key, no cookie. [chartType] TRENDING_MOVIES = trailers (Movies has no topic
-     *  channel with free videos), VIDEOS = the per-country top music videos chart. Country is
+     *  channel with free videos), VIDEOS + DAILY = charts.youtube.com "Daily top music videos" (user
+     *  choice over WEEKLY: more local, moves faster). Country is
      *  the user's content-country setting and is what actually selects the list. VIDEOS is
      *  rejected (HTTP 400) without a [period]; TRENDING_MOVIES takes none. */
     private fun chart(chartType: String, period: String? = null): SearchPage {
