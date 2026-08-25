@@ -603,6 +603,7 @@ object PlaybackSession {
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         window = emptyList()
         clearSponsorSegments() // item is changing -- the old item's segments must not carry over
+        warmNext(i)
         loadJob = scope.launch {
             val item = resolveItem(i, ref) ?: return@launch
             player.setMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
@@ -703,6 +704,19 @@ object PlaybackSession {
             is FormatSelection.Paired -> selection.video.height
         }
         return PreparedItem(i, resolved, selection, height)
+    }
+
+    private var warmJob: Job? = null
+
+    /** Resolve-only warm-up of the item after [i], started in PARALLEL with [i]'s own resolve.
+     *  Nothing touches the player: [prefetchNext] (which runs after [i] loads) re-resolves the
+     *  same ref and hits the resolver's cache instantly. Without this a swipe that lands before
+     *  the previous prefetch finished, or a fling (playAt), paid two full resolves back to back. */
+    private fun warmNext(i: Int) {
+        warmJob?.cancel()
+        val n = QueueMath.nextIndex(i, queue.size, _state.value.repeatMode, order) ?: return
+        val ref = queue.getOrNull(n)?.takeIf { n != i } ?: return
+        warmJob = scope.launch { runCatching { resolver.resolve(ref) } }
     }
 
     /** Resolves exactly one item ahead and appends it to the player's own timeline. Never more —
