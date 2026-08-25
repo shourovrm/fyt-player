@@ -2,6 +2,19 @@
 
 ## Current state
 
+2026-08-25 (v0.2.14) shorts pager smoothness wave, DEVICE-VERIFIED (Nothing Phone, WiFi+LTE,
+screenrecord frame analysis): (1) ONE PlayerView host under the VerticalPager, pages are
+overlays -- decoder surface resets per swipe went 2 -> 0; (2) active page keeps its thumbnail
+until `PlayerState.firstFrameRendered` (onRenderedFirstFrame) -- black gap per swipe went
+0.3-0.8s -> 0 black frames at 10fps; (3) `warmNext`: next item's resolve starts in parallel with
+the current one's, so a fast swipe/fling never pays two resolves back to back; (4) media OkHttp
+8s connect/read + fail-fast on transport errors + one auto re-prepare in onPlayerError (PipePipe's
+setRecovery+reload shape) -- WiFi->LTE handover mid-pager: 29s spinner then dead -> 6.5s buffer
+then playing; (5) youtube.com/shorts/ share links open the pager (title blank: URL-only ref, same
+as TikTok). Measured baseline before the wave: swipe->first frame ~0.5s, PipePipe has no pager
+(Player.java:5013 only flips isVerticalVideo for orientation) so its "shorts" = normal open
+~2.75s vs ours 4.5s cold incl. process start.
+
 2026-08-24 (v0.2.13) fullscreen bars + shorts wakelock + in-app update, DEVICE-VERIFIED
 (Nothing Phone, gesture nav): fullscreen entry+rotation = no bars; Home->relaunch while
 fullscreen = bars stay hidden (ON_RESUME re-assert); exit = no right-shift; shorts pager holds
@@ -770,3 +783,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-24 | Fullscreen bar re-hide: bounded re-asserts (rotation + resume, fullscreen-scoped) via setSystemBarsVisible | OEM re-shows bars after in-process rotation and return-to-app; safe unlike bars-follow-chrome because fullscreen layout ignores bar visibility, so no inset churn. v0.2.13
 2026-08-24 | ShortsPager gets isPlaying-keyed setKeepScreenOn | screen timed out mid-short; detail player was the only caller
 2026-08-24 | In-app update via GitHub releases/latest + DownloadManager install (visit-logs port) | sideloaded app, releases page is the only channel; per-version banner dismissal, manual check in Settings > App
+2026-08-25 | Shorts pager: one surface host under the pager, pages are overlays; thumbnail until firstFrameRendered | reparenting the TextureView per page reset the decoder surface twice per swipe; shutter is black until first frame regardless. v0.2.14
+2026-08-25 | warmNext(): resolve N+1 in parallel with N's load | swipe before prefetch landed or a fling (playAt) paid two serial resolves
+2026-08-25 | Media HTTP 8s/8s timeouts, transport errors skip backoff, one auto re-prepare on network error | 29s spinner then dead on WiFi->LTE handover; PipePipe reloads from saved position for the same codes
+2026-08-25 | youtube /shorts/ share links route to the pager | landed in the landscape Detail player before
