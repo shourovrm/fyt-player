@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             FyiTheme {
                 AppScaffold(
-                    queueBar = { QueueBar() },
+                    queueBar = { nav -> QueueBar(onOpen = { nav.openDetail(it) }) },
                     miniPlayer = { nav -> MiniPlayer(onOpen = { nav.openDetail(it) }) },
                 ) { nav ->
                     // Runs once the graph is set (same composition pass, before this effect body
