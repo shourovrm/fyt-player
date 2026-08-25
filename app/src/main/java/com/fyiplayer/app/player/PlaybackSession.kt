@@ -557,6 +557,17 @@ object PlaybackSession {
         prefetchNext() // no-op on a 1-item queue, but every mutator ends with this -- see class doc
     }
 
+    /** The watch page resolves title/uploader/thumbnail AFTER playback of a bare URL ref (share/
+     *  open-with) started; without this the mini player and lockscreen show an empty title. Only
+     *  metadata changes -- same pageUrl, nothing about playback is touched. */
+    fun updateCurrentMeta(ref: VideoRef) {
+        ensureInit()
+        val i = index
+        if (queue.getOrNull(i)?.pageUrl != ref.pageUrl) return
+        queue = queue.toMutableList().also { it[i] = ref }
+        _state.update { st -> if (st.current?.pageUrl == ref.pageUrl) st.copy(current = ref, queue = queue) else st }
+    }
+
     fun clear() {
         ensureInit()
         loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
