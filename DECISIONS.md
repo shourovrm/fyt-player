@@ -814,3 +814,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | Detail: no top bar/⋮; player gets ✕/⌄ top-left, PipePipe prev/next rule, bottom row with quality+speed, gradient, red bar on the video edge | user design after YouTube/PipePipe comparison; the title bar duplicated the body title and the ⋮ sheet duplicated the action row. v0.2.15
 2026-08-25 | ControlBar: ONE Slider call site for collapsed+expanded | a drag starting on the idle line expands the bar mid-gesture; two call sites = new Slider instance, old drag never finished
 2026-08-25 | PlaybackSession.updateCurrentMeta from DetailScreen | share/open-with starts playback on a title-less ref; mini player + notification showed no title
+2026-08-25 | Home Music chip = charts.youtube.com VIDEOS chart (WEEKLY) per content country | the Music topic channel is a global editorial feed, ignored the country setting (always US). VIDEOS 400s without chart_params_period_type. v0.2.16
