@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,7 +26,6 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -48,7 +44,6 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -175,19 +170,9 @@ fun DetailScreen(
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(shownRef.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
-                actions = {
-                    IconButton(onClick = { actionSheetRef = shownRef }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More actions")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    // No top bar (neither YouTube nor PipePipe has one): the title lives once, under the video,
+    // and close/minimise are the player's own top-left buttons. Scaffold still pads the status bar.
+    Scaffold { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             // A fixed-height pinned header (not LazyColumn item 0): it never scrolls away and is
             // never recycled by scroll, so the player surface underneath keeps its identity.
@@ -299,7 +284,7 @@ fun DetailScreen(
 }
 
 /**
- * Like / Save / Download / Share / Queue, directly under the title -- the same handlers
+ * Like / Save / Download / Share, directly under the title (no Queue: the page's own video is already the queue) -- the same handlers
  * [VideoActionSheet]'s long-press sheet uses ([VideoActions], `ui/VideoActionSheet.kt`), just laid
  * out as a permanent row instead of a sheet. Like is the only button with an active look (accent +
  * filled icon); it's read from [VideoActions.likedFlow], not a one-shot check, so a toggle from
@@ -323,10 +308,6 @@ private fun VideoActionRow(actions: VideoActions, modifier: Modifier = Modifier)
         ActionButton(label = "Share", onClick = { actions.share() }) { color ->
             Icon(Icons.Filled.Share, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
         }
-        ActionButton(
-            label = "Queue",
-            onClick = { PlaybackSession.enqueue(actions.ref); showToast(context, "Added to queue") },
-        ) { color -> Icon(Icons.Filled.Add, contentDescription = null, tint = color, modifier = Modifier.size(20.dp)) }
     }
 
     if (showPlaylistPicker) {
