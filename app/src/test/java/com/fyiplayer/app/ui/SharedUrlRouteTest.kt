@@ -12,9 +12,16 @@ class SharedUrlRouteTest {
         assertTrue(isVerticalClipUrl("https://vt.tiktok.com/ZSabc123/"))
     }
 
+    @Test fun youtubeShortsPathIsVerticalClip() {
+        assertTrue(isVerticalClipUrl("https://www.youtube.com/shorts/aRF4IF6oi4Y"))
+        assertTrue(isVerticalClipUrl("https://youtube.com/shorts/aRF4IF6oi4Y?feature=share"))
+        assertTrue(isVerticalClipUrl("https://m.youtube.com/shorts/aRF4IF6oi4Y"))
+    }
+
     @Test fun everythingElseIsDetail() {
         assertFalse(isVerticalClipUrl("https://www.facebook.com/cnn/videos/10155529876156509/"))
-        assertFalse(isVerticalClipUrl("https://www.youtube.com/shorts/abc"))
+        assertFalse(isVerticalClipUrl("https://www.youtube.com/watch?v=abc"))
+        assertFalse(isVerticalClipUrl("https://youtu.be/abc"))
         assertFalse(isVerticalClipUrl("https://tiktok.com.evil.example/x"))
         assertFalse(isVerticalClipUrl("not a url"))
     }

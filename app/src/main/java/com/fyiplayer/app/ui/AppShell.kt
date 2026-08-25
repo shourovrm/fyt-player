@@ -52,14 +52,18 @@ fun NavController.openListing(listing: Listing) = navigate(
 
 fun NavController.openPlaylist(id: String) = navigate("playlist/${Uri.encode(id)}")
 
+private val YOUTUBE_HOSTS = setOf("youtube.com", "www.youtube.com", "m.youtube.com")
 private val VERTICAL_CLIP_HOSTS = setOf("tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com")
 
 /** A shared link whose platform is vertical-clip-only (TikTok): it belongs in the shorts pager,
  *  not the landscape Detail player. Host match only -- no network (yt-dlp resolves it later). */
 internal fun isVerticalClipUrl(url: String): Boolean {
     // java.net.URI, not android.net.Uri: keeps this JVM-testable.
-    val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase() ?: return false
-    return host in VERTICAL_CLIP_HOSTS
+    val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+    val host = uri.host?.lowercase() ?: return false
+    if (host in VERTICAL_CLIP_HOSTS) return true
+    // YouTube is mixed: only a /shorts/ path is a vertical clip, a /watch link is Detail.
+    return host in YOUTUBE_HOSTS && uri.path.orEmpty().startsWith("/shorts/")
 }
 
 /** Share/open-with entry: one seam for every shared URL. Vertical-clip hosts open the pager as
