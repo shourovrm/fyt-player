@@ -16,6 +16,7 @@ import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlayerScreen
+import com.fyiplayer.app.player.PlaybackSession
 
 /** Typed route table — no caller hand-builds a route string. */
 object Routes {
@@ -150,6 +151,10 @@ fun AppShell(navController: NavHostController) {
                         gestureBrightness = brightnessGesture,
                         gestureVolume = volumeGesture,
                         pageRef = surfaceRef,
+                        // Both pop like back does, so a Similar chain still unwinds one video at
+                        // a time; X additionally stops playback so nothing lands in the mini player.
+                        onClose = { PlaybackSession.clear(); navController.popBackStack() },
+                        onMinimize = { navController.popBackStack() },
                     )
                 },
             )

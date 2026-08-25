@@ -15,6 +15,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -79,6 +85,10 @@ fun PlayerScreen(
     gestureBrightness: Boolean = true,
     gestureVolume: Boolean = true,
     onDownload: (() -> Unit)? = null,
+    // Top-left buttons, portrait only: [onClose] = stop playback + leave the page (PipePipe's X),
+    // [onMinimize] = leave with playback continuing into the mini player (YouTube's chevron).
+    onClose: (() -> Unit)? = null,
+    onMinimize: (() -> Unit)? = null,
     // The watch page's own video, when embedded in one: with the session cleared (notification
     // Close) the surface shows this ref's poster + replay instead of a dead "Nothing playing".
     pageRef: VideoRef? = null,
@@ -90,9 +100,7 @@ fun PlayerScreen(
 
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
-    var showJumpGrid by remember { mutableStateOf(false) }
     var showCaptionSheet by remember { mutableStateOf(false) }
-    var menuOpen by remember { mutableStateOf(false) }
     var seekThumbs by remember { mutableStateOf<SeekThumbnails?>(null) }
 
     LaunchedEffect(state.current?.pageUrl) {
@@ -172,13 +180,12 @@ fun PlayerScreen(
         if (!showVolumeHud) return@LaunchedEffect
         delay(800); showVolumeHud = false
     }
-    // menuOpen/scrubbing are keys, not just guards: closing the menu or lifting the finger
-    // restarts the countdown from zero instead of resuming a timer that expired mid-interaction
-    // and would yank the chrome away — a hide during a seekbar drag unmounts the bar and
-    // releases the drag under the user's finger.
+    // scrubbing is a key, not just a guard: lifting the finger restarts the countdown from zero
+    // instead of resuming a timer that expired mid-drag and would yank the chrome away -- a hide
+    // during a seekbar drag unmounts the bar and releases the drag under the user's finger.
     var scrubbing by remember { mutableStateOf(false) }
-    LaunchedEffect(controlsToken, state.isPlaying, menuOpen, scrubbing) {
-        if (!state.isPlaying || menuOpen || scrubbing) return@LaunchedEffect
+    LaunchedEffect(controlsToken, state.isPlaying, scrubbing) {
+        if (!state.isPlaying || scrubbing) return@LaunchedEffect
         delay(3000); controlsVisible = false
     }
 
@@ -271,11 +278,7 @@ fun PlayerScreen(
                                 val target = (seekBurstBaseMs + total * 1000L).coerceIn(0L, progressNow.durationMs.coerceAtLeast(1L))
                                 PlaybackSession.seekTo(target)
                             },
-                            onSingleTap = {
-                                // Hiding the chrome unmounts the menu's anchor, so drop the open
-                                // flag with it — otherwise the menu reappears on the next tap.
-                                if (controlsVisible) { controlsVisible = false; menuOpen = false } else interact()
-                            },
+                            onSingleTap = { if (controlsVisible) controlsVisible = false else interact() },
                         ),
                 )
 
@@ -299,47 +302,66 @@ fun PlayerScreen(
                     FastSeekOverlay(total, modifier = Modifier.align(side).padding(24.dp))
                 }
 
-                if (controlsVisible) {
-                    // Prev / play / next, centred as one row. With a single video there is
-                    // nothing to skip to, so the transport collapses to just the play button.
-                    // Hidden while scrubbing: the preview card rises into this exact spot.
-                    if (!scrubbing) Row(
+                if (controlsVisible && !scrubbing) {
+                    // Prev / play / next, centred as one row. Prev only when there IS a previous
+                    // item, next only when there is a next one -- independently, PipePipe's rule
+                    // (index != 0 / index+1 != size), not "queue has more than one".
+                    Row(
                         modifier = Modifier.align(Alignment.Center),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
-                        if (state.queueSize > 1) {
+                        if (state.index > 0) {
                             IconButton(onClick = { PlaybackSession.skipPrevious(); interact() }, modifier = Modifier.size(48.dp)) {
                                 SkipGlyph(forward = false, tint = Color.White)
                             }
                         }
                         CenterPlayButton(onClick = { PlaybackSession.togglePlayPause(); interact() }, playing = state.isPlaying)
-                        if (state.queueSize > 1) {
+                        if (state.index + 1 < state.queueSize) {
                             IconButton(onClick = { PlaybackSession.skipNext(); interact() }, modifier = Modifier.size(48.dp)) {
                                 SkipGlyph(forward = true, tint = Color.White)
                             }
                         }
                     }
-                    OverflowControls(
-                        state = state,
-                        expanded = menuOpen,
-                        onExpandedChange = { menuOpen = it; interact() },
-                        onDownload = onDownload?.let { cb -> { interact(); cb() } },
-                        onQuality = { interact(); showQualitySheet = true },
-                        onSpeed = { interact(); showSpeedSheet = true },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-                    )
-                    ControlBar(
-                        seekThumbs = seekThumbs,
-                        fullscreen = fullscreen,
-                        onToggleFullscreen = { interact(); onToggleFullscreen() },
-                        captionsAvailable = state.availableCaptions.isNotEmpty(),
-                        onOpenCaptions = { interact(); showCaptionSheet = true },
-                        onOpenPreviewGrid = { interact(); showJumpGrid = true },
-                        onScrubbingChange = { scrubbing = it },
-                        modifier = Modifier.align(Alignment.BottomStart),
-                    )
+                    // Top-left close / minimise, portrait only (PipePipe hides its X in
+                    // fullscreen too). Fullscreen has the exit-fullscreen button instead.
+                    if (!fullscreen && (onClose != null || onMinimize != null)) {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .fillMaxWidth()
+                                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)))
+                                .padding(4.dp),
+                        ) {
+                            if (onClose != null) {
+                                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                                }
+                            }
+                            if (onMinimize != null) {
+                                IconButton(onClick = onMinimize, modifier = Modifier.size(40.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Minimise", tint = Color.White)
+                                }
+                            }
+                        }
+                    }
                 }
+                // Always mounted: collapsed it is the thin idle line whose dot starts a drag
+                // (and brings the controls up), expanded it is the full bottom chrome.
+                ControlBar(
+                    seekThumbs = seekThumbs,
+                    fullscreen = fullscreen,
+                    expanded = controlsVisible,
+                    onToggleFullscreen = { interact(); onToggleFullscreen() },
+                    captionsAvailable = state.availableCaptions.isNotEmpty(),
+                    onOpenCaptions = { interact(); showCaptionSheet = true },
+                    qualityLabel = state.selectedHeight?.let { "${it}p" } ?: "auto",
+                    onOpenQuality = { interact(); showQualitySheet = true },
+                    speedLabel = "${trimSpeed(state.speed)}x",
+                    onOpenSpeed = { interact(); showSpeedSheet = true },
+                    onScrubbingChange = { scrubbing = it; if (it) interact() },
+                    modifier = Modifier.align(Alignment.BottomStart),
+                )
 
                 if (showQualitySheet) {
                     QualitySheet(
@@ -362,17 +384,6 @@ fun PlayerScreen(
                         selectedLanguage = state.selectedCaptionLanguage,
                         onSelect = { PlaybackSession.selectCaption(it); showCaptionSheet = false },
                         onDismiss = { showCaptionSheet = false },
-                    )
-                }
-                val thumbs = seekThumbs
-                if (showJumpGrid && thumbs != null) {
-                    val progressNow = PlaybackSession.progress.value
-                    JumpGridSheet(
-                        seekThumbs = thumbs,
-                        durationSeconds = progressNow.durationMs / 1000.0,
-                        positionSeconds = progressNow.positionMs / 1000.0,
-                        onJump = { seconds -> PlaybackSession.seekTo((seconds * 1000).toLong()); showJumpGrid = false },
-                        onDismiss = { showJumpGrid = false },
                     )
                 }
             }

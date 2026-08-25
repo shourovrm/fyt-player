@@ -86,7 +86,7 @@ internal val SEEK_PREVIEW_HEIGHT = 79.dp
 internal val SEEK_PREVIEW_GAP = 8.dp
 internal val SEEK_PREVIEW_WIDTH_PORTRAIT = 160.dp
 internal val SEEK_PREVIEW_WIDTH_FULLSCREEN = 200.dp
-internal const val MIN_PREVIEW_TILE_PX = 60
+internal const val MIN_PREVIEW_TILE_PX = 45
 
 /**
  * One preview frame in a [width]x[height] box: either a direct still ([SeekPreviewImage.Frame])

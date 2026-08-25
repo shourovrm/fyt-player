@@ -417,7 +417,8 @@ private fun ShortsSeekBar(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(3.dp)
+                    // Thickens under the finger so the whole bar reads as grabbed, not just the dot.
+                    .height(if (isScrubbing) 5.dp else 3.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(Color.White.copy(alpha = 0.28f)),
             ) {
