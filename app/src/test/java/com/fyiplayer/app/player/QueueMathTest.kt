@@ -7,6 +7,14 @@ import org.junit.Test
 
 class QueueMathTest {
 
+    @Test fun `play next moves a queued entry right after current`() {
+        // queue [a b c d], playing b (1): d (3) -> slot 2; a (0) -> slot 1 (b shifts down to 0)
+        val q = listOf("a", "b", "c", "d")
+        fun moved(from: Int, to: Int) = q.toMutableList().apply { add(to, removeAt(from)) }
+        assertEquals(listOf("a", "b", "d", "c"), moved(3, QueueMath.playNextTarget(3, 1)))
+        assertEquals(listOf("b", "a", "c", "d"), moved(0, QueueMath.playNextTarget(0, 1)))
+    }
+
     @Test fun `next repeat off stops at the end`() {
         assertEquals(1, QueueMath.nextIndex(0, 3, RepeatMode.OFF))
         assertNull(QueueMath.nextIndex(2, 3, RepeatMode.OFF))

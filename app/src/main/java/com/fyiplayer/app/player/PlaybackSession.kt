@@ -310,10 +310,17 @@ object PlaybackSession {
         startAt(index)
     }
 
-    /** Inserts [ref] to play right after the current item. */
+    /** Inserts [ref] to play right after the current item. A video already in the queue is moved
+     *  there instead of duplicated -- the queue never holds the same page twice. */
     fun playNext(ref: VideoRef) {
         ensureInit()
         if (queue.isEmpty()) { play(listOf(ref), 0); return }
+        val existing = queue.indexOfFirst { it.pageUrl == ref.pageUrl }
+        if (existing == index) return
+        if (existing >= 0) {
+            move(existing, QueueMath.playNextTarget(existing, index))
+            return
+        }
         val insertAt = index + 1
         queue = queue.toMutableList().apply { add(insertAt, ref) }
         order = order?.let {
@@ -327,10 +334,12 @@ object PlaybackSession {
         prefetchNext()
     }
 
-    /** Appends [ref] to the end of the queue. */
-    fun enqueue(ref: VideoRef) {
+    /** Appends [ref] to the end of the queue. Returns false (and does nothing) when the same page
+     *  is already queued -- callers show "already in queue" instead of a silent duplicate. */
+    fun enqueue(ref: VideoRef): Boolean {
         ensureInit()
-        if (queue.isEmpty()) { play(listOf(ref), 0); return }
+        if (queue.isEmpty()) { play(listOf(ref), 0); return true }
+        if (queue.any { it.pageUrl == ref.pageUrl }) return false
         val newIndex = queue.size
         queue = queue + ref
         order = order?.let { QueueMath.appendOrder(it, newIndex) }
@@ -343,6 +352,7 @@ object PlaybackSession {
         // the live queue and, once it resolves, calls player.addMediaSource -- ExoPlayer resumes
         // out of ENDED on its own once a next period exists and playWhenReady is still true.
         prefetchNext()
+        return true
     }
 
     /** Advance one item. Reuses the prefetched slot when it's still the right one, so the common

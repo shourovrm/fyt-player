@@ -11,6 +11,11 @@ object QueueMath {
 
     fun clamp(index: Int, size: Int): Int = if (size <= 0) 0 else index.coerceIn(0, size - 1)
 
+    /** Where "play next" moves an entry that is already queued at [existing]: the slot right
+     *  after [current]. Removing an entry from before the current one shifts the target down by
+     *  one, hence [current] itself in that case. */
+    fun playNextTarget(existing: Int, current: Int): Int = if (existing < current) current else current + 1
+
     /** Deterministic Fisher-Yates permutation of 0 until size, keyed by [seed]. Same seed, same order. */
     fun shuffleOrder(size: Int, seed: Long): List<Int> {
         if (size <= 0) return emptyList()
