@@ -21,6 +21,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItemsCollector
 private val BROWSE_IDS = mapOf(
     Topic.NEWS to "UCYfdidRxbB8Qhf0Nx7ioOYw",
     Topic.SPORTS to "UCEgdi0XIXXZ-qJOFPf4JSKw",
+    Topic.MUSIC to "UC-9-kyTW8ZkZNDHQJ6FgpwQ", // YouTube's Music trending feed; US only, see fetch()
     Topic.LIVE to "UC4R8DWoMoI7CAwX8_LjQHig",
 )
 
@@ -35,7 +36,12 @@ internal object YoutubeTopicFeed {
         // Charts, not topic channels, for these two: the "Music" topic channel is an
         // undocumented editorial feed; charts.youtube.com is the real, stable list.
         if (topic == Topic.MOVIES) return@guarded chart("TRENDING_MOVIES")
-        if (topic == Topic.MUSIC) return@guarded chart("VIDEOS", period = "DAILY", country = "global")
+        // Music: the topic channel is YouTube's own "trending music" feed but it is effectively
+        // a US list whatever gl says, so it is only used for US; every other country gets the
+        // worldwide daily chart (user choice -- the country-flavoured feed is the Local chip).
+        if (topic == Topic.MUSIC && NewPipe.getPreferredContentCountry().countryCode != "US") {
+            return@guarded chart("VIDEOS", period = "DAILY", country = "global")
+        }
         val browseId = BROWSE_IDS.getValue(topic)
         val localization = NewPipe.getPreferredLocalization()
         val country = NewPipe.getPreferredContentCountry()
@@ -102,11 +108,13 @@ internal object YoutubeTopicFeed {
         country: String = NewPipe.getPreferredContentCountry().countryCode,
     ): SearchPage {
         val localization = NewPipe.getPreferredLocalization()
+        // gl must be a real country even for the global chart -- gl=global comes back empty.
+        val gl = NewPipe.getPreferredContentCountry().countryCode
         val body = JsonWriter.string()
             .`object`()
                 .`object`("context").`object`("client")
                     .value("clientName", "WEB_MUSIC_ANALYTICS").value("clientVersion", "2.0")
-                    .value("hl", localization.localizationCode).value("gl", country)
+                    .value("hl", localization.localizationCode).value("gl", gl)
                 .end().end()
                 .value("browseId", "FEmusic_analytics_charts_home")
                 .value("query", "perspective=CHART_DETAILS&chart_params_country_code=$country&chart_params_chart_type=$chartType" + (period?.let { "&chart_params_period_type=$it" } ?: ""))
