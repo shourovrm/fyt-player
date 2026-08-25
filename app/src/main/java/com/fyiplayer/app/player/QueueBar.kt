@@ -36,13 +36,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.core.VideoRef
 
 private val QUEUE_BAR_HEIGHT = 44.dp
 
 /**
  * A slim strip showing where playback is in the queue, expanding on tap into the full list —
- * reorder with the up/down arrows, remove with the ×, jump by tapping a row. Only rendered for an
- * actual queue (more than one item); a single video has nothing to show here.
+ * reorder with the up/down arrows, remove with the ×, jump by tapping a row (which also hands the
+ * ref to [onOpen] -- the watch page, so a jump lands on that video's page, not just in the mini
+ * player). Only rendered for an actual queue (more than one item); a single video has nothing to
+ * show here.
  *
  * ponytail: reorder is two IconButtons per row, not drag-to-reorder — no drag-reorder dependency
  * is on the classpath and the queue is rarely more than a handful of items. Swap for a real drag
@@ -50,7 +53,7 @@ private val QUEUE_BAR_HEIGHT = 44.dp
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QueueBar(modifier: Modifier = Modifier) {
+fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
     val state by PlaybackSession.state.collectAsState()
     if (state.queueSize <= 1) return
     val current = state.current ?: return
@@ -118,7 +121,9 @@ fun QueueBar(modifier: Modifier = Modifier) {
                 }
             }
             LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp)) {
-                itemsIndexed(state.queue, key = { _, ref -> ref.pageUrl }) { i, ref ->
+                // No pageUrl key: the same video can be enqueued twice, and a duplicate LazyColumn
+                // key is a hard crash ("Key ... was already used", seen on device).
+                itemsIndexed(state.queue) { i, ref ->
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -126,7 +131,7 @@ fun QueueBar(modifier: Modifier = Modifier) {
                                 if (i == state.index) MaterialTheme.colorScheme.secondaryContainer
                                 else MaterialTheme.colorScheme.surface,
                             )
-                            .clickable { PlaybackSession.playAt(i) }
+                            .clickable { expanded = false; if (i != state.index) { PlaybackSession.playAt(i); onOpen(ref) } }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

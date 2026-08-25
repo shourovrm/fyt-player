@@ -381,6 +381,10 @@ object PlaybackSession {
         index = i
         prepared = null
         retriedIndex = null
+        // Publish `current` NOW, not after the async resolve in startAt: the queue sheet opens the
+        // target's watch page right after this, and DetailScreen's entry guard replaces the whole
+        // queue with a single-item one whenever state.current is not the page's video.
+        publishQueueState()
         startAt(i)
     }
 
