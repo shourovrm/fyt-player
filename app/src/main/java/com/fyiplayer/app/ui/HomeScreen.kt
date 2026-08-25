@@ -277,8 +277,10 @@ fun HomeScreen(
                         } else {
                             emptyList()
                         }
+                        // Same shelf idiom as search: shorts pulled up top, long-form below.
+                        val (topicShorts, topicLongform) = partitionShorts(result.items)
                         ResultsListColumn(
-                            items = result.items,
+                            items = topicLongform,
                             errors = errors,
                             hasMore = false,
                             onLoadMore = {},
@@ -287,6 +289,9 @@ fun HomeScreen(
                             listState = listState,
                             modifier = Modifier.weight(1f),
                             skeletonRows = if (result.loading && result.items.isEmpty()) 6 else 0,
+                            topContent = if (topicShorts.isEmpty()) null else {
+                                { ShortsShelf(topicShorts) { ref -> onOpenShorts(topicShorts, topicShorts.indexOf(ref).coerceAtLeast(0)) } }
+                            },
                         )
                     }
                 }

@@ -202,7 +202,7 @@ data class Comment(
 
 /** A curated topic shelf on Home's "Explore" chip row -- YouTube's official topic channel per
  *  entry, not a generic category. */
-enum class Topic(val label: String) { NEWS("News"), MOVIES("Movies"), SPORTS("Sports"), MUSIC("Music"), LIVE("Live") }
+enum class Topic(val label: String) { LOCAL("Local"), NEWS("News"), MOVIES("Movies"), SPORTS("Sports"), MUSIC("Music"), LIVE("Live") }
 
 /** One platform. Listing and URL recognition only — media resolution is [StreamResolver]'s job. */
 interface VideoSource {

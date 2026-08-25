@@ -47,7 +47,7 @@ fun SourcesSettings(prefs: Prefs) {
             }
         }
         Text(
-            "Official YouTube topic feeds",
+            "Explore chips on Home (Local = latest songs, movies, dramas for your country)",
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
         )
