@@ -302,7 +302,8 @@ fun PlayerScreen(
                 if (controlsVisible) {
                     // Prev / play / next, centred as one row. With a single video there is
                     // nothing to skip to, so the transport collapses to just the play button.
-                    Row(
+                    // Hidden while scrubbing: the preview card rises into this exact spot.
+                    if (!scrubbing) Row(
                         modifier = Modifier.align(Alignment.Center),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(20.dp),

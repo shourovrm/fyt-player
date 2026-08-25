@@ -84,6 +84,9 @@ fun SeekPreviewHud(previewText: String, modifier: Modifier = Modifier) {
 internal val SEEK_PREVIEW_WIDTH = 140.dp
 internal val SEEK_PREVIEW_HEIGHT = 79.dp
 internal val SEEK_PREVIEW_GAP = 8.dp
+internal val SEEK_PREVIEW_WIDTH_PORTRAIT = 160.dp
+internal val SEEK_PREVIEW_WIDTH_FULLSCREEN = 200.dp
+internal const val MIN_PREVIEW_TILE_PX = 60
 
 /**
  * One preview frame in a [width]x[height] box: either a direct still ([SeekPreviewImage.Frame])
@@ -151,28 +154,38 @@ fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier:
  *  The card keeps the TILE's own aspect ratio (NewPipe does the same): a portrait video's
  *  portrait storyboard must not get squeezed into a 16:9 box. */
 @Composable
-fun SeekThumbnailPreview(image: SeekPreviewImage?, timestampText: String, modifier: Modifier = Modifier) {
+fun SeekThumbnailPreview(
+    image: SeekPreviewImage?,
+    timestampText: String,
+    modifier: Modifier = Modifier,
+    width: Dp = SEEK_PREVIEW_WIDTH,
+) {
+    // A tile under MIN_PREVIEW_TILE_PX wide (YouTube's 25x45 shorts level, seen live) is pure
+    // blur at card size -- the pill alone reads better than a smeared frame.
+    val shown = image?.takeIf { it !is SeekPreviewImage.Tile || it.sheet.tileWidth >= MIN_PREVIEW_TILE_PX }
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        if (image != null) {
-            val cardHeight = when (image) {
-                is SeekPreviewImage.Tile -> {
-                    val aspect = image.sheet.tileWidth.toFloat() /
-                        image.sheet.tileHeight.coerceAtLeast(1).toFloat()
-                    (SEEK_PREVIEW_WIDTH / aspect).coerceIn(SEEK_PREVIEW_HEIGHT, 250.dp)
-                }
-                else -> SEEK_PREVIEW_HEIGHT
-            }
-            SeekThumbnailTile(image, SEEK_PREVIEW_WIDTH, cardHeight)
-            Spacer(Modifier.height(4.dp))
-        }
+        // Timestamp ABOVE the frame, large (PipePipe/YouTube both do this): the eye is on the
+        // frame, and the number must be readable at arm's length without looking under the card.
         Text(
             timestampText,
             color = Color.White,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.titleMedium,
             modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 3.dp),
         )
+        if (shown != null) {
+            Spacer(Modifier.height(6.dp))
+            val cardHeight = when (shown) {
+                is SeekPreviewImage.Tile -> {
+                    val aspect = shown.sheet.tileWidth.toFloat() /
+                        shown.sheet.tileHeight.coerceAtLeast(1).toFloat()
+                    (width / aspect).coerceIn(width * 9 / 16, 280.dp)
+                }
+                else -> width * 9 / 16
+            }
+            SeekThumbnailTile(shown, width, cardHeight)
+        }
     }
 }
 
