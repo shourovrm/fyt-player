@@ -150,6 +150,9 @@ fun DetailScreen(
     }
 
     val shownRef = detail.ref.takeIf { it.title.isNotBlank() } ?: ref
+    // A bare-URL open (share) started playback with title="" -- hand the enriched ref to the
+    // session so the mini player / notification stop showing an empty title.
+    LaunchedEffect(shownRef) { if (shownRef.title.isNotBlank()) PlaybackSession.updateCurrentMeta(shownRef) }
 
     // Only the selected tab fetches, and only once per video -- ensureXLoaded is idempotent
     // (DetailTabsViewModel), so re-running this on every recomposition (e.g. re-entering from
