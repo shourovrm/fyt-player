@@ -21,7 +21,6 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItemsCollector
 private val BROWSE_IDS = mapOf(
     Topic.NEWS to "UCYfdidRxbB8Qhf0Nx7ioOYw",
     Topic.SPORTS to "UCEgdi0XIXXZ-qJOFPf4JSKw",
-    Topic.MUSIC to "UC-9-kyTW8ZkZNDHQJ6FgpwQ",
     Topic.LIVE to "UC4R8DWoMoI7CAwX8_LjQHig",
 )
 
@@ -33,7 +32,10 @@ private val BROWSE_IDS = mapOf(
  */
 internal object YoutubeTopicFeed {
     fun fetch(topic: Topic): SearchPage = guarded {
-        if (topic == Topic.MOVIES) return@guarded movieTrailers()
+        // Charts, not topic channels, for these two: the "Music" topic channel is a global
+        // editorial feed and ignored the country setting (user-reported: always the US list).
+        if (topic == Topic.MOVIES) return@guarded chart("TRENDING_MOVIES")
+        if (topic == Topic.MUSIC) return@guarded chart("VIDEOS", period = "WEEKLY")
         val browseId = BROWSE_IDS.getValue(topic)
         val localization = NewPipe.getPreferredLocalization()
         val country = NewPipe.getPreferredContentCountry()
@@ -86,11 +88,12 @@ internal object YoutubeTopicFeed {
         return out
     }
 
-    /** Movies has no topic channel with free videos (its channel is a paid storefront), so this
-     *  mirrors upstream NewPipe's "Trending movies and shows" kiosk: the public charts.youtube.com
-     *  browse, chart type TRENDING_MOVIES -- trailers, not films. Same request NewPipe 0.29 sends,
-     *  no key, no cookie. Country is the user's content-country setting. */
-    private fun movieTrailers(): SearchPage {
+    /** Public charts.youtube.com browse -- the same request upstream NewPipe's "Trending" kiosks
+     *  send, no key, no cookie. [chartType] TRENDING_MOVIES = trailers (Movies has no topic
+     *  channel with free videos), VIDEOS = the per-country top music videos chart. Country is
+     *  the user's content-country setting and is what actually selects the list. VIDEOS is
+     *  rejected (HTTP 400) without a [period]; TRENDING_MOVIES takes none. */
+    private fun chart(chartType: String, period: String? = null): SearchPage {
         val localization = NewPipe.getPreferredLocalization()
         val country = NewPipe.getPreferredContentCountry().countryCode
         val body = JsonWriter.string()
@@ -100,7 +103,7 @@ internal object YoutubeTopicFeed {
                     .value("hl", localization.localizationCode).value("gl", country)
                 .end().end()
                 .value("browseId", "FEmusic_analytics_charts_home")
-                .value("query", "perspective=CHART_DETAILS&chart_params_country_code=$country&chart_params_chart_type=TRENDING_MOVIES")
+                .value("query", "perspective=CHART_DETAILS&chart_params_country_code=$country&chart_params_chart_type=$chartType" + (period?.let { "&chart_params_period_type=$it" } ?: ""))
             .end().done().toByteArray(StandardCharsets.UTF_8)
         val headers = mapOf(
             "Content-Type" to listOf("application/json"),
