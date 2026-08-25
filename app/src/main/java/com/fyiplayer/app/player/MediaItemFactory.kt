@@ -44,7 +44,10 @@ object MediaItemFactory {
     // mean "this URL is dead" (see isExpiredHttpError/EXPIRED_HTTP_CODES) turns that into seconds.
     private val loadErrorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
         override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long =
-            if (isExpiredHttpError(loadErrorInfo.exception)) C.TIME_UNSET
+            // Transport failures (timeout/DNS/connect) skip the backoff as well: PlaybackSession's
+            // onPlayerError re-prepares once from the saved position, PipePipe-style, and one
+            // fresh attempt beats three retries on a socket the OS already dropped.
+            if (isExpiredHttpError(loadErrorInfo.exception) || isNetworkCause(loadErrorInfo.exception)) C.TIME_UNSET
             else super.getRetryDelayMsFor(loadErrorInfo)
     }
 
