@@ -742,7 +742,12 @@ object PlaybackSession {
 
     /** Swaps state onto an item whose format is already resolved — an auto-advance or a fast skip
      *  — so the UI gets height/queue info immediately instead of a blank beat. */
-    private fun adoptPrepared(item: PreparedItem) {
+    /** [resetFirstFrame]: false on ExoPlayer's own auto-advance -- there the next period's
+     *  onRenderedFirstFrame can be delivered BEFORE onMediaItemTransition (seen live: shorts
+     *  page stuck on its thumbnail), so a reset here would never be cleared. The gap is ~0 on
+     *  auto-advance anyway (next window already buffered). Manual skips seek AFTER this, so
+     *  their first frame always comes later and the reset is safe. */
+    private fun adoptPrepared(item: PreparedItem, resetFirstFrame: Boolean = true) {
         retriedIndex = null
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         val ref = queue.getOrNull(item.queueIndex) ?: return
@@ -756,7 +761,7 @@ object PlaybackSession {
         applyCaptionSelection(language)
         _state.update {
             it.copy(
-                current = ref, firstFrameRendered = false, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
+                current = ref, firstFrameRendered = if (resetFirstFrame) false else it.firstFrameRendered, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
                 selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                 availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                 // seed from the player: an advance between two already-playing items never fires
@@ -891,7 +896,7 @@ object PlaybackSession {
             val target = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order) ?: return
             index = target
             val readyItem = prepared?.takeIf { it.queueIndex == target }
-            if (readyItem != null) adoptPrepared(readyItem) else publishQueueState()
+            if (readyItem != null) adoptPrepared(readyItem, resetFirstFrame = false) else publishQueueState()
             trimConsumedWindow()
             prefetchNext()
         }
