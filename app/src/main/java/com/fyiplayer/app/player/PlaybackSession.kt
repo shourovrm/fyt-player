@@ -896,13 +896,17 @@ object PlaybackSession {
             prefetchNext()
         }
 
-        /** A prefetched signed URL can age out before the player reaches it. Re-resolve the
-         *  current item once; a second failure on the same item stops instead of looping. */
+        /** A prefetched signed URL can age out before the player reaches it, or the network can
+         *  drop under it (WiFi->LTE handover). Re-prepare the current item once from where it
+         *  was; a second failure on the same item stops instead of looping. */
         override fun onPlayerError(error: PlaybackException) {
-            if (isExpiredHttpError(error) && retriedIndex != index) {
+            val expired = isExpiredHttpError(error)
+            if ((expired || isNetworkCause(error)) && retriedIndex != index) {
                 retriedIndex = index
                 val ref = queue.getOrNull(index)
-                if (ref != null) resolver.invalidate(ref.pageUrl) // resolver may have cached the dead URL
+                // Only a dead URL invalidates the resolver: after a transport blip the cached
+                // formats are still good and re-using them is the fast path.
+                if (expired && ref != null) resolver.invalidate(ref.pageUrl)
                 startAt(index, resumeAtMs = player.currentPosition)
             } else {
                 // ids/codes only, never the exception's message — it can embed the dead signed URL.

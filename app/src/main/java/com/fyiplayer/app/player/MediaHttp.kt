@@ -25,6 +25,10 @@ private const val YOUTUBE_ORIGIN = "https://www.youtube.com"
  * Non-googlevideo URLs pass through with just the browser UA.
  */
 internal fun mediaHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    // 8s/8s = media3's DefaultHttpDataSource defaults (what PipePipe ships). OkHttp's 10s/10s
+    // plus 3 backoff retries cost 29s of spinner on a WiFi->LTE handover (seen live, shorts pager).
+    .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+    .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
     .addInterceptor { chain ->
         val request = chain.request()
         val builder = request.newBuilder()
