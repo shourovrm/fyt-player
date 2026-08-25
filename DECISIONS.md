@@ -2,6 +2,11 @@
 
 ## Current state
 
+2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: Detail renders `QueueBar` under the
+action row (AppScaffold drops its own on detail routes); sheet rows have no pageUrl key (duplicate
+enqueue crashed); row tap = playAt + openDetail, and playAt publishes `current` synchronously so
+Detail's entry guard does not replace the queue. Music chip = charts VIDEOS + DAILY.
+
 2026-08-25 (v0.2.15) player chrome redesign, DEVICE-VERIFIED (Nothing Phone): Detail has NO top
 bar and no ⋮ (title lives once, under the video; the ⋮ sheet's only unique item, Play next, is
 still on long-press of cards elsewhere). Idle portrait = 3dp red line + 10dp dot on the video's
@@ -815,3 +820,5 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | ControlBar: ONE Slider call site for collapsed+expanded | a drag starting on the idle line expands the bar mid-gesture; two call sites = new Slider instance, old drag never finished
 2026-08-25 | PlaybackSession.updateCurrentMeta from DetailScreen | share/open-with starts playback on a title-less ref; mini player + notification showed no title
 2026-08-25 | Home Music chip = charts.youtube.com VIDEOS chart (WEEKLY) per content country | the Music topic channel is a global editorial feed, ignored the country setting (always US). VIDEOS 400s without chart_params_period_type. v0.2.16
+2026-08-25 | Music chip = charts VIDEOS period DAILY (was WEEKLY) | user picked "Daily top music videos"; more local, moves faster
+2026-08-25 | QueueBar inside Detail LazyColumn; sheet rows unkeyed; row tap opens watch page; playAt publishes current before startAt | queue invisible on watch page, duplicate-key crash, tap only swapped media then Detail guard wiped queue
