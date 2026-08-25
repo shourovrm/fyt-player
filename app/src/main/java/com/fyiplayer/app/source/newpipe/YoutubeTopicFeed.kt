@@ -32,10 +32,10 @@ private val BROWSE_IDS = mapOf(
  */
 internal object YoutubeTopicFeed {
     fun fetch(topic: Topic): SearchPage = guarded {
-        // Charts, not topic channels, for these two: the "Music" topic channel is a global
-        // editorial feed and ignored the country setting (user-reported: always the US list).
+        // Charts, not topic channels, for these two: the "Music" topic channel is an
+        // undocumented editorial feed; charts.youtube.com is the real, stable list.
         if (topic == Topic.MOVIES) return@guarded chart("TRENDING_MOVIES")
-        if (topic == Topic.MUSIC) return@guarded chart("VIDEOS", period = "DAILY")
+        if (topic == Topic.MUSIC) return@guarded chart("VIDEOS", period = "DAILY", country = "global")
         val browseId = BROWSE_IDS.getValue(topic)
         val localization = NewPipe.getPreferredLocalization()
         val country = NewPipe.getPreferredContentCountry()
@@ -94,9 +94,14 @@ internal object YoutubeTopicFeed {
      *  choice over WEEKLY: more local, moves faster). Country is
      *  the user's content-country setting and is what actually selects the list. VIDEOS is
      *  rejected (HTTP 400) without a [period]; TRENDING_MOVIES takes none. */
-    private fun chart(chartType: String, period: String? = null): SearchPage {
+    private fun chart(
+        chartType: String,
+        period: String? = null,
+        // "global" = the worldwide chart; the Music chip uses it on purpose (user choice: Music
+        // = global trending, the country-flavoured feed is the Local chip's job).
+        country: String = NewPipe.getPreferredContentCountry().countryCode,
+    ): SearchPage {
         val localization = NewPipe.getPreferredLocalization()
-        val country = NewPipe.getPreferredContentCountry().countryCode
         val body = JsonWriter.string()
             .`object`()
                 .`object`("context").`object`("client")

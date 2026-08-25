@@ -151,9 +151,10 @@ fun AppShell(navController: NavHostController) {
                         gestureBrightness = brightnessGesture,
                         gestureVolume = volumeGesture,
                         pageRef = surfaceRef,
-                        // Both pop like back does, so a Similar chain still unwinds one video at
-                        // a time; X additionally stops playback so nothing lands in the mini player.
-                        onClose = { PlaybackSession.clear(); navController.popBackStack() },
+                        // ⌄ pops like back does, so a Similar chain still unwinds one video at a
+                        // time. X = done watching: stops playback and drops the whole Detail chain
+                        // back to the tab underneath (nothing lands in the mini player).
+                        onClose = { PlaybackSession.clear(); navController.popBackStack(Routes.HOME, inclusive = false) },
                         onMinimize = { navController.popBackStack() },
                     )
                 },

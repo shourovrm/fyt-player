@@ -49,7 +49,7 @@ class Prefs(private val context: Context) {
 
     /** Topic names ([com.fyiplayer.app.core.Topic.name]) shown as Home's Explore chips. Live is
      *  opt-in: PipePipe's "trending" kiosk is really this feed and it reads as noise next to News. */
-    val exploreTopics: Flow<Set<String>> = flow(EXPLORE_TOPICS, setOf("NEWS", "MOVIES", "SPORTS", "MUSIC"))
+    val exploreTopics: Flow<Set<String>> = flow(EXPLORE_TOPICS, setOf("LOCAL", "NEWS", "MOVIES", "SPORTS", "MUSIC"))
     suspend fun setExploreTopics(v: Set<String>) = set(EXPLORE_TOPICS, v)
 
     /** First-run language/country prompt (Home shows it until this flips). */

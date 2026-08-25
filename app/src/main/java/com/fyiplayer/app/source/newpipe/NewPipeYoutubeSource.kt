@@ -23,10 +23,14 @@ import kotlinx.coroutines.CancellationException
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.Page
+import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.channel.ChannelInfo
 import org.schabi.newpipe.extractor.channel.ChannelInfoItem
@@ -271,7 +275,21 @@ class NewPipeYoutubeSource(
 
     override suspend fun topic(topic: Topic): SearchPage = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        YoutubeTopicFeed.fetch(topic)
+        if (topic == Topic.LOCAL) localFeed() else YoutubeTopicFeed.fetch(topic)
+    }
+
+    /** "Local" chip: song / movie / drama searches in the content country's language
+     *  (LocalQueries), first pages interleaved round-robin so the three kinds mix instead of
+     *  stacking. One failing search drops silently; all three failing surfaces the last error. */
+    private suspend fun localFeed(): SearchPage = coroutineScope {
+        val country = NewPipe.getPreferredContentCountry().countryCode
+        val pages = LocalQueries.forCountry(country).map { q -> async { runCatching { search(q, null).items } } }.awaitAll()
+        val lists = pages.mapNotNull { it.getOrNull() }
+        if (lists.isEmpty()) throw pages.first().exceptionOrNull()!!
+        val seen = HashSet<String>()
+        val merged = ArrayList<VideoRef>()
+        for (i in 0 until (lists.maxOf { it.size })) for (l in lists) l.getOrNull(i)?.let { if (seen.add(it.pageUrl)) merged.add(it) }
+        SearchPage(items = merged)
     }
 
     // previewThumbnails(ref): left at the VideoSource default (null, no I/O) -- there is nothing

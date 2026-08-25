@@ -2,6 +2,13 @@
 
 ## Current state
 
+2026-08-25 (unreleased) Home "Local" chip (first after For you): three YouTube searches -- song /
+movie / drama phrased in the content country's language (LocalQueries, 20 countries + English
+fallback), year appended from the device clock at fetch time, first pages interleaved, shorts
+shelf on top like search. Music chip = charts VIDEOS DAILY with country_code=global (worldwide,
+NOT the country setting -- the Local chip is the country-flavoured one). Detail ✕ = clear + pop
+to Home (whole chain); ⌄ = pop one.
+
 2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: AppScaffold docks `QueueBar` above the nav bar on
 every non-fullscreen route incl. Detail (stays when nav auto-hides; nav-inset spacer under the
 docked bars when nav is hidden); sheet rows have no pageUrl key (duplicate
@@ -827,3 +834,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | QueueBar inside Detail LazyColumn; sheet rows unkeyed; row tap opens watch page; playAt publishes current before startAt | queue invisible on watch page, duplicate-key crash, tap only swapped media then Detail guard wiped queue
 2026-08-25 | queue dedup by pageUrl; enqueue false + toast, playNext moves existing entry after current | user rule: same video never queued twice
 2026-08-25 | queue bar docked in AppScaffold bottom on Detail too (not a LazyColumn item); inset spacer when nav hidden | user wants queue at bottom above nav, alone when nav hides; docked bars sat under gesture pill
+2026-08-25 | Local chip = language-phrased searches, not a chart | no YouTube chart ranks local artists first (BD charts = Bollywood + global; YT Music charts page for BD has no Trending shelf); "নতুন গান" gl=BD returns BD artists, "new song" returns Hindi
+2026-08-25 | Music chip = global chart (country_code=global) | user: Music = worldwide trending, Local covers the country
+2026-08-25 | Detail ✕ pops to Routes.HOME | user: close = leave the video page entirely, not unwind one
