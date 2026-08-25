@@ -2,11 +2,11 @@
 
 ## Current state
 
-2026-08-25 (unreleased) Home "Local" chip (first after For you): three YouTube searches -- song /
+2026-08-25 (v0.2.19) Home "Local" chip (first after For you): three YouTube searches -- song /
 movie / drama phrased in the content country's language (LocalQueries, 20 countries + English
 fallback), year appended from the device clock at fetch time, first pages interleaved, shorts
-shelf on top like search. Music chip = charts VIDEOS DAILY with country_code=global (worldwide,
-NOT the country setting -- the Local chip is the country-flavoured one). Detail ✕ = clear + pop
+shelf on top like search. Music chip = US: Music topic-channel trending feed; other countries: charts VIDEOS DAILY
+country_code=global (the Local chip is the country-flavoured one). Detail ✕ = clear + pop
 to Home (whole chain); ⌄ = pop one.
 
 2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: AppScaffold docks `QueueBar` above the nav bar on
@@ -395,6 +395,10 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
 
 ## Gotchas
+- charts.youtube.com: `gl` must be a real country even when `chart_params_country_code=global`; gl=global returns an empty chart.
+- Explore chip set is a persisted pref: a new Topic is only default-on for fresh installs; existing installs enable it in Settings.
+- charts.youtube.com: `gl` must be a real country even when `chart_params_country_code=global`; gl=global returns an empty chart.
+- Explore chip set is a persisted pref: a new Topic is only default-on for fresh installs; existing installs enable it in Settings.
 - Release verification = `adb uninstall` then `adb install`; `install -r` over old data skips yt-dlp python unzip and hides R8 first-run crashes.
 - TikTok CDN 403s without session cookies; yt-dlp's per-format `cookies` is Set-Cookie shaped
   (name=val; Domain=..; Path=..) -- strip attributes to a `Cookie:` header (EngineResolver.cookieHeaderFrom).
@@ -835,5 +839,5 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | queue dedup by pageUrl; enqueue false + toast, playNext moves existing entry after current | user rule: same video never queued twice
 2026-08-25 | queue bar docked in AppScaffold bottom on Detail too (not a LazyColumn item); inset spacer when nav hidden | user wants queue at bottom above nav, alone when nav hides; docked bars sat under gesture pill
 2026-08-25 | Local chip = language-phrased searches, not a chart | no YouTube chart ranks local artists first (BD charts = Bollywood + global; YT Music charts page for BD has no Trending shelf); "নতুন গান" gl=BD returns BD artists, "new song" returns Hindi
-2026-08-25 | Music chip = global chart (country_code=global) | user: Music = worldwide trending, Local covers the country
+2026-08-25 | Music chip = US: topic-channel trending; else global daily chart | user: keep the old trending feed for US, worldwide elsewhere; Local covers the country
 2026-08-25 | Detail ✕ pops to Routes.HOME | user: close = leave the video page entirely, not unwind one
