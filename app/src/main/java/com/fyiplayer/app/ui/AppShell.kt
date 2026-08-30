@@ -4,8 +4,10 @@ import android.net.Uri
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -15,8 +17,12 @@ import androidx.navigation.navArgument
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.repo.PositionsRepository
 import com.fyiplayer.app.player.PlayerScreen
 import com.fyiplayer.app.player.PlaybackSession
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 
 /** Typed route table — no caller hand-builds a route string. */
 object Routes {
@@ -110,8 +116,18 @@ fun NavController.openShortsPlayer(items: List<VideoRef>, index: Int) {
  * Navigation-Compose's default ~700ms cross-fade tears an outgoing screen with video still
  * drawing over the incoming list (DESIGN.md §8).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @Composable
 fun AppShell(navController: NavHostController) {
+    // One flow for the whole app (rule 6: never a per-row position query) -- off entirely when the
+    // "Remember playback position" preference is off, so no row anywhere shows a resume bar.
+    val app = rememberFyiApp()
+    val positionsRepo = remember(app) { PositionsRepository(app.database.playbackPositionDao()) }
+    val positions by remember(app, positionsRepo) {
+        app.prefs.savePlayPosition.flatMapLatest { enabled -> if (enabled) positionsRepo.observeAll() else flowOf(emptyMap()) }
+    }.collectAsState(initial = emptyMap())
+
+    CompositionLocalProvider(LocalPlaybackPositions provides positions) {
     NavHost(
         navController = navController,
         startDestination = Routes.HOME,
@@ -221,5 +237,6 @@ fun AppShell(navController: NavHostController) {
             val id = entry.arguments?.getString("id")?.let(Uri::decode).orEmpty()
             PlaylistDetailScreen(id = id, onOpenDetail = { navController.openDetail(it) })
         }
+    }
     }
 }
