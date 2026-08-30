@@ -52,6 +52,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.fyiplayer.app.data.repo.DownloadItem
 import com.fyiplayer.app.data.repo.DownloadState
+import com.fyiplayer.app.data.repo.youtubeThumbnailFor
+import com.fyiplayer.app.download.DownloadProgress
 import com.fyiplayer.app.download.DownloadQueue
 import com.fyiplayer.app.ui.theme.fyiExtras
 import kotlin.math.roundToInt
@@ -68,6 +70,7 @@ fun DownloadsScreen() {
     val queue = remember(context) { DownloadQueue.get(context) }
     val rows by queue.rows.collectAsStateWithLifecycle()
     val errors by queue.errors.collectAsStateWithLifecycle()
+    val progress by queue.progress.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     // Neither dialog defaults to the destructive choice -- see RemoveConfirmDialog.
@@ -99,6 +102,7 @@ fun DownloadsScreen() {
                             DownloadRow(
                                 item = item,
                                 error = errors[item.ref.pageUrl],
+                                liveProgress = progress[item.ref.pageUrl],
                                 onPause = { scope.launch { queue.pause(item.ref.pageUrl) } },
                                 onResume = { scope.launch { queue.resume(item.ref.pageUrl) } },
                                 onCancel = { removeTarget = item },
@@ -225,6 +229,7 @@ private fun RemoveConfirmDialog(
 private fun DownloadRow(
     item: DownloadItem,
     error: String?,
+    liveProgress: DownloadProgress?,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
@@ -244,8 +249,11 @@ private fun DownloadRow(
             Modifier.width(80.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
                 .background(extras.surface3),
         ) {
-            if (item.ref.thumbnailUrl != null) {
-                AsyncImage(model = item.ref.thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+            // Same fallback ResultsList.kt's ResultRow uses for a Library/History row with no
+            // stored thumbnail -- youtubeThumbnailFor no-ops for a non-YouTube pageUrl.
+            val thumbnailUrl = item.ref.thumbnailUrl ?: youtubeThumbnailFor(item.ref.pageUrl)
+            if (thumbnailUrl != null) {
+                AsyncImage(model = thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
             }
         }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
@@ -264,7 +272,7 @@ private fun DownloadRow(
                 )
             }
             Text(
-                statusLine(item, error),
+                statusLine(item, error, liveProgress),
                 style = MaterialTheme.typography.labelMedium,
                 color = statusColor(item),
                 modifier = Modifier.padding(top = 6.dp),
@@ -308,16 +316,32 @@ private fun GlyphButton(glyph: String, label: String, onClick: () -> Unit) {
 private fun progressFraction(item: DownloadItem): Float =
     if (item.totalBytes > 0) (item.bytesDownloaded.toFloat() / item.totalBytes).coerceIn(0f, 1f) else 0f
 
-private fun statusLine(item: DownloadItem, error: String?): String = when (item.state) {
+private fun statusLine(item: DownloadItem, error: String?, liveProgress: DownloadProgress?): String = when (item.state) {
     DownloadState.QUEUED -> "Queued"
     DownloadState.RUNNING -> {
         val pct = (progressFraction(item) * 100).roundToInt()
         val of = if (item.totalBytes > 0) " of ${formatBytes(item.totalBytes)}" else ""
-        "$pct% · ${formatBytes(item.bytesDownloaded)}$of"
+        val speed = liveProgress?.speedBytesPerSecond?.takeIf { it > 0 }
+            ?.let { " · ${formatBytes(it.toLong())}/s" }.orEmpty()
+        val eta = liveProgress?.etaSeconds?.takeIf { it > 0 }
+            ?.let { " · ETA ${formatDuration(it.toInt())}" }.orEmpty()
+        "$pct% · ${formatBytes(item.bytesDownloaded)}$of$speed$eta"
     }
     DownloadState.PAUSED -> "Paused · ${formatBytes(item.bytesDownloaded)}"
-    DownloadState.COMPLETED -> "Downloaded"
+    DownloadState.COMPLETED -> {
+        val size = if (item.totalBytes > 0) " · ${formatBytes(item.totalBytes)}" else ""
+        val duration = downloadDuration(item)?.let { " · ${formatDuration(it)}" }.orEmpty()
+        "Downloaded$size$duration"
+    }
     DownloadState.FAILED -> "Failed" + (error?.let { " · $it" } ?: "")
+}
+
+/** Wall-clock time from first RUNNING to COMPLETED (a paused stretch counts too -- "how long this
+ *  took", not "how long the engine was actually busy"). Null until both timestamps exist. */
+private fun downloadDuration(item: DownloadItem): Int? {
+    val started = item.startedAt ?: return null
+    val finished = item.finishedAt ?: return null
+    return ((finished - started) / 1000).toInt().coerceAtLeast(0)
 }
 
 @Composable

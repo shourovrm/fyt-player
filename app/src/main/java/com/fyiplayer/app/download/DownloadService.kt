@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.fyiplayer.app.MainActivity
+import com.fyiplayer.app.data.repo.DownloadItem
 import com.fyiplayer.app.data.repo.DownloadState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,9 +55,19 @@ class DownloadService : Service() {
             loopJob = scope.launch {
                 queue.resetStale()
                 while (isActive) {
-                    val progressed = queue.processNext { _, progress -> updateNotification(progress) }
+                    // Reset per row: without this a row that starts at, say, 40% (resumed) would
+                    // suppress every tick below the previous row's last-notified percent.
+                    lastNotifiedPercent = -1
+                    val progressed = queue.processNext(
+                        onProgress = { _, progress -> updateNotification(progress) },
+                        onFinished = { item, state -> postFinishedNotification(item, state) },
+                    )
                     if (!progressed) break
                 }
+                // Queue drained: take the ongoing notification down with it, or it lingers
+                // showing the last row's stale "Starting…"/percent even though nothing is running
+                // (device-verified bug this fixes).
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 // stopSelf(startId), not bare stopSelf(): if a fresh enqueue delivered a newer
                 // onStartCommand while this loop was finishing up, the system no-ops this call
                 // instead of tearing the service down out from under that new work.
@@ -123,6 +134,28 @@ class DownloadService : Service() {
             builder.addAction(android.R.drawable.ic_delete, "Cancel", actionIntent(ACTION_CANCEL, it.ref.pageUrl))
         }
         return builder.build()
+    }
+
+    /** One-shot, non-ongoing notification per finished row -- id derived from the page URL (not
+     *  [NOTIF_ID]) so it neither collides with nor gets cleared by the ongoing/next-row progress
+     *  notification, and multiple finished rows can stack instead of overwriting each other. Opens
+     *  the app plainly: no Downloads-tab deep link exists yet to target more precisely. */
+    private fun postFinishedNotification(item: DownloadItem, state: DownloadState) {
+        val done = state == DownloadState.COMPLETED
+        val openApp = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(if (done) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_sys_warning)
+            .setContentTitle(if (done) "Download complete" else "Download failed")
+            .setContentText(if (done) "Downloaded: ${item.ref.title}" else "Download failed: ${item.ref.title}")
+            .setContentIntent(openApp)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(item.ref.pageUrl.hashCode(), notif)
     }
 
     private fun actionIntent(action: String, pageUrl: String): PendingIntent {

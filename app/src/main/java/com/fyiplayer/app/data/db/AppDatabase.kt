@@ -67,6 +67,19 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/** v6 -> v7: download rows gain a thumbnail (Downloads-screen row image), start/finish
+ *  timestamps (duration-taken display), and an optional subtitle-track language to fetch
+ *  alongside the video. All additive/nullable columns -- never fall back to destructive
+ *  migration, that wipes a user's download queue. */
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE downloads ADD COLUMN thumbnailUrl TEXT")
+        db.execSQL("ALTER TABLE downloads ADD COLUMN startedAt INTEGER")
+        db.execSQL("ALTER TABLE downloads ADD COLUMN finishedAt INTEGER")
+        db.execSQL("ALTER TABLE downloads ADD COLUMN subtitleLanguageCode TEXT")
+    }
+}
+
 @Database(
     entities = [
         WatchHistoryEntity::class,
@@ -80,7 +93,7 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
         SubscriptionEntity::class,
         FollowedPlaylistEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -100,7 +113,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fyi-player.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
                 .also { instance = it }
         }

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import androidx.core.content.ContextCompat
 import com.fyiplayer.app.FyiApp
+import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
@@ -14,6 +15,7 @@ import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.DownloadItem
 import com.fyiplayer.app.data.repo.DownloadRepository
 import com.fyiplayer.app.data.repo.DownloadState
+import com.fyiplayer.app.data.repo.withTitleIfBlank
 import com.fyiplayer.app.engine.EngineGate
 import com.fyiplayer.app.engine.mapEngineError
 import com.fyiplayer.app.player.FormatSelection
@@ -37,6 +39,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /** Mirrors the synthetic id [com.fyiplayer.app.engine.WebViewResolver] stamps on its one tier-2
  *  format. That id is never a real engine format selector -- passing it to `-f` would just fail
@@ -55,7 +59,16 @@ sealed class EnqueueOutcome {
  * because it identifies a format *choice*, not a signed media location. Never persisted anywhere
  * except as the [com.fyiplayer.app.data.repo.DownloadItem.formatId] of the row the user picked.
  */
-data class DownloadOption(val formatId: String, val label: String, val approxBytes: Long?)
+data class DownloadOption(
+    val formatId: String,
+    val label: String,
+    val approxBytes: Long?,
+    /** Set by the picker at selection time (never during [deriveDownloadOptions]) when the user
+     *  also wants a caption track saved alongside this video -- the chosen track's own
+     *  [CaptionTrack.languageCode], re-matched against a fresh resolve at download time. Still not
+     *  a URL, so still safe to hold like the rest of this type. */
+    val subtitleLanguageCode: String? = null,
+)
 
 sealed class ResolveOutcome {
     data class Ready(val ref: VideoRef, val options: List<DownloadOption>) : ResolveOutcome()
@@ -89,8 +102,10 @@ class DownloadQueue private constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engineGate = Semaphore(1)
     // Same rn/UA request shaping as playback (player/MediaHttp.kt) -- an unshapen client is
-    // paced by the CDN and a 30 MB download takes twenty minutes.
-    private val streamDownloader = StreamDownloader(mediaHttpClient())
+    // paced by the CDN and a 30 MB download takes twenty minutes. Shared with the size-probe and
+    // subtitle fetch below -- one client, not a fresh one per concern.
+    private val httpClient = mediaHttpClient()
+    private val streamDownloader = StreamDownloader(httpClient)
 
     @Volatile private var activePageUrl: String? = null
     @Volatile private var activeProcessId: String? = null
@@ -106,6 +121,19 @@ class DownloadQueue private constructor(
     // to a fixed safe-to-display string before it ever lands here (never a raw signed URL).
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors: StateFlow<Map<String, String>> = _errors.asStateFlow()
+
+    // Transient only, unthrottled (unlike the 1s-throttled DB write in processNext): speed/ETA are
+    // never persisted, only shown live for whichever row is RUNNING. Cleared for a pageUrl the
+    // moment it leaves RUNNING.
+    private val _progress = MutableStateFlow<Map<String, DownloadProgress>>(emptyMap())
+    val progress: StateFlow<Map<String, DownloadProgress>> = _progress.asStateFlow()
+
+    /** Snapshot of the most recent [resolveOptions] resolve. Reused by [fetchApproxBytes] and
+     *  [lastCaptions] instead of a second resolve -- safe because the picker is modal, so at most
+     *  one download dialog (and therefore one resolve) is ever showing at a time; "most recent"
+     *  always means "the video this dialog is for". */
+    private data class LastResolve(val pageUrl: String, val formats: List<MediaFormat>, val captions: List<CaptionTrack>)
+    @Volatile private var lastResolve: LastResolve? = null
 
     // Eagerly, not WhileSubscribed: DownloadService reads [rows].value directly (no collector of
     // its own) to build the notification, so the underlying Room flow must stay live even with
@@ -126,7 +154,29 @@ class DownloadQueue private constructor(
         }
         val options = deriveDownloadOptions(resolved.formats, includeManifests = ref.sourceId != "youtube")
         if (options.isEmpty()) return ResolveOutcome.Failed("No downloadable video or audio track found.")
+        lastResolve = LastResolve(resolved.ref.pageUrl, resolved.formats, resolved.captions)
         return ResolveOutcome.Ready(resolved.ref, options)
+    }
+
+    /** Caption tracks for whatever video the last [resolveOptions] resolved -- read by the download
+     *  quality picker to offer the subtitle checkbox without a second resolve. */
+    fun lastCaptions(): List<CaptionTrack> = lastResolve?.captions ?: emptyList()
+
+    /**
+     * Best-effort size for one [option] whose derivation ([deriveDownloadOptions]) had no filesize:
+     * a HEAD probe per format id in the selector (summed for a paired video+audio option), against
+     * the formats [resolveOptions] already resolved. Null on any failure or manifest format -- the
+     * caller just shows nothing, same as a size that was never known.
+     */
+    suspend fun fetchApproxBytes(option: DownloadOption): Long? = withContext(Dispatchers.IO) {
+        val formats = lastResolve?.formats ?: return@withContext null
+        var total = 0L
+        var any = false
+        option.formatId.split('+').forEach { id ->
+            val format = formats.firstOrNull { it.formatId == id } ?: return@forEach
+            headContentLength(httpClient, format)?.let { total += it; any = true }
+        }
+        if (any) total else null
     }
 
     /**
@@ -140,6 +190,8 @@ class DownloadQueue private constructor(
             return EnqueueOutcome.Failed("this source can't be downloaded yet")
         }
         _errors.update { it - ref.pageUrl }
+        // Bare-URL opens (share) reach here before Detail's enrichment landed; same fix as likes.
+        val ref = ref.withTitleIfBlank()
         repository.upsert(
             DownloadItem(
                 ref = ref,
@@ -149,6 +201,7 @@ class DownloadQueue private constructor(
                 bytesDownloaded = 0,
                 totalBytes = option.approxBytes ?: 0L,
                 updatedAt = System.currentTimeMillis(),
+                subtitleLanguageCode = option.subtitleLanguageCode,
             ),
         )
         kickService()
@@ -194,7 +247,7 @@ class DownloadQueue private constructor(
         _errors.update { it - pageUrl }
         if (activePageUrl == pageUrl) stopActive()
         repository.remove(pageUrl)
-        return item?.let { deleteDownloadFiles(dir, it.ref) } ?: true
+        return item?.let { deleteDownloadFiles(dir, it.ref, it.filePath) } ?: true
     }
 
     suspend fun clearCompleted() {
@@ -206,7 +259,7 @@ class DownloadQueue private constructor(
     suspend fun clearCompletedAndDeleteFiles(): Boolean {
         val completed = rows.value.filter { it.state == DownloadState.COMPLETED }
         completed.forEach { repository.remove(it.ref.pageUrl) }
-        return completed.fold(true) { allOk, item -> deleteDownloadFiles(dir, item.ref) && allOk }
+        return completed.fold(true) { allOk, item -> deleteDownloadFiles(dir, item.ref, item.filePath) && allOk }
     }
 
     /**
@@ -233,18 +286,34 @@ class DownloadQueue private constructor(
             .forEach { repository.upsert(it.copy(state = DownloadState.QUEUED, updatedAt = System.currentTimeMillis())) }
     }
 
-    /** Runs one queued row to a terminal-for-now state. False when the queue is empty. */
-    suspend fun processNext(onProgress: (String, DownloadProgress) -> Unit = { _, _ -> }): Boolean {
+    /**
+     * Runs one queued row to a terminal-for-now state. False when the queue is empty. [onFinished]
+     * fires only for a real terminal outcome (COMPLETED/FAILED), never for PAUSED/cancelled -- the
+     * caller (the notification) has nothing worth announcing for those.
+     */
+    suspend fun processNext(
+        onProgress: (String, DownloadProgress) -> Unit = { _, _ -> },
+        onFinished: (DownloadItem, DownloadState) -> Unit = { _, _ -> },
+    ): Boolean {
         val next = rows.value.firstOrNull { it.state == DownloadState.QUEUED } ?: return false
         val pageUrl = next.ref.pageUrl
         engineGate.withPermit {
             val processId = UUID.randomUUID().toString()
             activePageUrl = pageUrl
             activeProcessId = processId
-            repository.upsert(next.copy(state = DownloadState.RUNNING, updatedAt = System.currentTimeMillis()))
+            // startedAt only on the FIRST run: a paused/resumed row keeps its original start time,
+            // so "duration taken" on completion reflects the whole queued lifetime, not just the
+            // final resume.
+            val running = next.copy(
+                state = DownloadState.RUNNING,
+                startedAt = next.startedAt ?: System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            )
+            repository.upsert(running)
 
             var lastWriteMillis = 0L
-            val outcome = runDownload(next, processId) { progress ->
+            val outcome = runDownload(running, processId) { progress ->
+                _progress.update { it + (pageUrl to progress) }
                 val now = System.currentTimeMillis()
                 if (now - lastWriteMillis >= 1_000) {
                     lastWriteMillis = now
@@ -253,10 +322,9 @@ class DownloadQueue private constructor(
                     runCatching {
                         runBlocking {
                             repository.upsert(
-                                next.copy(
-                                    state = DownloadState.RUNNING,
+                                running.copy(
                                     bytesDownloaded = progress.downloadedBytes,
-                                    totalBytes = progress.totalBytes ?: next.totalBytes,
+                                    totalBytes = progress.totalBytes ?: running.totalBytes,
                                     updatedAt = now,
                                 ),
                             )
@@ -268,23 +336,25 @@ class DownloadQueue private constructor(
             activePageUrl = null
             activeProcessId = null
             activeStreamSignal = null
+            _progress.update { it - pageUrl }
 
             when (outcome) {
                 EngineOutcome.Done -> {
-                    val produced = findProducedFile(dir, next.ref)
-                    repository.upsert(
-                        next.copy(
-                            state = DownloadState.COMPLETED,
-                            filePath = produced?.absolutePath,
-                            bytesDownloaded = produced?.length() ?: next.bytesDownloaded,
-                            totalBytes = produced?.length() ?: next.totalBytes,
-                            updatedAt = System.currentTimeMillis(),
-                        ),
+                    val produced = findProducedFile(dir, running.ref)
+                    val finished = running.copy(
+                        state = DownloadState.COMPLETED,
+                        filePath = produced?.absolutePath,
+                        bytesDownloaded = produced?.length() ?: running.bytesDownloaded,
+                        totalBytes = produced?.length() ?: running.totalBytes,
+                        finishedAt = System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis(),
                     )
+                    repository.upsert(finished)
                     // Best-effort copy into the user's chosen folder, if any -- the row above is
                     // already COMPLETED and stays that way regardless of how this turns out; the
                     // private file it points at is what the in-app Downloads screen opens.
                     produced?.let { file -> treeUri()?.let { uri -> exportToTree(appContext, file, Uri.parse(uri)) } }
+                    onFinished(finished, DownloadState.COMPLETED)
                 }
                 EngineOutcome.Cancelled -> {
                     // cancel() already deleted the row; only a plain pause() needs PAUSED written.
@@ -295,7 +365,9 @@ class DownloadQueue private constructor(
                 }
                 is EngineOutcome.Failed -> {
                     _errors.update { it + (pageUrl to outcome.message) }
-                    repository.upsert(next.copy(state = DownloadState.FAILED, updatedAt = System.currentTimeMillis()))
+                    val failed = running.copy(state = DownloadState.FAILED, updatedAt = System.currentTimeMillis())
+                    repository.upsert(failed)
+                    onFinished(failed, DownloadState.FAILED)
                 }
             }
         }
@@ -330,15 +402,25 @@ class DownloadQueue private constructor(
         val signal = StreamDownloader.CancelSignal()
         activeStreamSignal = signal
         if (!dir.exists()) dir.mkdirs()
+        val baseName = safeBaseName(item.ref)
         return when (val outcome = streamDownloader.download(
             formats = resolved.formats,
             selector = item.formatId,
             dir = dir,
-            baseName = safeBaseName(item.ref),
+            baseName = baseName,
             signal = signal,
             onProgress = onProgress,
         )) {
-            is StreamDownloader.Outcome.Done -> EngineOutcome.Done
+            is StreamDownloader.Outcome.Done -> {
+                // Best-effort and separate from the video's own outcome: a dead caption track or a
+                // network blip here must never fail a download that otherwise finished fine.
+                item.subtitleLanguageCode?.let { lang ->
+                    withContext(Dispatchers.IO) {
+                        runCatching { downloadSubtitle(httpClient, resolved.captions, lang, dir, baseName) }
+                    }
+                }
+                EngineOutcome.Done
+            }
             StreamDownloader.Outcome.Cancelled -> EngineOutcome.Cancelled
             is StreamDownloader.Outcome.Failed -> EngineOutcome.Failed(outcome.message)
         }
@@ -442,8 +524,13 @@ private fun destTemplate(dir: File, ref: VideoRef): String {
 internal fun matchesDownloadFile(fileName: String, ref: VideoRef): Boolean =
     fileName.startsWith("${safeBaseName(ref)}.")
 
+private val SUBTITLE_EXTENSIONS = setOf("srt", "ttml", "vtt")
+
+/** The media file only -- a subtitle sidecar is written last (same basename) and would otherwise
+ *  win "newest", making the row point at a 50 KB .ttml. */
 private fun findProducedFile(dir: File, ref: VideoRef): File? {
-    return dir.listFiles { f -> f.isFile && matchesDownloadFile(f.name, ref) }?.maxByOrNull { it.lastModified() }
+    return dir.listFiles { f -> f.isFile && matchesDownloadFile(f.name, ref) && f.extension !in SUBTITLE_EXTENSIONS }
+        ?.maxByOrNull { it.lastModified() }
 }
 
 /** Deletes the produced file plus every sidecar for [ref] under [dir] -- the one fixed app-private
@@ -451,8 +538,13 @@ private fun findProducedFile(dir: File, ref: VideoRef): File? {
  *  a failure: [File.listFiles] simply returns nothing to delete. Returns false only when a matched
  *  file is still there after a real delete attempt, so a genuine permission/IO failure can be
  *  surfaced instead of silently pretending it worked. */
-private fun deleteDownloadFiles(dir: File, ref: VideoRef): Boolean {
-    val candidates = dir.listFiles { f -> f.isFile && matchesDownloadFile(f.name, ref) } ?: return true
+private fun deleteDownloadFiles(dir: File, ref: VideoRef, filePath: String?): Boolean {
+    // Also match on the recorded file's own basename: the row's title can be enriched after the
+    // file was named (bare-URL enqueue), so the ref-derived name alone would miss it.
+    val stored = filePath?.let { File(it).nameWithoutExtension }
+    val candidates = dir.listFiles { f ->
+        f.isFile && (matchesDownloadFile(f.name, ref) || (stored != null && f.nameWithoutExtension == stored))
+    } ?: return true
     var allOk = true
     for (file in candidates) {
         val deleted = runCatching { file.delete() }.getOrDefault(false)
@@ -491,6 +583,43 @@ internal fun deriveDownloadOptions(formats: List<MediaFormat>, includeManifests:
         else DownloadOption(picked.selector, "Audio only", picked.bytes)
     }
     return videoOptions + listOfNotNull(audioOption)
+}
+
+/** Best-effort Content-Length probe for the quality picker's "…" -> real size upgrade. Never logs
+ *  the URL (same rule as every other media-URL touch point); a failure just leaves the size
+ *  unknown, same as if [approxBytes][MediaFormat.filesizeBytes] had never been reported. */
+private fun headContentLength(client: OkHttpClient, format: MediaFormat): Long? {
+    if (format.protocol != Protocol.PROGRESSIVE) return null // a manifest has no one Content-Length
+    return try {
+        val builder = Request.Builder().url(format.url).head()
+        format.headers.forEach { (k, v) -> builder.header(k, v) }
+        client.newCall(builder.build()).execute().use { resp ->
+            if (!resp.isSuccessful) null else resp.header("Content-Length")?.toLongOrNull()
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/** Fetches the one matching caption track's file next to the just-finished video, same basename,
+ *  the track's own extension. Caller wraps this in `runCatching` -- any failure here (track gone
+ *  since the dialog was shown, network error) is swallowed, never fails the video download. */
+private fun downloadSubtitle(client: OkHttpClient, captions: List<CaptionTrack>, languageCode: String, dir: File, baseName: String) {
+    val track = captions.firstOrNull { it.languageCode == languageCode } ?: return
+    val request = Request.Builder().url(track.url).build()
+    client.newCall(request).execute().use { resp ->
+        if (!resp.isSuccessful) return
+        val body = resp.body ?: return
+        val out = File(dir, "$baseName.${subtitleExtension(track.mimeType)}")
+        out.outputStream().use { sink -> body.byteStream().copyTo(sink) }
+    }
+}
+
+/** Mirrors [com.fyiplayer.app.source.newpipe.captionMimeType]'s three known mime types. */
+private fun subtitleExtension(mimeType: String): String = when (mimeType) {
+    "application/x-subrip" -> "srt"
+    "application/ttml+xml" -> "ttml"
+    else -> "vtt"
 }
 
 private data class SelectionSummary(val selector: String, val height: Int?, val bytes: Long?)
