@@ -45,4 +45,42 @@ class DescriptionTabTest {
         assertEquals(true, isYoutubePlaylistUrl("https://www.youtube.com/watch?v=abc&list=PL123"))
         assertEquals(false, isYoutubePlaylistUrl("https://www.youtube.com/watch?v=abc"))
     }
+
+    private val currentUrl = "https://www.youtube.com/watch?v=abc123"
+
+    @Test fun `parses colon timestamp`() {
+        assertEquals(125L, parseColonTimestamp("2:05"))
+        assertEquals(3723L, parseColonTimestamp("1:02:03"))
+        assertNull(parseColonTimestamp("abc"))
+        assertNull(parseColonTimestamp("1:2:3:4"))
+    }
+
+    @Test fun `linkifies a bare url and trims trailing punctuation`() {
+        val spans = findLinkSpans("(see https://example.com/foo).", currentUrl)
+        assertEquals(1, spans.size)
+        assertEquals("https://example.com/foo", spans[0].target)
+        assertEquals("https://example.com/foo", "(see https://example.com/foo).".substring(spans[0].start, spans[0].end))
+    }
+
+    @Test fun `linkifies a scheme-less youtube link`() {
+        val spans = findLinkSpans("more at youtube.com/watch?v=xyz", currentUrl)
+        assertEquals(listOf("https://youtube.com/watch?v=xyz"), spans.map { it.target })
+    }
+
+    @Test fun `linkifies a handle mention but not an email`() {
+        val spans = findLinkSpans("follow @cooluser123 not me@example.com", currentUrl)
+        assertEquals(listOf("https://www.youtube.com/@cooluser123"), spans.map { it.target })
+    }
+
+    @Test fun `linkifies colon timestamps to a seek url for the current video`() {
+        val spans = findLinkSpans("highlights at 1:23 and 1:02:03", currentUrl)
+        assertEquals(
+            listOf("$currentUrl&t=83s", "$currentUrl&t=3723s"),
+            spans.map { it.target },
+        )
+    }
+
+    @Test fun `no false positives in plain text`() {
+        assertEquals(emptyList<LinkSpan>(), findLinkSpans("just a normal sentence, nothing to see.", currentUrl))
+    }
 }
