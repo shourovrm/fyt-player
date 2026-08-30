@@ -18,10 +18,11 @@ import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.VideoRef
 
 /**
- * The Similar tab (DECISIONS.md: the extraction engine exposes no related/recommended list, and
- * mix/radio playlists are rejected -- confirmed live). "Similar" is a search on the current
- * video's own topic, never the platform's own recommendation feed, so [buildSimilarQuery] is the
- * whole quality of this feature -- kept pure and unit-tested on purpose.
+ * The Similar tab: real platform recommendations ([com.fyiplayer.app.core.VideoDetail.related])
+ * when the source's `detail()` supplies them, a title search on the current video's own topic
+ * otherwise (age-restricted video, extractor returned nothing, non-YouTube source). Mix/radio
+ * playlists are rejected -- confirmed live, DECISIONS.md. [buildSimilarQuery] is the whole quality
+ * of the fallback path -- kept pure and unit-tested on purpose.
  */
 
 // A handful of words beats a long, over-specific query -- search degrades past this.
