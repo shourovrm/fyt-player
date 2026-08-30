@@ -5,20 +5,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.FyiApp
+import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.FollowedPlaylistRepository
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
-import com.fyiplayer.app.data.repo.PositionsRepository
 import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 enum class LibraryTab { LIKES, PLAYLISTS, HISTORY, CHANNELS }
 
@@ -37,7 +40,6 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val likes = LikesRepository(app.database.likeDao())
     val playlists = PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao())
     val history = HistoryRepository(app.database.watchHistoryDao())
-    val positions = PositionsRepository(app.database.playbackPositionDao())
     val subscriptions = SubscriptionRepository(app.database.subscriptionDao())
     val followedPlaylists = FollowedPlaylistRepository(app.database.followedPlaylistDao())
 
@@ -89,4 +91,29 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      *  [mergePlaylistRows] (pure, unit-tested in LibrarySelectionTest). */
     internal val playlistRows: Flow<List<PlaylistRow>> =
         combine(playlistCards, followedPlaylists.observeAll()) { locals, followed -> mergePlaylistRows(locals, followed) }
+
+    init {
+        backfillFollowedThumbnails()
+    }
+
+    /** One-shot, not per-row: followed playlists persisted before v8's thumbnailUrl column have
+     *  none stored. Re-fetches just those rows' first page (bounded + sequential, never parallel
+     *  hammering) and writes the thumbnail back so it's there next time without a live fetch. */
+    private fun backfillFollowedThumbnails() {
+        viewModelScope.launch {
+            val stale = followedPlaylists.observeAll().first()
+                .filter { it.thumbnailUrl == null || it.title.isBlank() }.take(THUMBNAIL_BACKFILL_CAP)
+            for (listing in stale) {
+                val source = SourceRegistry.bySourceId(listing.sourceId) ?: continue
+                val page = runCatching { source.listing(listing, null) }.getOrNull() ?: continue
+                page.items.firstOrNull()?.thumbnailUrl?.let { followedPlaylists.updateThumbnail(listing.key, it) }
+                // Same fetch also names a row followed from a URL-only share (title was "").
+                if (listing.title.isBlank()) page.title?.takeIf { it.isNotBlank() }?.let { followedPlaylists.fillTitle(listing.key, it) }
+            }
+        }
+    }
+
+    private companion object {
+        const val THUMBNAIL_BACKFILL_CAP = 10
+    }
 }

@@ -25,8 +25,9 @@ data class DownloadEntity(
     val thumbnailUrl: String? = null,
     val startedAt: Long? = null,
     val finishedAt: Long? = null,
-    // Track language the user asked to also save as a caption file, re-matched at download time --
-    // never the caption file's own signed URL.
+    // Unused since the subtitle checkbox was replaced by the standalone "Download subtitles"
+    // action (download/SubtitleDownload.kt) -- kept because dropping a column needs a table
+    // rebuild, not just an additive migration; always null going forward.
     val subtitleLanguageCode: String? = null,
 )
 

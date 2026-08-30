@@ -146,7 +146,7 @@ class NewPipeYoutubeSource(
             guarded {
                 if (page == null) {
                     val info = PlaylistInfo.getInfo(ServiceList.YouTube, listing.key)
-                    SearchPage(items = info.relatedItems.mapNotNull { it.toVideoRef() }, nextPage = info.nextPage.tokenOrNull())
+                    SearchPage(items = info.relatedItems.mapNotNull { it.toVideoRef() }, nextPage = info.nextPage.tokenOrNull(), title = info.name)
                 } else {
                     val more = PlaylistInfo.getMoreItems(ServiceList.YouTube, listing.key, page.toPage())
                     SearchPage(items = more.items.mapNotNull { it.toVideoRef() }, nextPage = more.nextPage.tokenOrNull())

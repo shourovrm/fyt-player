@@ -51,6 +51,9 @@ data class VideoRef(
 data class SearchPage(
     val items: List<VideoRef>,
     val nextPage: String? = null,
+    /** The listing's own name when the page knows it (a playlist's first page) -- lets a URL-only
+     *  Listing (share-in) show and persist a real title instead of "Listing". */
+    val title: String? = null,
 )
 
 /** A playable stream variant. [headers] must be applied verbatim or the CDN rejects the request. */

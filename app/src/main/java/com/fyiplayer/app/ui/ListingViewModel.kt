@@ -24,6 +24,9 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
 
     var items: List<VideoRef> by mutableStateOf(emptyList())
         private set
+    /** Title from the first page, for a Listing that arrived with a blank one (share-in URL). */
+    var resolvedTitle: String? by mutableStateOf(null)
+        private set
     var nextPage: String? by mutableStateOf(null)
         private set
     var loading: Boolean by mutableStateOf(true)
@@ -40,6 +43,7 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
         if (loadedFor == listing) return
         loadedFor = listing
         items = emptyList()
+        resolvedTitle = null
         nextPage = null
         load(listing, null)
     }
@@ -47,9 +51,11 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
     fun retry(listing: Listing) = load(listing, nextPage)
 
     /** Idempotent: the page URL primary key on the followed-playlists table makes a repeat tap a
-     *  no-op instead of a duplicate row. */
+     *  no-op instead of a duplicate row. Thumbnail comes from the first item of this already-loaded
+     *  page -- no extra fetch just to follow. */
     fun follow(listing: Listing) {
-        viewModelScope.launch { followedPlaylists.follow(listing) }
+        val named = if (listing.title.isBlank() && resolvedTitle != null) listing.copy(title = resolvedTitle!!) else listing
+        viewModelScope.launch { followedPlaylists.follow(named, thumbnailUrl = items.firstOrNull()?.thumbnailUrl) }
     }
 
     fun loadMore(listing: Listing) {
@@ -75,6 +81,7 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
                 val seen: HashSet<String> = if (page == null) HashSet() else items.mapTo(HashSet()) { it.pageUrl }
                 val fresh = result.items.filter { seen.add(it.pageUrl) }
                 items = if (page == null) fresh else items + fresh
+                if (page == null) resolvedTitle = result.title?.takeIf { it.isNotBlank() }
                 nextPage = result.nextPage
             } catch (e: CancellationException) {
                 throw e

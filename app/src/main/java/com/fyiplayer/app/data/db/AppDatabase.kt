@@ -80,6 +80,15 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/** v7 -> v8: followed-playlist row gains a stored cover thumbnail (first video's thumbnail at
+ *  follow time), matching local playlists' existing `coverThumbnailUrl`. Additive/nullable
+ *  column -- never fall back to destructive migration, that wipes a user's library. */
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE followed_playlists ADD COLUMN thumbnailUrl TEXT")
+    }
+}
+
 @Database(
     entities = [
         WatchHistoryEntity::class,
@@ -93,7 +102,7 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
         SubscriptionEntity::class,
         FollowedPlaylistEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -113,7 +122,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fyi-player.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
                 .also { instance = it }
         }
