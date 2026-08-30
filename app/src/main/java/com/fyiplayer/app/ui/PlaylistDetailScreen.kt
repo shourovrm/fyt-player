@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -38,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.core.VideoRef
@@ -60,6 +62,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
     }
 
     val app = rememberFyiApp()
+    val context = LocalContext.current
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val scope = rememberCoroutineScope()
 
@@ -103,6 +106,12 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
                         Box {
                             IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    // No remote URL for a locally created playlist -- share its
+                                    // title plus one canonical video page URL per line instead.
+                                    text = { Text("Share") },
+                                    onClick = { menuOpen = false; sharePlaylist(context, name ?: "Playlist", pageUrl = null, videoUrls = videos.map { it.pageUrl }) },
+                                )
                                 DropdownMenuItem(
                                     text = { Text("Rename") },
                                     onClick = { menuOpen = false; renaming = true },

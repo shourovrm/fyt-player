@@ -67,9 +67,28 @@ internal fun isVerticalClipUrl(url: String): Boolean {
     return host in YOUTUBE_HOSTS && uri.path.orEmpty().startsWith("/shorts/")
 }
 
-/** Share/open-with entry: one seam for every shared URL. Vertical-clip hosts open the pager as
- *  a single-item list (no feed to page into); everything else is Detail. */
+private val LIST_ID = Regex("[?&]list=([^&]+)")
+
+/** `list=` param on a shared YouTube URL (`.../playlist?list=PL...` or `watch?v=X&list=PL...`) ->
+ *  the canonical `playlist?list=` page URL, or null when there's no list param or it's a mix/radio
+ *  id (`RD*` -- the extractor rejects those, see DECISIONS.md Tried/rejected). Mirrors
+ *  `NewPipeYoutubeSource.toPlaylistVideoRef`'s id extraction so both land on the same URL shape. */
+internal fun youtubePlaylistUrl(url: String): String? {
+    val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase() ?: return null
+    if (host !in YOUTUBE_HOSTS) return null
+    val listId = LIST_ID.find(url)?.groupValues?.get(1) ?: return null
+    if (listId.startsWith("RD")) return null
+    return "https://www.youtube.com/playlist?list=$listId"
+}
+
+/** Share/open-with entry: one seam for every shared URL. A `list=` param -- bare playlist link or
+ *  `watch?v=X&list=PL..` -- opens the remote playlist listing (user can still tap into the video
+ *  from there); vertical-clip hosts open the pager as a single-item list; everything else is Detail. */
 fun NavController.openSharedUrl(url: String) {
+    youtubePlaylistUrl(url)?.let { playlistUrl ->
+        return openListing(Listing(sourceId = "youtube", kind = Listing.Kind.PLAYLIST, key = playlistUrl, title = ""))
+    }
     if (!isVerticalClipUrl(url)) return openDetail(url)
     val ref = VideoRef(
         sourceId = SourceRegistry.forUrl(url)?.id ?: "",
