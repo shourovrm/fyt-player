@@ -32,6 +32,7 @@ import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.download.DownloadQueue
 import com.fyiplayer.app.download.EnqueueOutcome
 import com.fyiplayer.app.download.ResolveOutcome
+import com.fyiplayer.app.download.SubtitleOutcome
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -106,6 +107,21 @@ class VideoActions internal constructor(
     fun dismissDownloadPicker() {
         downloadPicker = null
     }
+
+    /** No picker (CLAUDE.md rule doesn't apply here -- this isn't a signed media URL choice, just
+     *  one caption track): resolves, picks a track ([DownloadQueue.downloadSubtitles]), saves
+     *  `.srt`, and reports the outcome as a toast. */
+    fun downloadSubtitles() {
+        scope.launch {
+            val message = when (val outcome = downloads.downloadSubtitles(ref)) {
+                SubtitleOutcome.Saved -> "Subtitles saved"
+                SubtitleOutcome.NoSubtitles -> "No subtitles for this video"
+                SubtitleOutcome.Unsupported -> "Subtitle format not supported"
+                is SubtitleOutcome.Failed -> outcome.message
+            }
+            showToast(context, message)
+        }
+    }
 }
 
 @Composable
@@ -142,6 +158,7 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
             SheetAction(if (liked) "Unlike" else "Like") { actions.toggleLike(liked); onDismiss() }
             SheetAction("Share") { actions.share(); onDismiss() }
             SheetAction("Download") { actions.startDownload() }
+            SheetAction("Download subtitles") { actions.downloadSubtitles(); onDismiss() }
         }
     }
 

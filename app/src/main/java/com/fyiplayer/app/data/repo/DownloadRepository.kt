@@ -20,8 +20,6 @@ data class DownloadItem(
     val updatedAt: Long,
     val startedAt: Long? = null,
     val finishedAt: Long? = null,
-    // Track language to also fetch as a caption file when the video finishes -- never a URL.
-    val subtitleLanguageCode: String? = null,
 )
 
 fun DownloadEntity.toDownloadItem(): DownloadItem = DownloadItem(
@@ -34,7 +32,6 @@ fun DownloadEntity.toDownloadItem(): DownloadItem = DownloadItem(
     updatedAt = updatedAt,
     startedAt = startedAt,
     finishedAt = finishedAt,
-    subtitleLanguageCode = subtitleLanguageCode,
 )
 
 fun DownloadItem.toEntity(): DownloadEntity = DownloadEntity(
@@ -51,7 +48,7 @@ fun DownloadItem.toEntity(): DownloadEntity = DownloadEntity(
     thumbnailUrl = canonicalThumbnailUrl(ref.thumbnailUrl),
     startedAt = startedAt,
     finishedAt = finishedAt,
-    subtitleLanguageCode = subtitleLanguageCode,
+    // subtitleLanguageCode intentionally omitted -- no longer written, see DownloadEntity comment.
 )
 
 class DownloadRepository(private val dao: DownloadDao) {
