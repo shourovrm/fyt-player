@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,7 +56,10 @@ import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.text.NumberFormat
 
 /**
@@ -129,6 +133,19 @@ fun DetailScreen(
         }
     }
 
+    // Playback moved on by itself (autoplay next / queue auto-advance): open that video's page so
+    // the page and the player never disagree. Keyed on the counter, not on `current`, so a user
+    // tapping a Similar row (which already navigates) can't double-push during the nav overlap.
+    LaunchedEffect(pageUrl) {
+        PlaybackSession.state.map { it.autoAdvances }.drop(1).distinctUntilChanged().collect {
+            // queue[index], not `current`: play() publishes the queue synchronously but `current`
+            // only once the resolve lands, and the counter bumps right after play().
+            val st = PlaybackSession.state.value
+            val cur = st.queue.getOrNull(st.index) ?: return@collect
+            if (cur.pageUrl != pageUrl) onOpenDetail(cur)
+        }
+    }
+
     LaunchedEffect(pageUrl) {
         detail = try {
             source?.detail(ref) ?: VideoDetail(ref)
@@ -191,10 +208,15 @@ fun DetailScreen(
 
             LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
                 item {
+                    // Long-press opens the same action sheet Similar rows use (below) -- picked
+                    // over a 5th action-row column so "Download subtitles" doesn't squeeze Like/
+                    // Save/Download/Share; tap is a no-op since the title has nowhere else to go.
                     Text(
                         shownRef.title,
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                        modifier = Modifier
+                            .combinedClickable(onClick = {}, onLongClick = { actionSheetRef = shownRef })
+                            .padding(start = 16.dp, end = 16.dp, top = 12.dp),
                     )
                 }
                 // Before detail() lands (or when it fails), the ref itself often already knows the

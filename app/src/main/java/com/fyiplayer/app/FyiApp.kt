@@ -140,16 +140,17 @@ class FyiApp : Application() {
      *  companion reads this cross-package via a method reference. */
     fun currentDownloadTreeUri(): String? = downloadTreeUri
 
-    /** [PlaybackSession]'s autoplay-on-end lookup: a title search against [ref]'s own source, the
-     *  first result that is a plain video (not a channel/playlist stopgap ref, not live/upcoming,
-     *  not a short) and isn't the video that just ended. There is no real recommendation system
-     *  behind this -- PlaybackSettings' subtitle says so plainly. Any failure means null, same as
-     *  the pref being off: autoplay must never surface an error of its own. */
+    /** [PlaybackSession]'s autoplay-on-end lookup: first candidate from [ref]'s own Similar list
+     *  ([VideoDetail.related] -- cached, so re-fetching detail for the video that just ended is
+     *  free), same source YouTube itself would play next. Falls back to a title search only when
+     *  related is empty (no recommendations, e.g. non-YouTube sources). Any failure means null,
+     *  same as the pref being off: autoplay must never surface an error of its own. */
     private suspend fun autoplayNextFor(ref: VideoRef): VideoRef? {
         if (!autoplayNextEnabled) return null
         return try {
             val source = SourceRegistry.bySourceId(ref.sourceId) ?: return null
-            source.search(ref.title).items.firstOrNull { isAutoplayCandidate(it, ref) }
+            source.detail(ref).related.firstOrNull { isAutoplayCandidate(it, ref) }
+                ?: source.search(ref.title).items.firstOrNull { isAutoplayCandidate(it, ref) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // cancellation is control flow, not an autoplay failure
         } catch (e: Exception) {
