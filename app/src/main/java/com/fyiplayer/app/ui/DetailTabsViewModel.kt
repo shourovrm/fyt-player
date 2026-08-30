@@ -60,14 +60,17 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
     private var commentsLoadedFor: String? = null
     private var commentsJob: Job? = null
 
-    fun ensureSimilarLoaded(source: VideoSource?, ref: VideoRef) {
+    /** [related] is [com.fyiplayer.app.core.VideoDetail.related] -- already fetched alongside the
+     *  video's own detail (NewPipeYoutubeSource maps `info.relatedItems` into it), so a non-empty
+     *  list here needs no network call of its own. */
+    fun ensureSimilarLoaded(source: VideoSource?, ref: VideoRef, related: List<VideoRef>) {
         if (similarLoading || similarLoadedFor == ref.pageUrl) return
-        loadSimilar(source, ref)
+        loadSimilar(source, ref, related)
     }
 
-    fun retrySimilar(source: VideoSource?, ref: VideoRef) = loadSimilar(source, ref)
+    fun retrySimilar(source: VideoSource?, ref: VideoRef, related: List<VideoRef>) = loadSimilar(source, ref, related)
 
-    private fun loadSimilar(source: VideoSource?, ref: VideoRef) {
+    private fun loadSimilar(source: VideoSource?, ref: VideoRef, related: List<VideoRef>) {
         similarJob?.cancel()
         if (source == null) {
             similarError = ExtractionError.Unsupported("No source for this video")
@@ -78,10 +81,19 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
         similarLoading = true
         similarError = null
         similarBlocked = false
+
+        // Real recommendations come free with the detail fetch -- no source hit, no job. Title
+        // search below is the fallback only: age-restricted videos, an extractor that returned
+        // nothing, or a non-YouTube source whose detail() carries no related list.
+        val fromDetail = excludeCurrent(related.filter(::isVideoLike), ref)
+        if (fromDetail.isNotEmpty()) {
+            similarItems = fromDetail
+            similarLoading = false
+            return
+        }
+
         similarJob = viewModelScope.launch {
             try {
-                // The engine exposes no related/recommended list (DECISIONS.md); this is a search
-                // on the video's own topic, honestly labelled as such in the UI.
                 val query = buildSimilarQuery(ref.title)
                 val page = source.search(query)
                 val collected = excludeCurrent(page.items.filter(::isVideoLike), ref).toMutableList()
