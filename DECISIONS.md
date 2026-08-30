@@ -2,6 +2,20 @@
 
 ## Current state
 
+2026-08-30 (v0.2.20) Keep-note wave, DEVICE-VERIFIED (Nothing Phone): Similar tab = YouTube
+watch-next recommendations (`detail.related`, DetailScreen gates the fetch on `detailLoaded`),
+title search only as fallback. Downloads: quality sheet sizes via HEAD Content-Length on open
+(one dialog = one video, I/O allowed), live speed/ETA + final size/duration (startedAt/finishedAt),
+"Download complete/failed" one-shot notification + stopForeground when drained, "Also save
+subtitles" checkbox writes a same-basename sidecar (findProducedFile skips .srt/.ttml/.vtt or the
+row points at the sidecar), thumbnailUrl column (DB v7). Library: `youtubeThumbnailFor(pageUrl)`
+hqdefault fallback everywhere a row renders, `withTitleIfBlank()` enriches bare refs on
+like/playlist-add/download-start, "Untitled" instead of an empty line. Description: bare URLs /
+scheme-less youtube links / @handles / timestamps linkified on both HTML and plain branches.
+Playlists: `list=` share-in opens the remote listing (mix RD* rejected), Share on listing /
+followed / local playlists (local = title + one URL per line), one `PlaylistRowItem` for
+followed and local. Queue sheet: Shuffle text button (no glyph in icons-core).
+
 2026-08-25 (v0.2.19) Home "Local" chip (first after For you): three YouTube searches -- song /
 movie / drama phrased in the content country's language (LocalQueries, 20 countries + English
 fallback), year appended from the device clock at fetch time, first pages interleaved, shorts
@@ -308,6 +322,10 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Release-only. Debug variant is never built; there is no debug keystore in this repo.
 
 ## Next
+- Old Library rows persisted before v0.2.20 keep "Untitled" (no backfill); shared-in playlist
+  listing shows "Listing" as title (URL-only ref); followed playlist row has no thumbnail (no
+  stored data, no per-row fetch). All cosmetic.
+- Extractor bump to PipePipe v5.3.0 still pending (SABR/media3 change = mandatory playback smoke).
 - Shorts-tab paging landed 2026-08-22 (grid + pager load-more, device-verified growing past the
   old 64-item cap). UNVERIFIED: the "all caught up" end footer (needs every channel exhausted)
   and pager-tail trigger in isolation (shares `loadMore`, grid path proven).
@@ -578,8 +596,9 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 ## Tried / rejected
 
-- Similar tab via extractor recommendations (`VideoDetail.related`) — worked, reverted 2026-08-09:
-  user wants title search, not YouTube's recommendation feed. Never re-add unprompted.
+- Similar tab = title search only — SUPERSEDED 2026-08-30: user asked for YouTube's own
+  recommendations (PipePipe parity). `VideoDetail.related` is primary, title search is the
+  fallback when related is empty.
 
 - Bars-follow-chrome in fullscreen (tap shows status bar with the controls) — REVERTED. Repeated
   insetsController hide/show inside a fullscreen session wedges this OEM's inset delivery: after
@@ -841,3 +860,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-25 | Local chip = language-phrased searches, not a chart | no YouTube chart ranks local artists first (BD charts = Bollywood + global; YT Music charts page for BD has no Trending shelf); "নতুন গান" gl=BD returns BD artists, "new song" returns Hindi
 2026-08-25 | Music chip = US: topic-channel trending; else global daily chart | user: keep the old trending feed for US, worldwide elsewhere; Local covers the country
 2026-08-25 | Detail ✕ pops to Routes.HOME | user: close = leave the video page entirely, not unwind one
+2026-08-30 | Similar = YouTube related, title search fallback | user: PipePipe parity; old search-only decision superseded
+2026-08-30 | bare VideoRef enriched at persist time (like/playlist/download) | share opens hand a title-less ref; one detail() at a user action is fine, per-row fetch is not
+2026-08-30 | download row size/path from media file, not newest file | subtitle sidecar written last stole findProducedFile
