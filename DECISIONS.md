@@ -888,3 +888,5 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-30 | extractor local patches live on branch fyt-patches, recorded here | uncommitted search-shorts patch would have been lost on the next bump
 2026-08-30 | subtitles = separate long-press action, always .srt | user: not a checkbox in the quality list; English else first
 2026-08-30 | Detail follows autoplay/auto-advance via autoAdvances counter | page showed A while B played; counter (not `current`) avoids double-push on user taps
+
+2026-08-30 | watched bar red 3dp on dark track; finished video stored as full position | blue 2dp invisible; a cleared row hid "fully watched"
