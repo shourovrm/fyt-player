@@ -9,25 +9,35 @@ account needed. Latest APK: [releases/latest](https://github.com/shourovrm/fyt-p
 **Browse and search**
 - Home feed from your subscriptions (subscribe to at least one channel or "For you" stays
   empty), search with suggestions, channel pages with Videos / Shorts /
-  Playlists / Live tabs, playlists, "Similar" and comments on every video.
+  Playlists / Live tabs, playlists, comments, and a "Similar" tab that shows YouTube's own
+  recommendations for the video (including its shorts shelf).
 - Shorts tab: vertical swipe pager over your subscribed channels' shorts.
 - Content region and language are settings, not whatever the server guesses.
 
 **Playback**
 - Background playback.
-- Queue: play next, add to queue, reorder, shuffle, autoplay next.
+- Queue: play next, add to queue, reorder, shuffle, autoplay next (autoplay follows the Similar
+  list and skips shorts, like YouTube).
 - Fullscreen with rotation, double-tap seek, swipe for brightness and volume, playback speed,
   quality picker, captions, seek-bar thumbnails.
-- Resumes where you left off. Optional SponsorBlock segment skipping.
+- Resumes where you left off; every list row shows a thin watched-progress bar for videos you
+  have started (off when "Remember playback position" is off). Optional SponsorBlock segment
+  skipping.
 - Mini player stays on screen of the app while you keep browsing.
 - Separate default quality caps for Wi-Fi and mobile data.
 
 **Library**
-- Watch history, likes, your own playlists, subscriptions.
+- Watch history, likes, your own playlists, followed YouTube playlists (same row style, first
+  video as cover), subscriptions.
+- Share a playlist out as a link (followed) or as a list of video links (your own); share a
+  YouTube playlist link into the app to open it.
+- Video description links, @handles and timestamps are tappable.
 - Export playlists, likes and subscriptions to a single HTML file and import them back on another device.
 
 **Downloads**
-- Pick video or audio-only, pick a quality, queue several, pause / resume / cancel.
+- Pick video or audio-only, pick a quality (file sizes shown), queue several, pause / resume /
+  cancel. Speed, ETA and final size in the list; a notification when each one finishes.
+- "Download subtitles" from a video's long-press menu saves an .srt (English preferred).
 - Choose the download folder and file format.
 
 **Sharing in**
@@ -103,7 +113,9 @@ data/      Room database, DataStore settings, backup codec
 
 YouTube metadata and streams come from
 [PipePipeExtractor](https://github.com/InfinityLoop1308/PipePipeExtractor) (a NewPipeExtractor
-fork). Everything else, plus YouTube downloads and the sign-in path, goes through
+fork), built from a sibling checkout (`../PipePipe/PipePipeExtractor`, branch `fyt-patches`)
+that carries two small local patches: shorts shelves in search results and in the related-videos
+sidebar. They are rebased onto each new upstream tag; see DECISIONS.md. Everything else, plus YouTube downloads and the sign-in path, goes through
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) running on-device via
 [youtubedl-android](https://github.com/yausername/youtubedl-android). yt-dlp can be updated from
 Settings without a new APK.

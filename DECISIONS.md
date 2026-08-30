@@ -2,6 +2,26 @@
 
 ## Current state
 
+2026-08-30 (v0.2.20, wave 2) DEVICE-VERIFIED: watched-progress bar on every `ResultRow`
+(`LocalPlaybackPositions` provided once in AppShell, empty when "Remember playback position" is
+off); Playlists tab: followed + local share one `PlaylistRowItem`, followed ⋮ = Share/Delete
+(no Rename), cover = first video (persisted at follow time, `followed_playlists.thumbnailUrl`,
+DB v8; one-shot LibraryViewModel backfill also fills a blank title from `SearchPage.title`);
+"Download subtitles" = long-press sheet item (rows + Detail title long-press), always `.srt`
+via `fmt=vtt` + `vttToSrt`, English preferred, no checkbox in the quality sheet; autoplay next =
+first non-short of `detail.related` (title search fallback); Detail follows automatic
+advances (`PlayerState.autoAdvances` counter, survives play()'s state reset -- `current` is
+null right after play(), so Detail reads `queue[index]`).
+
+**EXTRACTOR PATCHES (must survive every extractor bump):** `~/repos/PipePipe/PipePipeExtractor`
+is on branch `fyt-patches` = upstream tag + two commits: `a696941` search collects shorts
+shelves (reelShelf/gridShelf/shortsLockupViewModel) + composite-build gradle tweaks, `409d738`
+related items include a shorts shelf. Bump recipe: `git fetch origin && git rebase <newtag>
+fyt-patches`, re-verify JSON keys against a live watch page, clean build, playback smoke.
+Live finding 2026-08-30: anonymous innertube `next` (WEB/MWEB/continuation) carries NO shorts
+shelf -- only signed-in/personalised sessions get one -- so the related patch is dormant until
+sign-in works; keep it anyway.
+
 2026-08-30 (v0.2.20) Keep-note wave, DEVICE-VERIFIED (Nothing Phone): Similar tab = YouTube
 watch-next recommendations (`detail.related`, DetailScreen gates the fetch on `detailLoaded`),
 title search only as fallback. Downloads: quality sheet sizes via HEAD Content-Length on open
@@ -322,6 +342,8 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Release-only. Debug variant is never built; there is no debug keystore in this repo.
 
 ## Next
+- Shorts in Similar need a signed-in watch-next (sidebar shelf is personalised); revisit when
+  YouTube sign-in works. Alternative if wanted: a shorts search on the title as a shelf.
 - Old Library rows persisted before v0.2.20 keep "Untitled" (no backfill); shared-in playlist
   listing shows "Listing" as title (URL-only ref); followed playlist row has no thumbnail (no
   stored data, no per-row fetch). All cosmetic.
@@ -863,3 +885,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-30 | Similar = YouTube related, title search fallback | user: PipePipe parity; old search-only decision superseded
 2026-08-30 | bare VideoRef enriched at persist time (like/playlist/download) | share opens hand a title-less ref; one detail() at a user action is fine, per-row fetch is not
 2026-08-30 | download row size/path from media file, not newest file | subtitle sidecar written last stole findProducedFile
+2026-08-30 | extractor local patches live on branch fyt-patches, recorded here | uncommitted search-shorts patch would have been lost on the next bump
+2026-08-30 | subtitles = separate long-press action, always .srt | user: not a checkbox in the quality list; English else first
+2026-08-30 | Detail follows autoplay/auto-advance via autoAdvances counter | page showed A while B played; counter (not `current`) avoids double-push on user taps
