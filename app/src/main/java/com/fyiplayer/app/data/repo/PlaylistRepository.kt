@@ -17,7 +17,7 @@ fun PlaylistItemEntity.toVideoRef(): VideoRef = VideoRef(
     pageUrl = pageUrl,
     remoteId = pageUrl,
     title = title,
-    thumbnailUrl = thumbnailUrl,
+    thumbnailUrl = thumbnailUrl ?: youtubeThumbnailFor(pageUrl),
     durationSeconds = durationSeconds,
     uploader = uploader,
     uploaderUrl = uploaderUrl,
@@ -51,7 +51,7 @@ class PlaylistRepository(private val playlists: PlaylistDao, private val items: 
 
     suspend fun addItem(playlistId: Long, ref: VideoRef, addedAt: Long = System.currentTimeMillis()) {
         val sortIndex = items.maxSortIndex(playlistId) + 1
-        items.upsert(ref.toPlaylistItemEntity(playlistId, sortIndex, addedAt))
+        items.upsert(ref.withTitleIfBlank().toPlaylistItemEntity(playlistId, sortIndex, addedAt))
     }
 
     suspend fun removeItem(playlistId: Long, pageUrl: String) = items.delete(playlistId, pageUrl)
