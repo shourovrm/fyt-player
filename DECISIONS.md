@@ -14,10 +14,15 @@ advances (`PlayerState.autoAdvances` counter, survives play()'s state reset -- `
 null right after play(), so Detail reads `queue[index]`).
 
 **EXTRACTOR PATCHES (must survive every extractor bump):** `~/repos/PipePipe/PipePipeExtractor`
-is on branch `fyt-patches` = upstream tag + two commits: `a696941` search collects shorts
+remotes: `upstream` = codeberg.org/NullPointerException/PipePipeExtractor (fetch only),
+`origin` = github.com/shourovrm/PipePipeExtractor (ours, default branch `fyt-patches`; the
+submodule clone was SHALLOW -- `git fetch --unshallow upstream` was needed before GitHub
+accepted a push, and a 75 MB pack needs `-c http.postBuffer=1048576000`). Branch `fyt-patches`
+= upstream tag + two commits: `a696941` search collects shorts
 shelves (reelShelf/gridShelf/shortsLockupViewModel) + composite-build gradle tweaks, `409d738`
-related items include a shorts shelf. Bump recipe: `git fetch origin && git rebase <newtag>
-fyt-patches`, re-verify JSON keys against a live watch page, clean build, playback smoke.
+related items include a shorts shelf. Bump recipe: `git fetch upstream --tags && git rebase <newtag> fyt-patches && git push
+origin fyt-patches --force-with-lease && git push origin --tags`, re-verify JSON keys against a
+live watch page, clean build, playback smoke.
 Live finding 2026-08-30: anonymous innertube `next` (WEB/MWEB/continuation) carries NO shorts
 shelf -- only signed-in/personalised sessions get one -- so the related patch is dormant until
 sign-in works; keep it anyway.
