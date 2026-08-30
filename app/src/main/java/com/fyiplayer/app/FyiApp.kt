@@ -167,12 +167,13 @@ class FyiApp : Application() {
         return p.positionMs.takeIf { it > RESUME_MIN_MS && it < p.durationMs * 9 / 10 }
     }
 
-    /** Near the end counts as watched: the row is cleared so no stale resume bar lingers --
-     *  same behaviour as PipePipe. Sub-[RESUME_MIN_MS] positions aren't worth a database row. */
+    /** Near the end counts as watched: stored as a FULL position so rows show a full red bar
+     *  (YouTube idiom) -- [loadPositionFor] ignores >=90%, so playback still restarts from 0.
+     *  Sub-[RESUME_MIN_MS] positions aren't worth a database row. */
     private suspend fun savePositionFor(pageUrl: String, positionMs: Long, durationMs: Long) {
         if (!savePlayPositionEnabled || durationMs <= 0) return
         when {
-            positionMs >= durationMs * 9 / 10 -> positionsRepo.clear(pageUrl)
+            positionMs >= durationMs * 9 / 10 -> positionsRepo.save(pageUrl, durationMs, durationMs)
             positionMs > RESUME_MIN_MS -> positionsRepo.save(pageUrl, positionMs, durationMs)
         }
     }

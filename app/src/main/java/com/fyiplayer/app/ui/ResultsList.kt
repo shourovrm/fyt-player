@@ -192,10 +192,15 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
             }
             val position = LocalPlaybackPositions.current[ref.pageUrl]
             if (position != null && position.positionMs > 0 && position.durationMs > 0) {
+                // YouTube's own idiom (red on a dark track), not the theme accent: the accent is
+                // blue and 2dp of it was invisible on a light thumbnail edge.
                 LinearProgressIndicator(
                     progress = { (position.positionMs.toFloat() / position.durationMs).coerceIn(0f, 1f) },
-                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp),
-                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp),
+                    color = Color(0xFFFF0033),
+                    trackColor = Color.Black.copy(alpha = 0.45f),
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
             }
         }
