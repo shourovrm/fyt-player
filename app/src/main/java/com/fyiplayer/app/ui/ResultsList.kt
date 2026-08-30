@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,10 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -46,10 +49,16 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.ResultKind
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.repo.PlaybackPosition
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
 import com.fyiplayer.app.ui.theme.fyiExtras
 import java.util.Locale
 import kotlin.math.roundToInt
+
+/** App-wide resume positions, keyed by page URL -- provided once at [AppShell]'s root from one
+ *  [com.fyiplayer.app.data.repo.PositionsRepository.observeAll] flow (rule 6: never a per-row
+ *  query). Default empty so any screen that forgets to provide it just shows no bars, not a crash. */
+val LocalPlaybackPositions = compositionLocalOf<Map<String, PlaybackPosition>> { emptyMap() }
 
 /**
  * Shared results-list rendering: Home and Listing both funnel into this instead of duplicating
@@ -180,6 +189,14 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
                 ref.isLive -> CornerBadge("LIVE", background = MaterialTheme.colorScheme.error, color = MaterialTheme.colorScheme.onError)
                 ref.isUpcoming -> CornerBadge("UPCOMING", background = Color.Black.copy(alpha = 0.72f), color = Color(0xFFF2F4F5))
                 ref.durationSeconds != null -> CornerBadge(formatDuration(ref.durationSeconds), background = Color.Black.copy(alpha = 0.72f), color = Color(0xFFF2F4F5))
+            }
+            val position = LocalPlaybackPositions.current[ref.pageUrl]
+            if (position != null && position.positionMs > 0 && position.durationMs > 0) {
+                LinearProgressIndicator(
+                    progress = { (position.positionMs.toFloat() / position.durationMs).coerceIn(0f, 1f) },
+                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
