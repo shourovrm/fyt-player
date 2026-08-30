@@ -18,16 +18,23 @@ data class DownloadItem(
     val bytesDownloaded: Long,
     val totalBytes: Long,
     val updatedAt: Long,
+    val startedAt: Long? = null,
+    val finishedAt: Long? = null,
+    // Track language to also fetch as a caption file when the video finishes -- never a URL.
+    val subtitleLanguageCode: String? = null,
 )
 
 fun DownloadEntity.toDownloadItem(): DownloadItem = DownloadItem(
-    ref = VideoRef(sourceId = sourceId, pageUrl = pageUrl, remoteId = pageUrl, title = title),
+    ref = VideoRef(sourceId = sourceId, pageUrl = pageUrl, remoteId = pageUrl, title = title, thumbnailUrl = thumbnailUrl),
     formatId = formatId,
     filePath = filePath,
     state = DownloadState.valueOf(state),
     bytesDownloaded = bytesDownloaded,
     totalBytes = totalBytes,
     updatedAt = updatedAt,
+    startedAt = startedAt,
+    finishedAt = finishedAt,
+    subtitleLanguageCode = subtitleLanguageCode,
 )
 
 fun DownloadItem.toEntity(): DownloadEntity = DownloadEntity(
@@ -40,6 +47,11 @@ fun DownloadItem.toEntity(): DownloadEntity = DownloadEntity(
     bytesDownloaded = bytesDownloaded,
     totalBytes = totalBytes,
     updatedAt = updatedAt,
+    // Signature stripped at the DB boundary only -- ref.thumbnailUrl in memory stays signed/live.
+    thumbnailUrl = canonicalThumbnailUrl(ref.thumbnailUrl),
+    startedAt = startedAt,
+    finishedAt = finishedAt,
+    subtitleLanguageCode = subtitleLanguageCode,
 )
 
 class DownloadRepository(private val dao: DownloadDao) {
