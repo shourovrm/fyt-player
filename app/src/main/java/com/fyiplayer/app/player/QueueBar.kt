@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -116,6 +117,14 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
+                // material-icons-core (the only icon artifact on the classpath, see DECISIONS.md)
+                // has no Shuffle glyph -- text button, same pattern as PlaylistDetailScreen's own.
+                TextButton(onClick = { PlaybackSession.toggleShuffle() }) {
+                    Text(
+                        if (state.shuffled) "Shuffle on" else "Shuffle",
+                        color = if (state.shuffled) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                    )
+                }
                 TextButton(onClick = { PlaybackSession.clearQueue(); expanded = false }) {
                     Text("Clear")
                 }
