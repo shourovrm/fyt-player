@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -38,7 +37,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -73,7 +71,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
-import com.fyiplayer.app.data.repo.PlaybackPosition
 import com.fyiplayer.app.data.repo.SubscriptionRow
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.flow.first
@@ -93,7 +90,6 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     BackHandler(enabled = selecting) { vm.clearSelection() }
 
     val liked by vm.likes.observe().collectAsStateWithLifecycle(initialValue = emptyList())
-    val positions by vm.positions.observeAll().collectAsStateWithLifecycle(initialValue = emptyMap())
     val channels by vm.subscriptions.observeAllRows().collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddToPlaylist by remember { mutableStateOf(false) }
     var showUnsubscribeConfirm by remember { mutableStateOf(false) }
@@ -177,7 +173,6 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
             when (vm.tab) {
                 LibraryTab.LIKES -> LikesTab(
                     videos = liked,
-                    positions = positions,
                     selection = vm.selection,
                     selecting = selecting,
                     onToggle = vm::toggle,
@@ -261,7 +256,6 @@ private fun ConfirmDialog(title: String, confirmLabel: String, onConfirm: () -> 
 @Composable
 private fun LikesTab(
     videos: List<VideoRef>,
-    positions: Map<String, PlaybackPosition>,
     selection: Set<String>,
     selecting: Boolean,
     onToggle: (VideoRef) -> Unit,
@@ -280,10 +274,9 @@ private fun LikesTab(
                         .weight(1f)
                         .background(if (ref.pageUrl in selection) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
                 ) {
-                    Column {
-                        ResultRow(ref, onClick = { if (selecting) onToggle(ref) else onOpen(ref) }, onLongPress = { onToggle(ref) })
-                        ResumeBar(positions[ref.pageUrl])
-                    }
+                    // Resume bar now draws inside ResultRow itself (LocalPlaybackPositions,
+                    // provided once in AppShell) -- every list gets it, not just Likes.
+                    ResultRow(ref, onClick = { if (selecting) onToggle(ref) else onOpen(ref) }, onLongPress = { onToggle(ref) })
                 }
                 // Single-row unlike yields while selecting -- the top bar owns bulk remove.
                 if (!selecting) {
@@ -293,20 +286,6 @@ private fun LikesTab(
                 }
             }
         }
-    }
-}
-
-/** Thin resume indicator under a row, drawn from the one [com.fyiplayer.app.data.repo.PositionsRepository.observeAll]
- *  map the screen already collected -- never a per-row position query (rule 6). Hidden near 0% and
- *  near 100%: those aren't "in progress", they're "not started" and "finished". */
-@Composable
-private fun ResumeBar(position: PlaybackPosition?) {
-    val fraction = position?.takeIf { it.durationMs > 0 }?.let { (it.positionMs.toFloat() / it.durationMs).coerceIn(0f, 1f) }
-    if (fraction != null && fraction in 0.02f..0.96f) {
-        LinearProgressIndicator(
-            progress = { fraction },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(2.dp),
-        )
     }
 }
 
@@ -363,6 +342,7 @@ private fun PlaylistsTab(
                             onClick = { if (selecting) onToggle(row.listing.key) else onOpenListing(row.listing) },
                             onLongPress = { onToggle(row.listing.key) },
                             onShare = { sharePlaylist(context, row.listing.title.ifBlank { "Playlist" }, row.listing.key) },
+                            onUnfollow = { scope.launch { vm.followedPlaylists.unfollow(row.listing.key) } },
                         )
                     }
                 }
@@ -387,9 +367,9 @@ private fun PlaylistsTab(
 
 /** One row shape for both local and followed playlists (report #9: they used to render
  *  differently -- a bare cover box vs. a monogram disc, count vs. no count). Same thumbnail/title/
- *  subtitle layout either way; [trailing] is each caller's own per-row action(s), the only part
- *  that legitimately differs (rename+delete+share vs. just share -- unfollow is a bulk top-bar
- *  action already, see [LibraryScreen]'s showUnfollowConfirm). */
+ *  subtitle layout either way; [trailing] is each caller's own per-row ⋮ menu, the only part that
+ *  legitimately differs (Share+Rename+Delete vs. Share+Delete -- a followed playlist isn't the
+ *  user's own to rename). */
 @Composable
 private fun PlaylistRowItem(
     thumbnailUrl: String?,
@@ -409,8 +389,9 @@ private fun PlaylistRowItem(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(112.dp).height(63.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-            // A followed row's Listing carries no stored thumbnail (rule 6: no per-row fetch to
-            // get one) -- the box stays a plain surface tint, same as an empty local cover.
+            // A followed row's thumbnail is the first video's, stored at follow time (or backfilled
+            // lazily by LibraryViewModel) -- never a per-row fetch (rule 6). Null until either lands,
+            // and the box stays a plain surface tint, same as an empty local cover.
             if (thumbnailUrl != null) {
                 AsyncImage(model = thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
             }
@@ -455,11 +436,20 @@ private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: 
     }
 }
 
-/** A followed remote playlist: no stored count either (same no-per-row-fetch reason as the
- *  thumbnail) -- "Followed" is the subtitle, and it's also the only tell a tap needs to route on
- *  (open the remote listing, not a local playlist id). */
+/** A followed remote playlist: no stored count (unlike a local playlist's item count) -- "Followed"
+ *  is the subtitle, and it's also the only tell a tap needs to route on (open the remote listing,
+ *  not a local playlist id). Same ⋮ menu shape as [LocalPlaylistRow], minus Rename: it isn't the
+ *  user's own playlist to rename, so Delete here means unfollow. */
 @Composable
-private fun FollowedPlaylistRow(listing: Listing, selected: Boolean, onClick: () -> Unit, onLongPress: () -> Unit, onShare: () -> Unit) {
+private fun FollowedPlaylistRow(
+    listing: Listing,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    onShare: () -> Unit,
+    onUnfollow: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
     PlaylistRowItem(
         thumbnailUrl = listing.thumbnailUrl,
         title = listing.title,
@@ -467,7 +457,15 @@ private fun FollowedPlaylistRow(listing: Listing, selected: Boolean, onClick: ()
         selected = selected,
         onClick = onClick,
         onLongPress = onLongPress,
-        trailing = { IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = "Share playlist") } },
+        trailing = {
+            Box {
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; onShare() })
+                    DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onUnfollow() })
+                }
+            }
+        },
     )
 }
 

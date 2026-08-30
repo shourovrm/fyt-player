@@ -60,11 +60,11 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
             } else {
                 val context = LocalContext.current
                 TopAppBar(
-                    title = { Text(listing.title.ifBlank { "Listing" }, maxLines = 1) },
+                    title = { Text(listing.title.ifBlank { vm.resolvedTitle ?: "Listing" }, maxLines = 1) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
                     actions = {
                         if (listing.kind == Listing.Kind.PLAYLIST) {
-                            IconButton(onClick = { sharePlaylist(context, listing.title.ifBlank { "Playlist" }, listing.key) }) {
+                            IconButton(onClick = { sharePlaylist(context, listing.title.ifBlank { vm.resolvedTitle ?: "Playlist" }, listing.key) }) {
                                 Icon(Icons.Filled.Share, contentDescription = "Share playlist")
                             }
                             IconButton(onClick = { vm.follow(listing); showToast(context, "Added to playlists") }) {

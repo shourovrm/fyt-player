@@ -17,6 +17,9 @@ data class FollowedPlaylistEntity(
     val sourceId: String,
     val title: String,
     val addedAt: Long,
+    // v8: cover for the Playlists-tab row (first video's thumbnail at follow time). Nullable --
+    // existing rows predate this column and get it lazily via LibraryViewModel's backfill.
+    val thumbnailUrl: String? = null,
 )
 
 @Dao
@@ -31,4 +34,10 @@ interface FollowedPlaylistDao {
 
     @Query("DELETE FROM followed_playlists WHERE pageUrl = :pageUrl")
     suspend fun unfollow(pageUrl: String)
+
+    @Query("UPDATE followed_playlists SET thumbnailUrl = :thumbnailUrl WHERE pageUrl = :pageUrl")
+    suspend fun updateThumbnail(pageUrl: String, thumbnailUrl: String?)
+
+    @Query("UPDATE followed_playlists SET title = :title WHERE pageUrl = :pageUrl AND title = ''")
+    suspend fun fillTitle(pageUrl: String, title: String)
 }
