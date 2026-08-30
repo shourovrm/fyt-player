@@ -11,7 +11,7 @@ fun LikeEntity.toVideoRef(): VideoRef = VideoRef(
     pageUrl = pageUrl,
     remoteId = pageUrl, // not persisted, see HistoryRepository
     title = title,
-    thumbnailUrl = thumbnailUrl,
+    thumbnailUrl = thumbnailUrl ?: youtubeThumbnailFor(pageUrl),
     durationSeconds = durationSeconds,
     uploader = uploader,
 )
@@ -32,7 +32,7 @@ class LikesRepository(private val dao: LikeDao) {
     fun observeIsLiked(pageUrl: String): Flow<Boolean> = dao.observeIsLiked(pageUrl)
 
     suspend fun like(ref: VideoRef, likedAt: Long = System.currentTimeMillis()) =
-        dao.upsert(ref.toLikeEntity(likedAt))
+        dao.upsert(ref.withTitleIfBlank().toLikeEntity(likedAt))
 
     suspend fun unlike(pageUrl: String) = dao.delete(pageUrl)
 }

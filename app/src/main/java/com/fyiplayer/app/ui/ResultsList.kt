@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.ResultKind
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.data.repo.youtubeThumbnailFor
 import com.fyiplayer.app.ui.theme.fyiExtras
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -165,8 +166,12 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(ROW_THUMB).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-            if (ref.thumbnailUrl != null) {
-                AsyncImage(model = ref.thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+            // Library rows (likes/playlist/history) can carry only a bare pageUrl when the add
+            // happened before enrichment landed -- fall back to the un-expiring hqdefault so the
+            // row isn't blank instead of leaving it that way forever.
+            val thumb = ref.thumbnailUrl ?: youtubeThumbnailFor(ref.pageUrl)
+            if (thumb != null) {
+                AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.fillMaxSize())
             }
             // isLive/isUpcoming take the corner over a duration -- neither is a fixed-length clip
             // yet, so a "12:34" badge would be a lie. Playlist rows carry no durationSeconds at
@@ -178,7 +183,9 @@ internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Un
             }
         }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            Text(ref.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+            // A Library row can still be mid-enrichment (add landed before detail() resolved, or
+            // detail() failed) -- an empty line reads as broken, "Untitled" reads as loading/unknown.
+            Text(ref.title.ifBlank { "Untitled" }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             // Channel · views · age, non-null parts only -- a listing that carried none of these
             // renders no meta line at all rather than a row of dangling separators.
             val meta = resultMetaText(ref)

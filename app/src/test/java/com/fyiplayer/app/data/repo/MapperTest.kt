@@ -118,6 +118,35 @@ class MapperTest {
     }
 
     @Test
+    fun youtubeThumbnailForWatchUrl() {
+        assertEquals(
+            "https://i.ytimg.com/vi/abc123XYZ_/hqdefault.jpg",
+            youtubeThumbnailFor("https://www.youtube.com/watch?v=abc123XYZ_&list=RDxyz"),
+        )
+    }
+
+    @Test
+    fun youtubeThumbnailForShortsUrl() {
+        assertEquals(
+            "https://i.ytimg.com/vi/abc123XYZ_/hqdefault.jpg",
+            youtubeThumbnailFor("https://www.youtube.com/shorts/abc123XYZ_"),
+        )
+    }
+
+    @Test
+    fun youtubeThumbnailForYoutuBeUrl() {
+        assertEquals(
+            "https://i.ytimg.com/vi/abc123XYZ_/hqdefault.jpg",
+            youtubeThumbnailFor("https://youtu.be/abc123XYZ_?t=5"),
+        )
+    }
+
+    @Test
+    fun youtubeThumbnailForNonYoutubeUrlIsNull() {
+        assertNull(youtubeThumbnailFor("https://example.com/watch?v=abc123XYZ_"))
+    }
+
+    @Test
     fun downloadItemRoundTripPreservesStateAndRef() {
         val item = DownloadItem(
             ref = VideoRef(sourceId = "youtube", pageUrl = ref.pageUrl, remoteId = ref.pageUrl, title = ref.title),
