@@ -1,6 +1,8 @@
 package com.fyiplayer.app.ui
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,5 +26,29 @@ class SharedUrlRouteTest {
         assertFalse(isVerticalClipUrl("https://youtu.be/abc"))
         assertFalse(isVerticalClipUrl("https://tiktok.com.evil.example/x"))
         assertFalse(isVerticalClipUrl("not a url"))
+    }
+
+    @Test fun sharedPlaylistUrlsResolveToCanonicalListing() {
+        assertEquals(
+            "https://www.youtube.com/playlist?list=PLabc123",
+            youtubePlaylistUrl("https://www.youtube.com/playlist?list=PLabc123"),
+        )
+        // watch?v=X&list=PL.. -- prefer the playlist listing (issue #7).
+        assertEquals(
+            "https://www.youtube.com/playlist?list=PLabc123",
+            youtubePlaylistUrl("https://www.youtube.com/watch?v=xyz&list=PLabc123"),
+        )
+    }
+
+    @Test fun mixRadioPlaylistsAreNotRouted() {
+        // RD* = mix/radio, the extractor rejects it ("Unable to recognize playlist") --
+        // must not be treated as an openable playlist listing.
+        assertNull(youtubePlaylistUrl("https://www.youtube.com/watch?v=xyz&list=RDabc123"))
+    }
+
+    @Test fun nonYoutubeOrListlessUrlsAreNotPlaylists() {
+        assertNull(youtubePlaylistUrl("https://www.youtube.com/watch?v=xyz"))
+        assertNull(youtubePlaylistUrl("https://www.tiktok.com/@x/video/123"))
+        assertNull(youtubePlaylistUrl("not a url"))
     }
 }

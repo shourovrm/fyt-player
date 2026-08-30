@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -75,7 +76,7 @@ import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PlaybackPosition
 import com.fyiplayer.app.data.repo.SubscriptionRow
 import com.fyiplayer.app.player.PlaybackSession
-import com.fyiplayer.app.ui.theme.fyiExtras
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -339,7 +340,7 @@ private fun PlaylistsTab(
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { it.key }) { row ->
                     when (row) {
-                        is PlaylistRow.Local -> PlaylistCardRow(
+                        is PlaylistRow.Local -> LocalPlaylistRow(
                             card = row.card,
                             onClick = { onOpenPlaylist(row.card.id.toString()) },
                             onRename = { name ->
@@ -349,12 +350,19 @@ private fun PlaylistsTab(
                                 }
                             },
                             onDelete = { scope.launch { vm.playlists.delete(row.card.id) } },
+                            onShare = {
+                                scope.launch {
+                                    val urls = vm.playlists.observeItems(row.card.id).first().map { it.pageUrl }
+                                    sharePlaylist(context, row.card.name, pageUrl = null, videoUrls = urls)
+                                }
+                            },
                         )
                         is PlaylistRow.Followed -> FollowedPlaylistRow(
                             listing = row.listing,
                             selected = row.listing.key in selection,
                             onClick = { if (selecting) onToggle(row.listing.key) else onOpenListing(row.listing) },
                             onLongPress = { onToggle(row.listing.key) },
+                            onShare = { sharePlaylist(context, row.listing.title.ifBlank { "Playlist" }, row.listing.key) },
                         )
                     }
                 }
@@ -377,46 +385,21 @@ private fun PlaylistsTab(
     }
 }
 
+/** One row shape for both local and followed playlists (report #9: they used to render
+ *  differently -- a bare cover box vs. a monogram disc, count vs. no count). Same thumbnail/title/
+ *  subtitle layout either way; [trailing] is each caller's own per-row action(s), the only part
+ *  that legitimately differs (rename+delete+share vs. just share -- unfollow is a bulk top-bar
+ *  action already, see [LibraryScreen]'s showUnfollowConfirm). */
 @Composable
-private fun PlaylistCardRow(card: PlaylistCard, onClick: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit) {
-    var menuOpen by remember { mutableStateOf(false) }
-    var renaming by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(112.dp).height(63.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-            if (card.coverThumbnailUrl != null) {
-                AsyncImage(model = card.coverThumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
-            }
-        }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            Text(card.name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "${card.itemCount} videos",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 3.dp),
-            )
-        }
-        Box {
-            IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(text = { Text("Rename") }, onClick = { menuOpen = false; renaming = true })
-                DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onDelete() })
-            }
-        }
-    }
-    if (renaming) {
-        NamePromptDialog(title = "Rename playlist", initial = card.name, onConfirm = { onRename(it); renaming = false }, onDismiss = { renaming = false })
-    }
-}
-
-/** A followed remote playlist: same row rhythm as [PlaylistCardRow] but no cover (a listing's
- *  thumbnail is a signed URL -- rule 2 forbids keeping one on hand to draw from), and a "followed"
- *  label instead of a video count since that would mean re-fetching the listing per row (rule 6). */
-@Composable
-private fun FollowedPlaylistRow(listing: Listing, selected: Boolean, onClick: () -> Unit, onLongPress: () -> Unit) {
+private fun PlaylistRowItem(
+    thumbnailUrl: String?,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    trailing: @Composable () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -425,17 +408,67 @@ private fun FollowedPlaylistRow(listing: Listing, selected: Boolean, onClick: ()
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MonogramDisc(listing.title, size = 44.dp)
+        Box(Modifier.width(112.dp).height(63.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+            // A followed row's Listing carries no stored thumbnail (rule 6: no per-row fetch to
+            // get one) -- the box stays a plain surface tint, same as an empty local cover.
+            if (thumbnailUrl != null) {
+                AsyncImage(model = thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+        }
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            Text(listing.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "Followed",
+                subtitle,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.fyiExtras.ink3,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 3.dp),
             )
         }
+        trailing()
     }
+}
+
+@Composable
+private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit, onShare: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    PlaylistRowItem(
+        thumbnailUrl = card.coverThumbnailUrl,
+        title = card.name,
+        subtitle = if (card.itemCount == 1) "1 video" else "${card.itemCount} videos",
+        selected = false, // local playlists have no multi-select here -- delete is per-row (menu below)
+        onClick = onClick,
+        onLongPress = {},
+        trailing = {
+            Box {
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; onShare() })
+                    DropdownMenuItem(text = { Text("Rename") }, onClick = { menuOpen = false; renaming = true })
+                    DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onDelete() })
+                }
+            }
+        },
+    )
+    if (renaming) {
+        NamePromptDialog(title = "Rename playlist", initial = card.name, onConfirm = { onRename(it); renaming = false }, onDismiss = { renaming = false })
+    }
+}
+
+/** A followed remote playlist: no stored count either (same no-per-row-fetch reason as the
+ *  thumbnail) -- "Followed" is the subtitle, and it's also the only tell a tap needs to route on
+ *  (open the remote listing, not a local playlist id). */
+@Composable
+private fun FollowedPlaylistRow(listing: Listing, selected: Boolean, onClick: () -> Unit, onLongPress: () -> Unit, onShare: () -> Unit) {
+    PlaylistRowItem(
+        thumbnailUrl = listing.thumbnailUrl,
+        title = listing.title,
+        subtitle = "Followed",
+        selected = selected,
+        onClick = onClick,
+        onLongPress = onLongPress,
+        trailing = { IconButton(onClick = onShare) { Icon(Icons.Filled.Share, contentDescription = "Share playlist") } },
+    )
 }
 
 @Composable

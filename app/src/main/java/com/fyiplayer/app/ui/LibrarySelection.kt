@@ -1,5 +1,7 @@
 package com.fyiplayer.app.ui
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
@@ -56,6 +58,20 @@ internal sealed class PlaylistRow(val key: String) {
  *  bookmark-like addition underneath. */
 internal fun mergePlaylistRows(locals: List<PlaylistCard>, followed: List<Listing>): List<PlaylistRow> =
     locals.map(PlaylistRow::Local) + followed.map(PlaylistRow::Followed)
+
+/** ACTION_SEND text/plain for a playlist -- same shape as `VideoActions.share()`
+ *  (ui/VideoActionSheet.kt) but for a whole playlist: a followed (remote) one shares its own
+ *  canonical page URL, a local one has none, so it shares its title plus one canonical video page
+ *  URL per line (never a signed media URL, project rule: canonical page URLs only). */
+internal fun sharePlaylist(context: Context, title: String, pageUrl: String?, videoUrls: List<String> = emptyList()) {
+    val text = pageUrl ?: (listOf(title) + videoUrls).joinToString("\n")
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+        putExtra(Intent.EXTRA_TITLE, title)
+    }
+    context.startActivity(Intent.createChooser(send, "Share playlist"))
+}
 
 /** Replaces the screen's own top bar while selecting: X · "N selected" · All · caller's actions. */
 @OptIn(ExperimentalMaterial3Api::class)
