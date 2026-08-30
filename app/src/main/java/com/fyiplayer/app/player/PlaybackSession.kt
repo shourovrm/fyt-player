@@ -65,6 +65,9 @@ data class PlayerState(
     val speed: Float = 1f,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val shuffled: Boolean = false,
+    /** Bumped each time playback moves to another video on its own (queue auto-advance, autoplay
+     *  next). Detail follows it so the watch page never shows video A while B plays. */
+    val autoAdvances: Int = 0,
     // Real decoder-reported frame size, 0 until the first frame. Fullscreen orientation locks to
     // this once known, instead of forcing landscape on a portrait video (see applyAspectOrientation).
     val videoWidth: Int = 0,
@@ -305,6 +308,7 @@ object PlaybackSession {
         _state.value = PlayerState(
             index = index, queueSize = queue.size, queue = queue,
             isPlaying = player.isPlaying, speed = player.playbackParameters.speed,
+            autoAdvances = _state.value.autoAdvances, // a counter, must survive the reset
         )
         _progress.value = PlaybackProgress()
         startAt(index)
@@ -908,7 +912,10 @@ object PlaybackSession {
                     val ref = queue.getOrNull(index)
                     if (ref != null) scope.launch {
                         val next = autoplayNext(ref)
-                        if (next != null) play(listOf(next), 0)
+                        if (next != null) {
+                            play(listOf(next), 0)
+                            _state.update { it.copy(autoAdvances = it.autoAdvances + 1) }
+                        }
                     }
                 }
             }
@@ -922,6 +929,7 @@ object PlaybackSession {
             index = target
             val readyItem = prepared?.takeIf { it.queueIndex == target }
             if (readyItem != null) adoptPrepared(readyItem, resetFirstFrame = false) else publishQueueState()
+            _state.update { it.copy(autoAdvances = it.autoAdvances + 1) }
             trimConsumedWindow()
             prefetchNext()
         }
