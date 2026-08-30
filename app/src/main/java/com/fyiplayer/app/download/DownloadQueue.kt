@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Environment
 import androidx.core.content.ContextCompat
 import com.fyiplayer.app.FyiApp
-import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
@@ -63,11 +62,6 @@ data class DownloadOption(
     val formatId: String,
     val label: String,
     val approxBytes: Long?,
-    /** Set by the picker at selection time (never during [deriveDownloadOptions]) when the user
-     *  also wants a caption track saved alongside this video -- the chosen track's own
-     *  [CaptionTrack.languageCode], re-matched against a fresh resolve at download time. Still not
-     *  a URL, so still safe to hold like the rest of this type. */
-    val subtitleLanguageCode: String? = null,
 )
 
 sealed class ResolveOutcome {
@@ -128,11 +122,11 @@ class DownloadQueue private constructor(
     private val _progress = MutableStateFlow<Map<String, DownloadProgress>>(emptyMap())
     val progress: StateFlow<Map<String, DownloadProgress>> = _progress.asStateFlow()
 
-    /** Snapshot of the most recent [resolveOptions] resolve. Reused by [fetchApproxBytes] and
-     *  [lastCaptions] instead of a second resolve -- safe because the picker is modal, so at most
-     *  one download dialog (and therefore one resolve) is ever showing at a time; "most recent"
-     *  always means "the video this dialog is for". */
-    private data class LastResolve(val pageUrl: String, val formats: List<MediaFormat>, val captions: List<CaptionTrack>)
+    /** Snapshot of the most recent [resolveOptions] resolve. Reused by [fetchApproxBytes] instead
+     *  of a second resolve -- safe because the picker is modal, so at most one download dialog
+     *  (and therefore one resolve) is ever showing at a time; "most recent" always means "the
+     *  video this dialog is for". */
+    private data class LastResolve(val pageUrl: String, val formats: List<MediaFormat>)
     @Volatile private var lastResolve: LastResolve? = null
 
     // Eagerly, not WhileSubscribed: DownloadService reads [rows].value directly (no collector of
@@ -154,13 +148,9 @@ class DownloadQueue private constructor(
         }
         val options = deriveDownloadOptions(resolved.formats, includeManifests = ref.sourceId != "youtube")
         if (options.isEmpty()) return ResolveOutcome.Failed("No downloadable video or audio track found.")
-        lastResolve = LastResolve(resolved.ref.pageUrl, resolved.formats, resolved.captions)
+        lastResolve = LastResolve(resolved.ref.pageUrl, resolved.formats)
         return ResolveOutcome.Ready(resolved.ref, options)
     }
-
-    /** Caption tracks for whatever video the last [resolveOptions] resolved -- read by the download
-     *  quality picker to offer the subtitle checkbox without a second resolve. */
-    fun lastCaptions(): List<CaptionTrack> = lastResolve?.captions ?: emptyList()
 
     /**
      * Best-effort size for one [option] whose derivation ([deriveDownloadOptions]) had no filesize:
@@ -177,6 +167,35 @@ class DownloadQueue private constructor(
             headContentLength(httpClient, format)?.let { total += it; any = true }
         }
         if (any) total else null
+    }
+
+    /**
+     * Standalone "Download subtitles" action (VideoActionSheet / Detail title long-press) --
+     * independent of [start]/[DownloadOption], so it works even for a video whose formats can't be
+     * downloaded. Re-resolves [ref] itself rather than reusing [lastResolve]: unlike the quality
+     * picker, this action has no modal dialog pinning it to "the last resolve", and [resolver]
+     * already caches recent resolves (ChainResolver, 60 min TTL) so a resolve right after opening
+     * the quality picker is cheap anyway. Picks one track ([pickSubtitleTrack], no picker) and
+     * always writes `.srt`.
+     */
+    suspend fun downloadSubtitles(ref: VideoRef): SubtitleOutcome {
+        val ref = ref.withTitleIfBlank() // bare share-in ref would name the file "video-xxxx.srt"
+        val resolved = try {
+            resolver.resolve(ref)
+        } catch (e: ExtractionError) {
+            return SubtitleOutcome.Failed(e.userMessage())
+        }
+        val track = pickSubtitleTrack(resolved.captions) ?: return SubtitleOutcome.NoSubtitles
+        return withContext(Dispatchers.IO) {
+            val srt = fetchSrt(httpClient, resolved.ref.sourceId == "youtube", track)
+                ?: return@withContext SubtitleOutcome.Unsupported
+            if (!dir.exists()) dir.mkdirs()
+            val out = File(dir, "${safeBaseName(ref)}.srt")
+            out.writeText(srt)
+            // Best-effort copy into the user's chosen folder, same as the finished video.
+            treeUri()?.let { uri -> exportToTree(appContext, out, Uri.parse(uri)) }
+            SubtitleOutcome.Saved
+        }
     }
 
     /**
@@ -201,7 +220,6 @@ class DownloadQueue private constructor(
                 bytesDownloaded = 0,
                 totalBytes = option.approxBytes ?: 0L,
                 updatedAt = System.currentTimeMillis(),
-                subtitleLanguageCode = option.subtitleLanguageCode,
             ),
         )
         kickService()
@@ -411,16 +429,7 @@ class DownloadQueue private constructor(
             signal = signal,
             onProgress = onProgress,
         )) {
-            is StreamDownloader.Outcome.Done -> {
-                // Best-effort and separate from the video's own outcome: a dead caption track or a
-                // network blip here must never fail a download that otherwise finished fine.
-                item.subtitleLanguageCode?.let { lang ->
-                    withContext(Dispatchers.IO) {
-                        runCatching { downloadSubtitle(httpClient, resolved.captions, lang, dir, baseName) }
-                    }
-                }
-                EngineOutcome.Done
-            }
+            is StreamDownloader.Outcome.Done -> EngineOutcome.Done
             StreamDownloader.Outcome.Cancelled -> EngineOutcome.Cancelled
             is StreamDownloader.Outcome.Failed -> EngineOutcome.Failed(outcome.message)
         }
@@ -599,27 +608,6 @@ private fun headContentLength(client: OkHttpClient, format: MediaFormat): Long? 
     } catch (e: Exception) {
         null
     }
-}
-
-/** Fetches the one matching caption track's file next to the just-finished video, same basename,
- *  the track's own extension. Caller wraps this in `runCatching` -- any failure here (track gone
- *  since the dialog was shown, network error) is swallowed, never fails the video download. */
-private fun downloadSubtitle(client: OkHttpClient, captions: List<CaptionTrack>, languageCode: String, dir: File, baseName: String) {
-    val track = captions.firstOrNull { it.languageCode == languageCode } ?: return
-    val request = Request.Builder().url(track.url).build()
-    client.newCall(request).execute().use { resp ->
-        if (!resp.isSuccessful) return
-        val body = resp.body ?: return
-        val out = File(dir, "$baseName.${subtitleExtension(track.mimeType)}")
-        out.outputStream().use { sink -> body.byteStream().copyTo(sink) }
-    }
-}
-
-/** Mirrors [com.fyiplayer.app.source.newpipe.captionMimeType]'s three known mime types. */
-private fun subtitleExtension(mimeType: String): String = when (mimeType) {
-    "application/x-subrip" -> "srt"
-    "application/ttml+xml" -> "ttml"
-    else -> "vtt"
 }
 
 private data class SelectionSummary(val selector: String, val height: Int?, val bytes: Long?)
