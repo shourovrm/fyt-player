@@ -85,9 +85,11 @@ internal data class FeedState(
     val failedChannels: Int = 0,
 )
 
-/** Each channel is a separate multi-second engine call. These are deliberate subscriptions though
- *  (not a guess off watch history), so the cap is generous -- a slow feed beats a thin one. */
+/** Shorts-only fan-out bound (Home fetches every subscription, gated by [FEED_CONCURRENCY]). */
 internal const val MAX_FEED_CHANNELS = 8
+
+/** Home: channel fetches in flight at once. */
+internal const val FEED_CONCURRENCY = 6
 
 /** How many of a channel's newest (unwatched) uploads feed the round-robin merge. */
 internal const val FEED_ITEMS_PER_CHANNEL = 8

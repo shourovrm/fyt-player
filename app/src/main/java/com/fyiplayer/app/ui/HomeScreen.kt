@@ -95,6 +95,9 @@ fun HomeScreen(
 
     val tabIds = remember(browseSources) { listOf(ALL_TAB_ID) + browseSources.map { it.id } }
     LaunchedEffect(tabIds) { vm.selectedTab = resolveSelectedTab(vm.selectedTab, tabIds) }
+    // Channels land one by one, each sorted above the last; LazyColumn keeps its position by key,
+    // so without this the viewport rides the first channel's rows down as newer ones stack on top.
+    LaunchedEffect(vm.feed.items) { if (vm.feed.loading) listState.requestScrollToItem(0) }
     // Home's feed builds from watch history, not a per-source fetch -- load it once, the first
     // time a blank query is on screen.
     LaunchedEffect(browseSources, isSearching) {

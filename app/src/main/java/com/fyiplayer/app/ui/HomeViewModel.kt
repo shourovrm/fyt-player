@@ -13,7 +13,6 @@ import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
-import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.SearchHistoryRepository
 import com.fyiplayer.app.data.repo.SubscriptionRepository
 import com.fyiplayer.app.source.newpipe.SearchSuggestions
@@ -27,6 +26,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * Home's paging/search state, hoisted into an [AndroidViewModel] so it survives both navigating
@@ -38,7 +39,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as FyiApp
     val prefs = app.prefs
     private val searchHistoryRepo = SearchHistoryRepository(app.database.searchHistoryDao())
-    private val historyRepo = HistoryRepository(app.database.watchHistoryDao())
     private val subscriptionRepo = SubscriptionRepository(app.database.subscriptionDao())
 
     var query: String by mutableStateOf("")
@@ -111,12 +111,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val byId = sources.associateBy { it.id }
         feed = FeedState(loading = true)
         feedJob = viewModelScope.launch {
-            val channels = capChannels(subscriptionRepo.observeFeedChannels().first())
+            // Every subscribed channel, not the newest-subscribed 8 (Shorts still caps): a channel
+            // that never gets fetched can't have its 2-day-old upload land at the top.
+            val channels = subscriptionRepo.observeFeedChannels().first()
             if (channels.isEmpty()) {
                 feed = FeedState(loaded = true, hasSubscriptions = false)
                 return@launch
             }
-            val watched = historyRepo.observe().first().mapTo(HashSet()) { it.pageUrl }
+            // ponytail: one burst per refresh; bounded so 30 subscriptions != 30 parallel innertube calls.
+            val gate = Semaphore(FEED_CONCURRENCY)
             // Mutated only from this coroutine's children, all on the Main dispatcher (viewModelScope's
             // default) -- each child only suspends inside source.listing(), never races another child's
             // write to its own index.
@@ -136,7 +139,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         return@launch
                     }
                     val page = try {
-                        src.listing(channel)
+                        gate.withPermit { src.listing(channel) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -148,9 +151,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     outcomes[i] = if (page == null) {
                         ChannelFetchOutcome.Failed
                     } else {
-                        ChannelFetchOutcome.Ok(
-                            excludeWatched(page.items, watched).take(FEED_ITEMS_PER_CHANNEL),
-                        )
+                        // Watched items stay (the row's progress bar says so) -- the feed is
+                        // "latest from everyone", not "unwatched".
+                        ChannelFetchOutcome.Ok(page.items.take(FEED_ITEMS_PER_CHANNEL))
                     }
                     // Append as each channel returns rather than waiting for the slowest one.
                     feed = feed.copy(items = sortByRecency(interleave(outcomes.map(::itemsOf))))
