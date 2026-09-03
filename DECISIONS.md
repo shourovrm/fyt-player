@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-09-03 DEVICE-VERIFIED: Home feed fetches EVERY feed-visible subscription (was newest-
+subscribed 8 via `capChannels` -- Shorts still caps), `Semaphore(FEED_CONCURRENCY=6)` bounds the
+burst, watched videos stay in (progress bar says watched), viewport pinned to row 0 while the
+refresh is loading (`requestScrollToItem(0)` on each items change -- LazyColumn keeps position
+by key, so progressive newer-on-top inserts used to ride the viewport down the list).
+
 2026-08-30 (v0.2.20, wave 2) DEVICE-VERIFIED: watched-progress bar on every `ResultRow`
 (`LocalPlaybackPositions` provided once in AppShell, empty when "Remember playback position" is
 off); Playlists tab: followed + local share one `PlaylistRowItem`, followed ⋮ = Share/Delete
@@ -895,3 +901,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-08-30 | Detail follows autoplay/auto-advance via autoAdvances counter | page showed A while B played; counter (not `current`) avoids double-push on user taps
 
 2026-08-30 | watched bar red 3dp on dark track; finished video stored as full position | blue 2dp invisible; a cleared row hid "fully watched"
+2026-09-03 | Home feed: all subscriptions, watched kept, pin top while loading | user: 2-day-old IndyDevDan upload unfindable (channel outside the 8 cap); refresh landed weeks back (key-retained scroll under progressive inserts)
