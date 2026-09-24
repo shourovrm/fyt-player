@@ -36,7 +36,7 @@ remotes: `upstream` = codeberg.org/NullPointerException/PipePipeExtractor (fetch
 `origin` = github.com/shourovrm/PipePipeExtractor (ours, default branch `fyt-patches`; the
 submodule clone was SHALLOW -- `git fetch --unshallow upstream` was needed before GitHub
 accepted a push, and a 75 MB pack needs `-c http.postBuffer=1048576000`). Branch `fyt-patches`
-= upstream tag + two commits: `a696941` search collects shorts
+= upstream tag + two commits: `f23f1133` search collects shorts
 shelves (reelShelf/gridShelf/shortsLockupViewModel) + composite-build gradle tweaks, `409d738`
 related items include a shorts shelf. Bump recipe: `git fetch upstream --tags && git rebase <newtag> fyt-patches && git push
 origin fyt-patches --force-with-lease && git push origin --tags`, re-verify JSON keys against a
