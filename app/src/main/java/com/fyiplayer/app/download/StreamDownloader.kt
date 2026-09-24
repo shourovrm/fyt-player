@@ -107,7 +107,9 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         onProgress: (DownloadProgress) -> Unit,
     ): Outcome {
         val part = File(dir, "$baseName.dl.part")
-        fetch(format, part, signal) { done, total -> onProgress(progressOf(done, total)) }
+        val totalBytes = format.filesizeBytes ?: headContentLength(client, format)
+        val meter = ProgressMeter(totalBytes)
+        fetch(format, totalBytes, part, signal) { done -> onProgress(meter.progress(done)) }
         val out = File(dir, "$baseName.${extensionOf(format)}")
         if (!part.renameTo(out)) return Outcome.Failed("could not write the finished file")
         return Outcome.Done(out)
@@ -123,13 +125,16 @@ internal class StreamDownloader(private val client: OkHttpClient) {
     ): Outcome {
         val videoPart = File(dir, "$baseName.video.part")
         val audioPart = File(dir, "$baseName.audio.part")
-        val videoBytes = video.filesizeBytes
-        val audioBytes = audio.filesizeBytes
+        // visionos URLs often carry no clen, and range= windows answer 200 with no Content-Range,
+        // so without this probe the total stayed unknown and the row sat at 0% until done.
+        val videoBytes = video.filesizeBytes ?: headContentLength(client, video)
+        val audioBytes = audio.filesizeBytes ?: headContentLength(client, audio)
         val grandTotal = if (videoBytes != null && audioBytes != null) videoBytes + audioBytes else null
+        val meter = ProgressMeter(grandTotal)
 
-        fetch(video, videoPart, signal) { done, _ -> onProgress(progressOf(done, grandTotal)) }
+        fetch(video, videoBytes, videoPart, signal) { done -> onProgress(meter.progress(done)) }
         val videoDone = videoPart.length()
-        fetch(audio, audioPart, signal) { done, _ -> onProgress(progressOf(videoDone + done, grandTotal)) }
+        fetch(audio, audioBytes, audioPart, signal) { done -> onProgress(meter.progress(videoDone + done)) }
 
         val webm = isWebmFamily(video)
         val out = File(dir, "$baseName.${if (webm) "webm" else "mp4"}")
@@ -145,11 +150,11 @@ internal class StreamDownloader(private val client: OkHttpClient) {
      *  ignores Range (HTTP 200) just streams the whole body through the first window. */
     private fun fetch(
         format: MediaFormat,
+        expected: Long?,
         part: File,
         signal: CancelSignal,
-        onProgress: (Long, Long?) -> Unit,
+        onProgress: (Long) -> Unit,
     ) {
-        val expected = format.filesizeBytes
         var offset = part.length()
         if (expected != null && offset >= expected && offset > 0) return // already finished
         var knownTotal = expected
@@ -208,20 +213,20 @@ internal class StreamDownloader(private val client: OkHttpClient) {
                             val now = System.currentTimeMillis()
                             if (now - lastTick >= 500) {
                                 lastTick = now
-                                onProgress(offset, knownTotal)
+                                onProgress(offset)
                             }
                         }
                         sink.flush()
                     }
                     if (!ranged) {
-                        onProgress(offset, knownTotal ?: offset)
+                        onProgress(offset)
                         return // whole body already streamed
                     }
                 }
             } finally {
                 signal.activeCall = null
             }
-            onProgress(offset, knownTotal)
+            onProgress(offset)
             val total = knownTotal
             if (total != null && offset >= total) return
             if (total == null && offset <= end) return // short read with unknown size: EOF
@@ -277,9 +282,24 @@ internal class StreamDownloader(private val client: OkHttpClient) {
 
 private const val CHUNK_BYTES = 10L * 1024 * 1024
 
-private fun progressOf(done: Long, total: Long?): DownloadProgress {
-    val percent = total?.takeIf { it > 0 }?.let { done * 100f / it }
-    return DownloadProgress(percent, done, total, etaSeconds = null, speedBytesPerSecond = null)
+/** Percent, speed and ETA for one download. Speed is averaged over bytes fetched since the first
+ *  report, so a resumed download's existing part file doesn't count as instant speed. */
+private class ProgressMeter(private val totalBytes: Long?) {
+    private val startedAtMillis = System.currentTimeMillis()
+    private var baselineBytes: Long? = null
+
+    fun progress(doneBytes: Long): DownloadProgress {
+        val baseline = baselineBytes ?: doneBytes.also { baselineBytes = it }
+        val elapsedSeconds = (System.currentTimeMillis() - startedAtMillis) / 1000.0
+        val speed = if (elapsedSeconds >= 1) (doneBytes - baseline) / elapsedSeconds else null
+        val percent = totalBytes?.takeIf { it > 0 }?.let { doneBytes * 100f / it }
+        val eta = if (speed != null && speed > 0 && totalBytes != null) {
+            ((totalBytes - doneBytes).coerceAtLeast(0) / speed).toLong()
+        } else {
+            null
+        }
+        return DownloadProgress(percent, doneBytes, totalBytes, etaSeconds = eta, speedBytesPerSecond = speed)
+    }
 }
 
 private val MP4_VIDEO = Regex("^(avc|h264|hev|h265|hvc|av01|mp4v).*")
