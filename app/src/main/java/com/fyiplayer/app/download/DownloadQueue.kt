@@ -594,10 +594,11 @@ internal fun deriveDownloadOptions(formats: List<MediaFormat>, includeManifests:
     return videoOptions + listOfNotNull(audioOption)
 }
 
-/** Best-effort Content-Length probe for the quality picker's "…" -> real size upgrade. Never logs
+/** Best-effort Content-Length probe for the quality picker's "…" -> real size upgrade, and for
+ *  [StreamDownloader]'s progress total (visionos URLs often carry no clen). Never logs
  *  the URL (same rule as every other media-URL touch point); a failure just leaves the size
  *  unknown, same as if [approxBytes][MediaFormat.filesizeBytes] had never been reported. */
-private fun headContentLength(client: OkHttpClient, format: MediaFormat): Long? {
+internal fun headContentLength(client: OkHttpClient, format: MediaFormat): Long? {
     if (format.protocol != Protocol.PROGRESSIVE) return null // a manifest has no one Content-Length
     return try {
         val builder = Request.Builder().url(format.url).head()
