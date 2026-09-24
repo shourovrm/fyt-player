@@ -57,7 +57,9 @@ import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.player.PauseGlyph
+import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.settings.WallSignInButton
 import com.fyiplayer.app.player.PlayerState
 import com.fyiplayer.app.player.QualitySheet
 import com.fyiplayer.app.player.SeekThumbnailPreview
@@ -167,12 +169,18 @@ internal fun ShortsPage(
                 }
             }
             playerState.error?.let { err ->
-                Text(
-                    err.userMessage(),
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.align(Alignment.Center).padding(32.dp),
-                )
+                Column(
+                    Modifier.align(Alignment.Center).padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(err.userMessage(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                    if (err is ExtractionError.AccessChallenge) {
+                        WallSignInButton(
+                            onSignedIn = { PlaybackSession.retryCurrent() },
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
+                }
             }
         } else if (ref.thumbnailUrl != null) {
             AsyncImage(model = ref.thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())

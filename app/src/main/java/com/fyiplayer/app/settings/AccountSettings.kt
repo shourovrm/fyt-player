@@ -1,8 +1,6 @@
 package com.fyiplayer.app.settings
 
 import android.webkit.CookieManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.fyiplayer.app.YoutubeLoginActivity
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
 import com.fyiplayer.app.ui.showToast
 
@@ -32,9 +29,7 @@ fun AccountSettings() {
     val loggedIn by YoutubeAuth.isLoggedIn.collectAsStateWithLifecycle()
     var showConfirm by remember { mutableStateOf(false) }
 
-    val loginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) showToast(context, "Signed in")
-    }
+    val signIn = rememberYoutubeSignIn(onSignedIn = { showToast(context, "Signed in") })
 
     SettingsSection("Account") {
         if (loggedIn) {
@@ -43,6 +38,8 @@ fun AccountSettings() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Signed in to YouTube", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                // For an expired or rejected session.
+                TextButton(onClick = { signIn(true) }) { Text("Sign in again") }
                 TextButton(onClick = {
                     YoutubeAuth.clear()
                     CookieManager.getInstance().removeAllCookies(null)
@@ -64,7 +61,7 @@ fun AccountSettings() {
             confirmButton = {
                 TextButton(onClick = {
                     showConfirm = false
-                    loginLauncher.launch(android.content.Intent(context, YoutubeLoginActivity::class.java))
+                    signIn(false)
                 }) { Text("Continue") }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel") } },
