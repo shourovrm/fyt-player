@@ -1,5 +1,7 @@
 package com.fyiplayer.app.ui
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.clickable
@@ -148,7 +150,8 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
     val context = LocalContext.current
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(bottom = 16.dp)) {
+        // Scrollable: in landscape the sheet is shorter than its items and Download fell off the end.
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
             SheetAction("Play next") { PlaybackSession.playNext(ref); onDismiss() }
             SheetAction("Add to queue") {
                 showToast(context, if (PlaybackSession.enqueue(ref)) "Added to queue" else "Already in queue")

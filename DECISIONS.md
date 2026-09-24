@@ -11,8 +11,10 @@ on first page and loadMore -- the cap was why Squat University's shorts never sh
 already right (its newest long-form is 12d old; it lands mid-feed by date). Settings "Sign in
 again" + a Sign in / Sign in again button on AccessChallenge in player and shorts
 (`settings/YoutubeSignIn.kt`; fresh=true clears WebView cookies first, stored session kept until
-a new one lands). Extractor = PipePipe v5.3.1 + our 2 patches (rebased clean; local branch
-`backup-fyt-5.2.5` keeps the old base); playback + download smoke passed.
+a new one lands). Extractor SHIPPED = v5.2.5 + our 2 patches (local
+checkout on branch `backup-fyt-5.2.5`, GitHub `fyt-patches-5.2.5`). v5.3.1 rebase lives on
+`fyt-patches` (local + GitHub) but is NOT shipped: see Next. Long-press sheet scrolls (landscape
+clipped Download).
 
 2026-09-03 DEVICE-VERIFIED: Home feed fetches EVERY feed-visible subscription (was newest-
 subscribed 8 via `capChannels` -- Shorts still caps), `Semaphore(FEED_CONCURRENCY=6)` bounds the
@@ -370,6 +372,11 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Old Library rows persisted before v0.2.20 keep "Untitled" (no backfill); shared-in playlist
   listing shows "Listing" as title (URL-only ref); followed playlist row has no thumbnail (no
   stored data, no per-row fetch). All cosmetic.
+- Extractor v5.3.1 (`fyt-patches`): direct/progressive googlevideo URLs 403 (downloads fail,
+  quality-sheet HEAD sizes 403); HLS playback + shorts fine. Suspect: v5.3 player request wants a
+  PO token (`NewPipe.setYoutubePoTokenResolver`, new in 5.3) that PipePipe's app supplies and we
+  don't. Also needs `Comment.text` from `Description` (getCommentText type changed). Fix before
+  switching the checkout back to `fyt-patches`.
 - Shorts "age/CAPTCHA" wall that PipePipe doesn't show: NOT reproduced (55 swipes, anonymous,
   v5.3.1). NewPipeErrors now logs `wall: <ExceptionClass> @ frames` -- next report, read that
   first. Suspects: anonymous visionos vs PipePipe's signed-in tv_downgraded; parallel warmNext.
@@ -460,6 +467,8 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
 
 ## Gotchas
+- Switching the extractor checkout's branch does NOT invalidate Gradle's composite-build output:
+  incremental builds kept the old jar (false green on v5.3.1). Always `./gradlew clean` after it.
 - charts.youtube.com: `gl` must be a real country even when `chart_params_country_code=global`; gl=global returns an empty chart.
 - Explore chip set is a persisted pref: a new Topic is only default-on for fresh installs; existing installs enable it in Settings.
 - charts.youtube.com: `gl` must be a real country even when `chart_params_country_code=global`; gl=global returns an empty chart.
@@ -918,4 +927,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 2026-09-03 | Home feed: all subscriptions, watched kept, pin top while loading | user: 2-day-old IndyDevDan upload unfindable (channel outside the 8 cap); refresh landed weeks back (key-retained scroll under progressive inserts)
 - 2026-09-24 | Shorts feed uncapped, gated by FEED_CONCURRENCY | newest-8 cap hid older subscriptions' shorts (Squat University report).
 - 2026-09-24 | Loop is per video, resets on play() | YouTube shape; a global repeat flag desynced state (OFF) from player (ONE).
-- 2026-09-24 | Extractor rebased to PipePipe v5.3.1 | upstream SABR rewrite + fixes; patches applied without conflict.
+- 2026-09-24 | Extractor rebased to PipePipe v5.3.1 (not shipped) | downloads 403 on it; 0.2.21 ships on v5.2.5 (user choice).
