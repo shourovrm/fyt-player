@@ -55,6 +55,8 @@ data class PlayerState(
     val queue: List<VideoRef> = emptyList(),
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
+    /** Player sits in STATE_ENDED: the centre button becomes Replay. */
+    val ended: Boolean = false,
     val error: ExtractionError? = null,
     val selectedHeight: Int? = null,
     val availableHeights: List<Int> = emptyList(),
@@ -305,6 +307,9 @@ object PlaybackSession {
         // a fresh state must seed isPlaying from the player: onIsPlayingChanged only fires on a
         // change, and skipping between two already-playing items would otherwise never fire it.
         // speed is seeded too: it's a player-level setting that survives across queues.
+        // Loop is per video (YouTube's shape): a new queue starts un-looped, and the player's own
+        // flag must follow or state says OFF while the player keeps repeating.
+        player.repeatMode = Player.REPEAT_MODE_OFF
         _state.value = PlayerState(
             index = index, queueSize = queue.size, queue = queue,
             isPlaying = player.isPlaying, speed = player.playbackParameters.speed,
@@ -446,7 +451,17 @@ object PlaybackSession {
             startAt(index, resumeAtMs = player.currentPosition)
             return
         }
+        if (player.playbackState == Player.STATE_ENDED) {
+            player.seekTo(0)
+            player.playWhenReady = true
+            return
+        }
         player.playWhenReady = !player.playWhenReady
+    }
+
+    /** Loop the current video on/off. */
+    fun toggleLoop() {
+        setRepeatMode(if (_state.value.repeatMode == RepeatMode.ONE) RepeatMode.OFF else RepeatMode.ONE)
     }
 
     /** Recovers the current item: re-resolves and re-prepares in place, same machinery as the
@@ -895,7 +910,12 @@ object PlaybackSession {
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            _state.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
+            _state.update {
+                it.copy(
+                    isBuffering = playbackState == Player.STATE_BUFFERING,
+                    ended = playbackState == Player.STATE_ENDED,
+                )
+            }
             if (playbackState == Player.STATE_ENDED) {
                 // watched to the end: position==duration rides through savePosition, whose owner
                 // clears the row (a finished video must not grow a stale resume bar)

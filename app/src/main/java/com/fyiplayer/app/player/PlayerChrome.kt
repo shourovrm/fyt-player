@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +69,8 @@ internal fun ControlBar(
     onOpenQuality: () -> Unit,
     speedLabel: String,
     onOpenSpeed: () -> Unit,
+    looping: Boolean,
+    onToggleLoop: () -> Unit,
     onScrubbingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -195,6 +198,7 @@ internal fun ControlBar(
             )
             Box(modifier = Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                ChromeTextButton("Loop", onClick = onToggleLoop, color = if (looping) SEEK_RED else Color.White)
                 ChromeTextButton(qualityLabel, onClick = onOpenQuality)
                 ChromeTextButton(speedLabel, onClick = onOpenSpeed)
                 IconButton(onClick = onOpenCaptions, enabled = captionsAvailable, modifier = Modifier.size(32.dp)) {
@@ -239,10 +243,10 @@ private val SEEK_RED = Color(0xFFFF0033)
 /** Quality ("720p") and speed ("1x") as plain text buttons in the bottom row -- both apps
  *  compared show them as text, and there is no glyph in material-icons-core for either. */
 @Composable
-private fun ChromeTextButton(label: String, onClick: () -> Unit) {
+private fun ChromeTextButton(label: String, onClick: () -> Unit, color: Color = Color.White) {
     Text(
         label,
-        color = Color.White,
+        color = color,
         style = MaterialTheme.typography.labelMedium.copy(shadow = Shadow(Color.Black, blurRadius = 6f)),
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
@@ -252,18 +256,27 @@ private fun ChromeTextButton(label: String, onClick: () -> Unit) {
 }
 
 /** The centred 64dp play/pause control — the only play affordance now that the bottom row is
- *  scrub-track-only. [playing] false draws the play triangle, true the pause bars. */
+ *  scrub-track-only. [playing] false draws the play triangle, true the pause bars; [ended] wins
+ *  over both and draws Replay. */
 @Composable
-internal fun CenterPlayButton(onClick: () -> Unit, playing: Boolean, modifier: Modifier = Modifier) {
+internal fun CenterPlayButton(onClick: () -> Unit, playing: Boolean, ended: Boolean = false, modifier: Modifier = Modifier) {
     IconButton(
         onClick = onClick,
         modifier = modifier
             .size(64.dp)
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.5f))
-            .semantics { contentDescription = if (playing) "Pause" else "Play" },
+            .semantics {
+                contentDescription = when {
+                    ended -> "Replay"
+                    playing -> "Pause"
+                    else -> "Play"
+                }
+            },
     ) {
-        if (playing) {
+        if (ended) {
+            Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+        } else if (playing) {
             PauseGlyph(tint = Color.White, size = 28.dp)
         } else {
             Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))

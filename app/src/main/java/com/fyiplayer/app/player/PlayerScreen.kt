@@ -184,6 +184,10 @@ fun PlayerScreen(
     // instead of resuming a timer that expired mid-drag and would yank the chrome away -- a hide
     // during a seekbar drag unmounts the bar and releases the drag under the user's finger.
     var scrubbing by remember { mutableStateOf(false) }
+    // The end of the video brings the controls up so Replay is one tap, not two.
+    LaunchedEffect(state.ended) {
+        if (state.ended) interact()
+    }
     LaunchedEffect(controlsToken, state.isPlaying, scrubbing) {
         if (!state.isPlaying || scrubbing) return@LaunchedEffect
         delay(3000); controlsVisible = false
@@ -316,7 +320,7 @@ fun PlayerScreen(
                                 SkipGlyph(forward = false, tint = Color.White)
                             }
                         }
-                        CenterPlayButton(onClick = { PlaybackSession.togglePlayPause(); interact() }, playing = state.isPlaying)
+                        CenterPlayButton(onClick = { PlaybackSession.togglePlayPause(); interact() }, playing = state.isPlaying, ended = state.ended)
                         if (state.index + 1 < state.queueSize) {
                             IconButton(onClick = { PlaybackSession.skipNext(); interact() }, modifier = Modifier.size(48.dp)) {
                                 SkipGlyph(forward = true, tint = Color.White)
@@ -359,6 +363,8 @@ fun PlayerScreen(
                     onOpenQuality = { interact(); showQualitySheet = true },
                     speedLabel = "${trimSpeed(state.speed)}x",
                     onOpenSpeed = { interact(); showSpeedSheet = true },
+                    looping = state.repeatMode == RepeatMode.ONE,
+                    onToggleLoop = { interact(); PlaybackSession.toggleLoop() },
                     onScrubbingChange = { scrubbing = it; if (it) interact() },
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
