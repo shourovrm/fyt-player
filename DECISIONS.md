@@ -14,7 +14,8 @@ again" + a Sign in / Sign in again button on AccessChallenge in player and short
 a new one lands). Extractor SHIPPED = v5.2.5 + our 2 patches (local
 checkout on branch `backup-fyt-5.2.5`, GitHub `fyt-patches-5.2.5`). v5.3.1 rebase lives on
 `fyt-patches` (local + GitHub) but is NOT shipped: see Next. Long-press sheet scrolls (landscape
-clipped Download).
+clipped Download). Stream downloads HEAD for the total when a format has no clen (row sat at 0%
+until done) + ProgressMeter speed/ETA; device-verified 80% -> 95% -> done with MB/s + ETA.
 
 2026-09-03 DEVICE-VERIFIED: Home feed fetches EVERY feed-visible subscription (was newest-
 subscribed 8 via `capChannels` -- Shorts still caps), `Semaphore(FEED_CONCURRENCY=6)` bounds the
