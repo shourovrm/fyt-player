@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -31,6 +34,7 @@ import com.fyiplayer.app.player.SharedVideoSurface
 import com.fyiplayer.app.player.asActivity
 import com.fyiplayer.app.player.setKeepScreenOn
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 /**
  * The Shorts tab: a thumbnail grid first, not an immediately-playing pager. Tapping a tile opens
@@ -53,6 +57,7 @@ import kotlinx.coroutines.flow.collect
  * pager is showing, and hides the mini player/queue bar too (`AppScaffold.isFullPlayerRoute`).
  * The grid gets both back the moment `showPlayer` flips false, same as any other listing route.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShortsScreen(onOpenDetail: (String) -> Unit) {
     val app = rememberFyiApp()
@@ -68,6 +73,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
     // conditionally-composed branch is torn down every time that branch stops composing, which
     // would reset the grid's scroll position on every trip into the pager and back.
     val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
     // Back out of the pager stops playback too: a vertical clip must not keep playing into the
     // mini player, which would reopen it in the landscape detail player with no swipe navigation.
@@ -90,19 +96,31 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
                 onLoadMore = vm::loadMore,
             )
         } else {
-            ShortsGrid(
-                items = feed.items,
-                gridState = gridState,
-                onOpenPlayer = { index ->
-                    vm.pagerPage = clampGridIndex(index, feed.items.size)
-                    vm.showPlayer = true
+            PullToRefreshBox(
+                isRefreshing = feed.loading,
+                onRefresh = {
+                    vm.pagerPage = 0
+                    vm.refreshFeed(sources)
+                    // The hoisted grid state would otherwise restore the old scroll offset over
+                    // a feed that is new from its first item.
+                    scope.launch { gridState.scrollToItem(0) }
                 },
-                onLongPress = { actionSheetRef = it },
-                hasMore = feed.hasMore,
-                loadingMore = feed.loadingMore,
-                exhausted = feed.exhausted,
-                onLoadMore = vm::loadMore,
-            )
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                ShortsGrid(
+                    items = feed.items,
+                    gridState = gridState,
+                    onOpenPlayer = { index ->
+                        vm.pagerPage = clampGridIndex(index, feed.items.size)
+                        vm.showPlayer = true
+                    },
+                    onLongPress = { actionSheetRef = it },
+                    hasMore = feed.hasMore,
+                    loadingMore = feed.loadingMore,
+                    exhausted = feed.exhausted,
+                    onLoadMore = vm::loadMore,
+                )
+            }
         }
         !feed.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
