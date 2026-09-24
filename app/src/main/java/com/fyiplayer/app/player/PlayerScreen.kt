@@ -48,6 +48,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.SeekThumbnails
 import kotlinx.coroutines.delay
+import com.fyiplayer.app.settings.WallSignInButton
 
 /** One friendly line per failure kind — never a stack trace, never the dead signed URL a
  *  Network/Expired message could otherwise carry. */
@@ -226,7 +227,10 @@ fun PlayerScreen(
                 Text(friendlyMessage(error), color = Color.White)
                 // An AccessChallenge is an honest wall (login/CAPTCHA/age) -- re-resolving can't
                 // pass it, so no Retry there, same convention as ResultsList's onRetry = null.
-                if (error !is ExtractionError.AccessChallenge) {
+                if (error is ExtractionError.AccessChallenge) {
+                    Spacer(Modifier.height(12.dp))
+                    WallSignInButton(onSignedIn = { PlaybackSession.retryCurrent() })
+                } else {
                     Spacer(Modifier.height(12.dp))
                     // The reported "stuck play button": an error used to render dead-end text with
                     // no way forward short of leaving the screen. retryCurrent() re-resolves the
