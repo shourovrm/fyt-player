@@ -18,6 +18,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * Shorts feed state, hoisted the same way [HomeViewModel] hoists Home's -- survives navigating to
@@ -75,7 +77,9 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         cursors = emptyList()
         feed = ShortsFeedState(loading = true)
         feedJob = viewModelScope.launch {
-            val channels = capChannels(subscriptionRepo.observeFeedChannels().first())
+            // Every subscription, same as Home: the old newest-8 cap silently left older
+            // subscriptions out of the feed entirely (user-reported). The gate bounds the burst.
+            val channels = subscriptionRepo.observeFeedChannels().first()
             if (channels.isEmpty()) {
                 feed = ShortsFeedState(loaded = true, hasSubscriptions = false)
                 return@launch
@@ -87,6 +91,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
             val outcomes = MutableList<ChannelFetchOutcome>(channels.size) {
                 ChannelFetchOutcome.Ok(emptyList())
             }
+            val gate = Semaphore(FEED_CONCURRENCY)
             val jobs = channels.mapIndexed { i, channel ->
                 launch {
                     val src = byId[channel.sourceId]
@@ -98,7 +103,9 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                         }
                         ChannelFetchOutcome.Failed
                     } else {
-                        fetchChannelShorts(watched) { src.channelTab(channel.key, ChannelTab.SHORTS) }
+                        gate.withPermit {
+                            fetchChannelShorts(watched) { src.channelTab(channel.key, ChannelTab.SHORTS) }
+                        }
                     }
                     // Append as each channel returns rather than waiting for the slowest one.
                     feed = feed.copy(items = interleave(outcomes.map { itemsOf(it).take(FEED_ITEMS_PER_CHANNEL) }))
@@ -133,11 +140,14 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         if (feedJob?.isActive == true || moreJob?.isActive == true) return
         feed = feed.copy(loadingMore = true)
         moreJob = viewModelScope.launch {
+            val gate = Semaphore(FEED_CONCURRENCY)
             val rounds = cursors.map { cursor ->
                 async {
                     val src = sourcesById[cursor.sourceId]
                     if (src == null || !cursor.hasMore) emptyList<VideoRef>() to cursor.copy(exhausted = true)
-                    else cursor.next(FEED_ITEMS_PER_CHANNEL, watched) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
+                    else gate.withPermit {
+                        cursor.next(FEED_ITEMS_PER_CHANNEL, watched) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
+                    }
                 }
             }.awaitAll()
             cursors = rounds.map { it.second }

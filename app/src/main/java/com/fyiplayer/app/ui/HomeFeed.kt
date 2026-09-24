@@ -85,19 +85,11 @@ internal data class FeedState(
     val failedChannels: Int = 0,
 )
 
-/** Shorts-only fan-out bound (Home fetches every subscription, gated by [FEED_CONCURRENCY]). */
-internal const val MAX_FEED_CHANNELS = 8
-
-/** Home: channel fetches in flight at once. */
+/** Home and Shorts: channel fetches in flight at once. */
 internal const val FEED_CONCURRENCY = 6
 
 /** How many of a channel's newest (unwatched) uploads feed the round-robin merge. */
 internal const val FEED_ITEMS_PER_CHANNEL = 8
-
-/** [subscriptions] must already be newest-subscribed-first ([SubscriptionDao.observeAll]'s own
- *  order) -- this just bounds the fan-out, ordering is the DAO's job. */
-internal fun capChannels(subscriptions: List<Listing>, cap: Int = MAX_FEED_CHANNELS): List<Listing> =
-    subscriptions.take(cap)
 
 /** "Newest uploads" should mean unwatched -- already-watched videos add nothing to a feed meant to
  *  surface what's new. */

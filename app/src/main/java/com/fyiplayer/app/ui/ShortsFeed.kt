@@ -10,7 +10,7 @@ import kotlinx.coroutines.CancellationException
  * The Shorts feed is the union of the shorts tabs of the channels a user subscribes to -- YouTube
  * publishes no global shorts feed (source/youtube/YoutubeSource.kt), so this composes one here at
  * the UI layer exactly like [HomeFeed.kt] composes Home's feed from watch history.
- * interleave/excludeWatched/capChannels/FEED_ITEMS_PER_CHANNEL already live in HomeFeed.kt (same
+ * interleave/excludeWatched/FEED_ITEMS_PER_CHANNEL already live in HomeFeed.kt (same
  * package) and are reused as-is rather than duplicated.
  */
 

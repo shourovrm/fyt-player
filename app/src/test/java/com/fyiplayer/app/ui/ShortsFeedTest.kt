@@ -123,9 +123,7 @@ class ShortsFeedTest {
         assertTrue(!after.hasMore)
     }
 
-    @Test fun `no subscriptions means no channels to fetch and an empty feed`() {
-        val channels = capChannels(emptyList())
-        assertTrue(channels.isEmpty())
+    @Test fun `no subscriptions means an empty feed`() {
         // mirrors ShortsViewModel.refreshFeed's early-return path: nothing to interleave, no crash
         assertTrue(interleave(emptyList()).isEmpty())
     }

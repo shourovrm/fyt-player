@@ -1,6 +1,5 @@
 package com.fyiplayer.app.ui
 
-import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -16,28 +15,6 @@ class HomeFeedTest {
         title = id,
         uploader = id,
     )
-
-    private fun listing(id: String) = Listing("youtube", Listing.Kind.CHANNEL, "https://y/@$id", id)
-
-    @Test fun `capChannels keeps subscription order and caps at the given size`() {
-        val subs = (1..10).map { listing("c$it") }
-        val capped = capChannels(subs, cap = MAX_FEED_CHANNELS)
-        assertEquals(MAX_FEED_CHANNELS, capped.size)
-        assertEquals(subs.take(MAX_FEED_CHANNELS), capped)
-    }
-
-    @Test fun `capChannels default cap is 8`() {
-        assertEquals(8, MAX_FEED_CHANNELS)
-    }
-
-    @Test fun `capChannels on no subscriptions yields no channels`() {
-        assertTrue(capChannels(emptyList()).isEmpty())
-    }
-
-    @Test fun `capChannels under the cap returns everything unchanged`() {
-        val subs = listOf(listing("a"), listing("b"))
-        assertEquals(subs, capChannels(subs))
-    }
 
     @Test fun `interleave round-robins uneven channel lists without crashing`() {
         val a = listOf(ref("a1"), ref("a2"), ref("a3"))
@@ -81,9 +58,7 @@ class HomeFeedTest {
         assertEquals(listOf("new", "old", "n1", "n2"), sorted.map { it.remoteId })
     }
 
-    @Test fun `no subscriptions means no channels to fetch and an empty feed`() {
-        val channels = capChannels(emptyList())
-        assertTrue(channels.isEmpty())
+    @Test fun `no subscriptions means an empty feed`() {
         // mirrors HomeViewModel.refreshFeed's early-return path: nothing to interleave, no crash
         assertTrue(interleave(emptyList()).isEmpty())
     }
