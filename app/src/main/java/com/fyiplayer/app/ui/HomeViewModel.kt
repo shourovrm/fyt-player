@@ -144,7 +144,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         throw e
                     } catch (e: Exception) {
                         runCatching {
-                            android.util.Log.d("HomeFeed", "channel fetch failed: ${e::class.simpleName}")
+                            android.util.Log.d("HomeFeed", "channel fetch failed: ${channel.title}: ${e::class.simpleName}")
                         }
                         null
                     }

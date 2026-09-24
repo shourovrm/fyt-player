@@ -2,6 +2,18 @@
 
 ## Current state
 
+2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Replay = centre button turns into a Refresh
+glyph at STATE_ENDED (`PlayerState.ended`), togglePlayPause seeks 0 + plays; controls come up at
+the end. "Loop" text button in the bottom row (red when on) = RepeatMode.ONE, per video (play()
+resets the player's repeatMode). Shorts grid pull-to-refresh (PullToRefreshBox). Shorts feed
+fetches EVERY subscription (`capChannels`/MAX_FEED_CHANNELS deleted), Semaphore(FEED_CONCURRENCY)
+on first page and loadMore -- the cap was why Squat University's shorts never showed. Home was
+already right (its newest long-form is 12d old; it lands mid-feed by date). Settings "Sign in
+again" + a Sign in / Sign in again button on AccessChallenge in player and shorts
+(`settings/YoutubeSignIn.kt`; fresh=true clears WebView cookies first, stored session kept until
+a new one lands). Extractor = PipePipe v5.3.1 + our 2 patches (rebased clean; local branch
+`backup-fyt-5.2.5` keeps the old base); playback + download smoke passed.
+
 2026-09-03 DEVICE-VERIFIED: Home feed fetches EVERY feed-visible subscription (was newest-
 subscribed 8 via `capChannels` -- Shorts still caps), `Semaphore(FEED_CONCURRENCY=6)` bounds the
 burst, watched videos stay in (progress bar says watched), viewport pinned to row 0 while the
@@ -358,7 +370,9 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Old Library rows persisted before v0.2.20 keep "Untitled" (no backfill); shared-in playlist
   listing shows "Listing" as title (URL-only ref); followed playlist row has no thumbnail (no
   stored data, no per-row fetch). All cosmetic.
-- Extractor bump to PipePipe v5.3.0 still pending (SABR/media3 change = mandatory playback smoke).
+- Shorts "age/CAPTCHA" wall that PipePipe doesn't show: NOT reproduced (55 swipes, anonymous,
+  v5.3.1). NewPipeErrors now logs `wall: <ExceptionClass> @ frames` -- next report, read that
+  first. Suspects: anonymous visionos vs PipePipe's signed-in tv_downgraded; parallel warmNext.
 - Shorts-tab paging landed 2026-08-22 (grid + pager load-more, device-verified growing past the
   old 64-item cap). UNVERIFIED: the "all caught up" end footer (needs every channel exhausted)
   and pager-tail trigger in isolation (shares `loadMore`, grid path proven).
@@ -653,7 +667,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - Mix/radio playlists (`watch?v=X&list=RDX`) as a Home feed source — rejected by the extractor
   ("Unable to recognize playlist"), confirmed live. Not an option for any feed.
 - Pull-to-refresh (Material3 `PullToRefreshBox`) for the Home feed — skipped for a plain refresh
-  icon button next to the search pill; same effect, no experimental-API surface.
+  icon button next to the search pill; SUPERSEDED: Home and (2026-09-24) Shorts grid both use it.
 - `jsoup` dependency — dropped. YouTube extraction goes through the engine's JSON, no markup parsing.
 - `biometric` dependency — dropped. No lock feature in the target shape.
 - Material-You / dynamic colour — rejected. One deliberate accent; wallpaper never overrides it.
@@ -902,3 +916,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 
 2026-08-30 | watched bar red 3dp on dark track; finished video stored as full position | blue 2dp invisible; a cleared row hid "fully watched"
 2026-09-03 | Home feed: all subscriptions, watched kept, pin top while loading | user: 2-day-old IndyDevDan upload unfindable (channel outside the 8 cap); refresh landed weeks back (key-retained scroll under progressive inserts)
+- 2026-09-24 | Shorts feed uncapped, gated by FEED_CONCURRENCY | newest-8 cap hid older subscriptions' shorts (Squat University report).
+- 2026-09-24 | Loop is per video, resets on play() | YouTube shape; a global repeat flag desynced state (OFF) from player (ONE).
+- 2026-09-24 | Extractor rebased to PipePipe v5.3.1 | upstream SABR rewrite + fixes; patches applied without conflict.

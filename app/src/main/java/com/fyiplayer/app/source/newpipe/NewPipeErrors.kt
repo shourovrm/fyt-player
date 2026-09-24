@@ -30,7 +30,8 @@ internal fun mapNewPipeError(e: Exception): ExtractionError = when (e) {
     is GeographicRestrictionException,
     is AntiBotException, // the fork's name for the sign-in-to-confirm bot wall
     is NeedLoginException,
-    -> ExtractionError.AccessChallenge("access challenge")
+    // Logged: "shorts say age/CAPTCHA but PipePipe plays them" needs the exact wall class.
+    -> ExtractionError.AccessChallenge("access challenge").also { logged(e, "wall") }
 
     is PrivateContentException,
     is ContentNotAvailableException,
@@ -59,11 +60,11 @@ private fun isTransportFailure(e: Throwable): Boolean =
 
 // Class name only -- messages can echo page URLs. Same lesson as ChainResolver's logHardStop:
 // a silent Unsupported mapping cost a debugging session.
-private fun logged(e: Exception): Exception {
+private fun logged(e: Exception, kind: String = "unsupported"): Exception {
     try {
         // Frames only, never the message -- messages can echo page URLs.
         val frames = e.stackTrace.take(6).joinToString(" | ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
-        android.util.Log.d("NewPipeErrors", "unsupported: ${e::class.simpleName} @ $frames")
+        android.util.Log.d("NewPipeErrors", "$kind: ${e::class.simpleName} @ $frames")
     } catch (logError: Throwable) {
         // unmocked android.util.Log under plain JUnit
     }
