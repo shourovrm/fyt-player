@@ -154,9 +154,6 @@ object PlaybackSession {
     // Same item's caption tracks, re-attached to every rebuilt MediaSource (selectQuality included)
     // -- see MediaItemFactory.create's doc for why the merge has to happen on every rebuild.
     private var currentCaptions: List<CaptionTrack> = emptyList()
-    // When the current item was last resolved -- togglePlayPause checks this against isStale
-    // before resuming, so a long-paused signed URL gets refreshed instead of hitting the player dead.
-    private var currentResolvedAtMillis: Long = 0
     private var loadJob: Job? = null
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
@@ -303,7 +300,6 @@ object PlaybackSession {
         autoplayFired = false
         currentFormats = emptyList()
         currentCaptions = emptyList()
-        currentResolvedAtMillis = 0
         // a fresh state must seed isPlaying from the player: onIsPlayingChanged only fires on a
         // change, and skipping between two already-playing items would otherwise never fire it.
         // speed is seeded too: it's a player-level setting that survives across queues.
@@ -443,14 +439,12 @@ object PlaybackSession {
             retryCurrent()
             return
         }
-        // Resuming into a stream that's been resolved long enough its signed URL may already be
-        // dead: refresh proactively (position-preserving) instead of letting the player discover
-        // that itself and eat the default retry backoff before onPlayerError fires.
-        if (!player.playWhenReady && ref != null && isStale(currentResolvedAtMillis)) {
-            resolver.invalidate(ref.pageUrl)
-            startAt(index, resumeAtMs = player.currentPosition)
-            return
-        }
+        // Resume just plays, even after hours paused: the source stays prepared and signed URLs
+        // usually outlive the old 50-min guess (YouTube's run ~6h), so a proactive re-resolve cost
+        // a full extractor call for nothing (PipePipe: play, recover on error). A really dead URL
+        // fails fast into onPlayerError's position-preserving re-resolve; re-arm it here so an
+        // earlier blip on this item can't leave a long-paused resume with no recovery left.
+        if (!player.playWhenReady) retriedIndex = null
         if (player.playbackState == Player.STATE_ENDED) {
             player.seekTo(0)
             player.playWhenReady = true
@@ -608,7 +602,6 @@ object PlaybackSession {
         window = emptyList(); prepared = null; retriedIndex = null
         currentFormats = emptyList()
         currentCaptions = emptyList()
-        currentResolvedAtMillis = 0
         clearSponsorSegments()
         player.stop()
         player.clearMediaItems()
@@ -641,7 +634,7 @@ object PlaybackSession {
 
     /** Resolve [i] and load it as the only window item, then prefetch the one after it.
      *  [resumeAtMs], when given, seeks back to it after the fresh source is prepared -- used by
-     *  the expiry re-resolve paths (onPlayerError, togglePlayPause's staleness check) where this
+     *  the expiry re-resolve path (onPlayerError) where this
      *  is the same item continuing, not a genuinely new one starting at 0. */
     private fun startAt(i: Int, resumeAtMs: Long? = null) {
         loadJob?.cancel()
@@ -668,7 +661,6 @@ object PlaybackSession {
             window = listOf(i)
             currentFormats = item.resolved.formats
             currentCaptions = item.resolved.captions
-            currentResolvedAtMillis = item.resolved.resolvedAtMillis
             fetchSponsorSegments(i, ref)
             // A different item always starts captions at Off, never whatever the previous item had.
             val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = false)
@@ -797,7 +789,6 @@ object PlaybackSession {
         val ref = queue.getOrNull(item.queueIndex) ?: return
         currentFormats = item.resolved.formats
         currentCaptions = item.resolved.captions
-        currentResolvedAtMillis = item.resolved.resolvedAtMillis
         clearSponsorSegments() // different item, same as startAt -- old item's segments must not carry over
         fetchSponsorSegments(item.queueIndex, ref)
         // A different item, same as startAt -- captions reset to Off, never carried over.
@@ -1016,15 +1007,6 @@ internal fun isExpiredHttpError(error: Throwable?): Boolean {
     }
     return false
 }
-
-// Signed URLs are commonly good for ~1h; refresh with margin before the player would discover
-// staleness itself and eat the default retry backoff (see MediaItemFactory's policy).
-private const val STREAM_STALE_MS = 50 * 60 * 1000L
-
-/** True once a resolve is old enough its signed URLs might already be dead. 0 means "nothing
- *  resolved yet" -- never stale. Pure so it's unit-testable without ExoPlayer. */
-internal fun isStale(resolvedAtMillis: Long, nowMillis: Long = System.currentTimeMillis()): Boolean =
-    resolvedAtMillis != 0L && nowMillis - resolvedAtMillis > STREAM_STALE_MS
 
 /** What a caption pick becomes across a MediaSource rebuild: kept for [isSameItem] (same video,
  *  different rendition -- [PlaybackSession.selectQuality]), reset to Off for every other reload

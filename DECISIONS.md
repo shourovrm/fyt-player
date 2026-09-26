@@ -451,7 +451,7 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
   pager, swipe navigates, ≥20 cards on a generic query).
 - 2026-08-08 wave (device-verified except where noted): resolver LRU cache (60 entries/60 min,
   `ChainResolver`, `StreamResolver.invalidate` seam), expired-URL fast-fail policy + resume
-  staleness refresh (`isStale` 50 min — stale-resume path itself not yet exercised on device),
+  staleness refresh (REMOVED 2026-09-27, see Tried / rejected),
   `SharedSurface` ownership registry (black-screen race fix — race never reproduced on demand,
   fix is registry-by-construction), googlevideo chunked ranged reads
   (`player/ChunkedRangeDataSource.kt`, 10 MB windows, mirrors StreamDownloader) for full-speed
@@ -658,6 +658,10 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - compileSdk is 36 because the fork's okhttp 5.4 AAR demands it; targetSdk stays 35.
 
 ## Tried / rejected
+
+- Proactive re-resolve on resume after 50 min paused (`isStale`) — REMOVED 2026-09-27: made
+  every long-paused resume pay a full extractor call though YouTube URLs live ~6h. PipePipe just
+  plays and recovers on error; so do we (onPlayerError, retry re-armed per play press).
 
 - Similar tab = title search only — SUPERSEDED 2026-08-30: user asked for YouTube's own
   recommendations (PipePipe parity). `VideoDetail.related` is primary, title search is the
@@ -936,3 +940,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-09-24 | Loop is per video, resets on play() | YouTube shape; a global repeat flag desynced state (OFF) from player (ONE).
 - 2026-09-24 | Extractor rebased to PipePipe v5.3.1 (not shipped) | downloads 403 on it; 0.2.21 ships on v5.2.5 (user choice).
 - 2026-09-27 | shorts channel link: fill uploader at source, clear playback on open | shorts-tab listings have no uploader; vertical clip must not leak into mini player
+- 2026-09-27 | resume after long pause just plays; dead URL recovers via onPlayerError | proactive 50-min re-resolve slowed resume (user-reported); PipePipe v5.4.0 keeps the source prepared, re-extracts only on error
