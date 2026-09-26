@@ -85,6 +85,8 @@ internal fun ShortsPage(
     isActive: Boolean,
     playerState: PlayerState,
     onOpenDetail: () -> Unit,
+    /** Null when the listing carried no channel URL -- the name then renders as plain text. */
+    onOpenChannel: (() -> Unit)?,
 ) {
     val app = rememberFyiApp()
     val context = LocalContext.current
@@ -200,10 +202,14 @@ internal fun ShortsPage(
             Text(ref.title, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             ref.uploader?.let {
                 Text(
-                    it,
+                    if (onOpenChannel != null) "$it  ›" else it,
                     color = Color.White.copy(alpha = 0.85f),
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .then(if (onOpenChannel != null) Modifier.clickable(onClick = onOpenChannel) else Modifier)
+                        .padding(vertical = 4.dp),
                 )
             }
             Text(

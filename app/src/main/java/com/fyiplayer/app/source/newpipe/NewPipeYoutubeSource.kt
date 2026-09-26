@@ -77,6 +77,9 @@ class NewPipeYoutubeSource(
     override val providesComments = true
 
     private val delegate = YoutubeSource()
+    // Shorts-tab items (shortsLockupViewModel) carry no uploader; continuation pages reuse the
+    // name the first page's ChannelInfo gave rather than refetching it. Memory only.
+    private val channelNames = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     override fun matches(url: String): Boolean {
         val host = runCatching { URI(url).host }.getOrNull()?.lowercase() ?: return false
@@ -106,13 +109,17 @@ class NewPipeYoutubeSource(
             val filter = tab.contentFilter() ?: throw tabUnavailableError(tab)
             guarded {
                 if (page == null) {
-                    val handler = channelTabHandler(channelUrl, filter, tab)
+                    val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
+                    channelNames[channelUrl] = channelInfo.name
+                    val handler = channelTabHandler(channelInfo, filter, tab)
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
-                    SearchPage(items = info.relatedItems.mapNotNull { it.toStreamVideoRef() }, nextPage = info.nextPage.tokenOrNull())
+                    val items = info.relatedItems.mapNotNull { it.toStreamVideoRef()?.withChannel(channelInfo.name, channelUrl) }
+                    SearchPage(items = items, nextPage = info.nextPage.tokenOrNull())
                 } else {
                     val handler = ServiceList.YouTube.channelTabLHFactory.fromQuery(channelUrl, listOf(tabFilter(filter)), emptyList())
                     val more = ChannelTabInfo.getMoreItems(ServiceList.YouTube, handler, page.toPage())
-                    SearchPage(items = more.items.mapNotNull { it.toStreamVideoRef() }, nextPage = more.nextPage.tokenOrNull())
+                    val items = more.items.mapNotNull { it.toStreamVideoRef()?.withChannel(channelNames[channelUrl], channelUrl) }
+                    SearchPage(items = items, nextPage = more.nextPage.tokenOrNull())
                 }
             }
         }
@@ -128,7 +135,7 @@ class NewPipeYoutubeSource(
             if (tab != ChannelTab.PLAYLISTS) throw tabUnavailableError(tab)
             guarded {
                 if (page == null) {
-                    val handler = channelTabHandler(channelUrl, ChannelTabs.PLAYLISTS, tab)
+                    val handler = channelTabHandler(ChannelInfo.getInfo(ServiceList.YouTube, channelUrl), ChannelTabs.PLAYLISTS, tab)
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
                     ListingPage(items = info.relatedItems.filterIsInstance<PlaylistInfoItem>().mapNotNull { it.toPlaylistListing() }, nextPage = info.nextPage.tokenOrNull())
                 } else {
@@ -298,8 +305,7 @@ class NewPipeYoutubeSource(
 
     /** Structural tab-availability check: [ChannelInfo.getTabs] only ever lists tabs the channel
      *  actually has, so an absent [filter] IS "no such tab" -- no text-sniffing an error message. */
-    private fun channelTabHandler(channelUrl: String, filter: String, tab: ChannelTab): ListLinkHandler {
-        val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
+    private fun channelTabHandler(channelInfo: ChannelInfo, filter: String, tab: ChannelTab): ListLinkHandler {
         return channelInfo.tabs.find { handler -> handler.contentFilters.any { it.name == filter } }
             ?: throw tabUnavailableError(tab)
     }
@@ -352,6 +358,12 @@ private fun InfoItem.toSearchVideoRef(): VideoRef? = when (this) {
 }
 
 internal fun InfoItem.toStreamVideoRef(): VideoRef? = (this as? StreamInfoItem)?.toVideoRef()
+
+/** Every item in a channel tab belongs to that channel -- fill what the listing left blank. */
+internal fun VideoRef.withChannel(name: String?, channelUrl: String): VideoRef = copy(
+    uploader = uploader?.takeIf { it.isNotBlank() } ?: name?.takeIf { it.isNotBlank() },
+    uploaderUrl = uploaderUrl?.takeIf { it.isNotBlank() } ?: channelUrl,
+)
 
 /** Channel-search rows carry NO shorts signal from the platform (verified live 2026-08-22: every
  *  hit is a plain `videoRenderer`, `/watch` url, `WEB_PAGE_TYPE_WATCH`, overlay style DEFAULT,

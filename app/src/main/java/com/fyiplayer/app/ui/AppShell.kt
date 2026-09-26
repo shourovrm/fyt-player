@@ -144,11 +144,15 @@ fun AppShell(navController: NavHostController) {
             )
         }
         composable(Routes.SHORTS) {
-            ShortsScreen(onOpenDetail = { navController.openDetail(it) })
+            ShortsScreen(
+                onOpenDetail = { navController.openDetail(it) },
+                onOpenChannel = { navController.openListing(it) },
+            )
         }
         composable(Routes.SHORTS_PLAYER) {
             ShortsPlayerScreen(
                 onOpenDetail = { navController.openDetail(it) },
+                onOpenChannel = { navController.openListing(it) },
                 onClose = { navController.popBackStack() },
             )
         }

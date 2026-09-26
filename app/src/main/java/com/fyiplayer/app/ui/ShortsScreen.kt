@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
@@ -59,7 +60,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShortsScreen(onOpenDetail: (String) -> Unit) {
+fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Unit) {
     val app = rememberFyiApp()
     val vm: ShortsViewModel = viewModel()
     val enabledIds by app.prefs.enabledSources.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -93,6 +94,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit) {
                 page = vm.pagerPage,
                 onPageChange = { vm.pagerPage = it },
                 onOpenDetail = onOpenDetail,
+                onOpenChannel = onOpenChannel,
                 onLoadMore = vm::loadMore,
             )
         } else {
@@ -158,6 +160,7 @@ internal fun ShortsPager(
     page: Int,
     onPageChange: (Int) -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenChannel: (Listing) -> Unit,
     /** Called when the swipe nears the end of [items]; no-op for finite listings (channel tab). */
     onLoadMore: () -> Unit = {},
 ) {
@@ -251,6 +254,14 @@ internal fun ShortsPager(
                 isActive = page == playerState.index,
                 playerState = playerState,
                 onOpenDetail = { RefCache.put(ref); onOpenDetail(ref.pageUrl) },
+                onOpenChannel = ref.uploaderUrl?.let { url ->
+                    {
+                        // Stop, don't leak the vertical clip into the mini player; back re-enters
+                        // this pager, which finds the session empty and replays the same page.
+                        PlaybackSession.clear()
+                        onOpenChannel(Listing(sourceId = ref.sourceId, kind = Listing.Kind.CHANNEL, key = url, title = ref.uploader.orEmpty()))
+                    }
+                },
             )
         }
     }

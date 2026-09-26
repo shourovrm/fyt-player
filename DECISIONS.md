@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-09-27 DEVICE-VERIFIED: shorts show the channel name and it's tappable (` ›`) -> ChannelScreen.
+Shorts-tab items (shortsLockupViewModel) carry no uploader, so `channelTab` fills
+uploader/uploaderUrl from the channel (`withChannel`; continuation pages reuse the first page's
+name via an in-memory map). Tap = PlaybackSession.clear() + openListing; back re-enters the
+pager, which replays the same page.
+
 2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Replay = centre button turns into a Refresh
 glyph at STATE_ENDED (`PlayerState.ended`), togglePlayPause seeks 0 + plays; controls come up at
 the end. "Loop" text button in the bottom row (red when on) = RepeatMode.ONE, per video (play()
@@ -929,3 +935,4 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - 2026-09-24 | Shorts feed uncapped, gated by FEED_CONCURRENCY | newest-8 cap hid older subscriptions' shorts (Squat University report).
 - 2026-09-24 | Loop is per video, resets on play() | YouTube shape; a global repeat flag desynced state (OFF) from player (ONE).
 - 2026-09-24 | Extractor rebased to PipePipe v5.3.1 (not shipped) | downloads 403 on it; 0.2.21 ships on v5.2.5 (user choice).
+2026-09-27 | shorts channel link: fill uploader at source, clear playback on open | shorts-tab listings have no uploader; vertical clip must not leak into mini player

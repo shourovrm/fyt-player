@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
 
@@ -27,7 +28,7 @@ internal object ShortsPlayerRequest {
  * player would reopen in the landscape detail player with no swipe navigation.
  */
 @Composable
-fun ShortsPlayerScreen(onOpenDetail: (String) -> Unit, onClose: () -> Unit) {
+fun ShortsPlayerScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Unit, onClose: () -> Unit) {
     val items = ShortsPlayerRequest.items
     var page by rememberSaveable { mutableStateOf(ShortsPlayerRequest.index) }
     BackHandler { PlaybackSession.clear(); onClose() }
@@ -36,5 +37,5 @@ fun ShortsPlayerScreen(onOpenDetail: (String) -> Unit, onClose: () -> Unit) {
         LaunchedEffect(Unit) { onClose() }
         return
     }
-    ShortsPager(items = items, page = page, onPageChange = { page = it }, onOpenDetail = onOpenDetail)
+    ShortsPager(items = items, page = page, onPageChange = { page = it }, onOpenDetail = onOpenDetail, onOpenChannel = onOpenChannel)
 }
