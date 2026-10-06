@@ -215,5 +215,5 @@ Each phase ends with a green build, passing tests, and a run on a real device.
 - Test suite green, and the changed flow driven end to end on a real device.
 - No signed URL in the database, in a log, or in an export.
 - Every wall renders an honest unavailable state.
-- `DECISIONS.md` updated in the same commit as the change it describes.
+- `DECISIONS.md` / `docs/decisions/` updated in the same commit as the change it describes.
 - No comment describing behaviour the code does not have.
