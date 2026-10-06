@@ -117,7 +117,7 @@ fork), built from a sibling checkout of
 [shourovrm/PipePipeExtractor](https://github.com/shourovrm/PipePipeExtractor) at
 `../PipePipe/PipePipeExtractor`, branch `fyt-patches` = upstream tag + two small patches (shorts
 shelves in search results and in the related-videos sidebar). Upstream is Codeberg; the patches
-are rebased onto each new upstream tag, see DECISIONS.md. Everything else, plus YouTube downloads and the sign-in path, goes through
+are rebased onto each new upstream tag, see docs/decisions/extraction.md. Everything else, plus YouTube downloads and the sign-in path, goes through
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) running on-device via
 [youtubedl-android](https://github.com/yausername/youtubedl-android). yt-dlp can be updated from
 Settings without a new APK.

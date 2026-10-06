@@ -8,22 +8,25 @@ Android app (Kotlin, Compose, single Activity): browse, play, queue and download
 - Fallback (no plugins): terse replies, no filler; YAGNI, stdlib/native before dependencies, shortest working diff.
 
 ## Memory — MANDATORY
-Maintain `DECISIONS.md` with five sections:
-- **Current state** — living snapshot, edit in place.
-- **Next** — in-flight work handoff, 3-5 bullets max, prune ruthlessly.
-- **Gotchas** — living quirks (flaky tests, env vars, wrong docs), one line each.
-- **Tried / rejected** — one line: what + why dead; never re-attempt anything listed.
-- **Log** — append-only: `YYYY-MM-DD | decision | why`.
+`DECISIONS.md` is a small index; the knowledge lives in `docs/decisions/`.
+- **`DECISIONS.md`** (keep under ~50 lines): **Topics** (one line per topic file), **Next** (in-flight handoff, 3-5 bullets max, prune ruthlessly), **Gotchas (cross-cutting)** (only what every session needs, one line each).
+- **`docs/decisions/<topic>.md`**, one per area of the project, each with:
+  - **Current state** — living snapshot, edit in place.
+  - **Open items** — unfinished or unverified work for this topic.
+  - **Gotchas** — living quirks (flaky tests, env vars, wrong docs), one line each.
+  - **Tried / rejected** — one line: what + why dead; never re-attempt anything listed.
+- **`docs/decisions/LOG.md`** — append-only: `YYYY-MM-DD | decision | why`.
 
-Read "Current state" + "Next" + "Gotchas" + "Tried / rejected" before any work.
-Update in the same commit as the change it describes. Terse. If missing, create it with those five section headers.
-Split of memory: CLAUDE.md = rules, DESIGN.md = target shape, DECISIONS.md = knowledge, git history = events. Don't duplicate across them.
+Before any work: read `DECISIONS.md`, then only the topic files the task touches. Never read `LOG.md` whole; grep it.
+Before trying a new approach: `grep -ri <keyword> docs/decisions/` — a rejected attempt may sit in a topic you did not open.
+Update in the same commit as the change it describes. Terse. New topic = new file + one index line. If missing, create the index and `docs/decisions/LOG.md`.
+Split of memory: CLAUDE.md = rules, DESIGN.md = target shape, `DECISIONS.md` + `docs/decisions/` = knowledge, git history = events. Don't duplicate across them.
 Large codebase? `/graphify` (if available) for persistent structural memory.
 
 ## Commits
 - Every feature/code change = one terse commit immediately. Conventional type prefix (feat/fix/docs/chore), subject ≤50 chars.
 - NO AI trailers (no Co-Authored-By etc.) — repo carries no AI traces.
-- DECISIONS.md and planning docs: committed — they are the project's working memory and this repo is the only copy.
+- `DECISIONS.md`, `docs/decisions/` and planning docs: committed — they are the project's working memory and this repo is the only copy.
 
 ## Style
 - KISS, UNIX philosophy: one file/module = one job, keep files small.

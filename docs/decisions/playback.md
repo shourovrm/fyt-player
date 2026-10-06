@@ -1,0 +1,134 @@
+# Playback: player, session, queue, fullscreen and insets, captions, background service
+
+## Current state
+
+2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: AppScaffold docks `QueueBar` above the nav bar on
+every non-fullscreen route incl. Detail (stays when nav auto-hides; nav-inset spacer under the
+docked bars when nav is hidden); sheet rows have no pageUrl key (duplicate
+enqueue crashed); row tap = playAt + openDetail, and playAt publishes `current` synchronously so
+Detail's entry guard does not replace the queue. Music chip = charts VIDEOS + DAILY. Queue
+never holds one pageUrl twice: enqueue returns false ("Already in queue" toast), play next moves
+the existing entry to right after current (QueueMath.playNextTarget).
+
+2026-08-25 (v0.2.15) player chrome redesign, DEVICE-VERIFIED (Nothing Phone): Detail has NO top
+bar and no ⋮ (title lives once, under the video; the ⋮ sheet's only unique item, Play next, is
+still on long-press of cards elsewhere). Idle portrait = 3dp red line + 10dp dot on the video's
+bottom edge; touching the dot starts the drag AND brings the controls up (one Slider call site in
+ControlBar for both states -- a second call site orphaned the in-flight drag, isScrubbing stuck).
+Tapped = top-left ✕ (PlaybackSession.clear + pop) and ⌄ (pop, mini player keeps playing), centre
+⏮ ⏸ ⏭ with prev/next shown independently only when they exist (PipePipe rule), bottom row
+time · 720p · 1x · CC · fullscreen above the bar (portrait) / below it with 24dp side inset
+(fullscreen), gradient instead of the black band. Preview-grid button + OverflowControls deleted
+(JumpGridSheet/PreviewGridGlyph remain in PlayerOverlays, unused). Queue chip removed from the
+action row. Seek preview card 160/200dp, largest storyboard tile, tiles >=45px. Shorts: dot
+always visible, 5dp line while dragging, 50x90 tile card on drag. Mini player title was blank on
+bare-URL opens: DetailScreen hands the enriched ref to PlaybackSession.updateCurrentMeta.
+
+2026-08-25 seekbar/preview pass vs YouTube+PipePipe (device-verified): scrub card was squashed
+to ~27dp by the 40dp slider Box (now `wrapContentHeight(unbounded)`), storyboard level now
+largest-tile (160x90, was 80x45 = most-frames), card 160dp portrait / 200dp fullscreen with
+titleMedium timestamp above it, thumb 12dp idle -> 20dp dragging, transport hidden while
+scrubbing, tiles <60px = pill only. Shorts bar keeps its thin line + an always-visible 10dp dot.
+Not done (proposed 5/6): bar on the video's bottom edge with a gradient instead of the black
+band; fullscreen 24dp inset; YouTube-style fill-the-video preview.
+
+2026-08-23 (v0.2.9) PERF wave, device-measured tap-to-first-audio (same 3 videos, same network):
+before 4.5s cold / 3.1-3.7s warm; after 2.6-3.2s cold / 1.9-2.9s warm; PipePipe 2.9 / 1.7-2.0.
+What landed: (1) ONE StreamInfo fetch per video (`source/newpipe/StreamInfoCache.kt`, in-flight
+dedup + 60min TTL, fetch runs on its own scope so a cancelled Detail effect can't fail the
+playback resolve awaiting it; `ChainResolver.invalidate` -> `tier0.invalidate` clears it; age-wall
+retry forces refresh). (2) `DefaultLoadControl` 12s/20s/2s/3s (PipePipe values). (3)
+`ChunkedRangeDataSource` first window doubles as the probe (reads Content-Range), a `range=`
+refusal falls through to passthrough like the old probe did. (4) position/duration split out of
+`PlayerState` into `PlaybackSession.progress` -- only progress bars collect it, the 500ms tick no
+longer recomposes MiniPlayer/QueueBar/PlayerScreen/ShortsPager. (5) `WebViewJsDecoder.prewarm()`
+1s after first resume: WebView + player upload + compile off the play path (1.7s measured). (6)
+64MB `SimpleCache` (`player/MediaCache.kt`) outside the chunked source; keys are `yt|id|itag|lmt`
+or sha256(url) -- never a raw signed URL on disk. (7) BIGGEST single win: `FormatSelector` now
+prefers a progressive video+audio pair over the HLS manifest (manifest = fallback for live/HLS-
+only). HLS cost two playlist round trips before the first byte and bypassed range chunking.
+Non-YouTube (FB/TikTok/X): verified one yt-dlp run per open already; 2/4/6 apply to them as-is.
+
+2026-08-23 (v0.2.6): FullscreenChrome claim leak FIXED (device-verified: Detail fullscreen ->
+back -> back to Home keeps nav bar + status-bar padding). Any Compose `onDispose` must decide
+on the effect KEY, never re-read the state it is keyed on -- by dispose time it already holds
+the new value.
+
+## Open items
+
+- SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
+  full video id), auto-skip in the session ticker. Device playback verified but an actual
+  sponsored-segment skip is still user-unverified.
+- 2026-08-08 late wave (device-verified): fullscreen-exit right-shift FIXED — the OEM skips the
+  window's inset re-dispatch after the in-process rotation; every app-side cache (Compose holder
+  AND getRootWindowInsets) then serves landscape values to the portrait layout. Fix is a forced
+  WindowManager relayout round-trip (`window.attributes = window.attributes`) on fullscreen exit
+  + onConfigurationChanged, plus AppScaffold snapshotting root insets keyed on
+  configuration/fullscreen with a double re-read tick. Playback-position resume LANDED
+  (device-verified): `Prefs.savePlayPosition` (default on, third toggle in HistorySettings),
+  FyiApp owns pref gating + near-end-clears (>=90% clears the row, <5s not saved),
+  PlaybackSession saves every ~5s tick + on pause + at STATE_ENDED and resumes via
+  `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
+
+## Gotchas
+
+- Landscape cutout is a 126px LEFT system inset on this OEM; any nested Scaffold/TopAppBar re-pads
+  it into a grey strip unless AppScaffold consumes WindowInsets.displayCutout (device-verified).
+- `AppScaffold` consumes system-bar insets for the whole app. A full-bleed surface opts out via
+  `ui/AppScaffold.kt`'s `FullscreenChrome.active` seam (set by `DetailScreen`, same package) —
+  used by the fullscreen player; a future full-bleed screen (shorts pager) reuses the same seam.
+- Storyboard tile interval is derived as `duration / tileCount`, not published by the engine. Scrub
+  previews may drift on very long videos until measured on a device.
+- `Protocol.DASH` throws in `MediaItemFactory`: `media3-exoplayer-dash` is not a dependency and
+  nothing emits DASH yet. Adding a DASH path means adding that artifact first.
+- There is exactly ONE shared video surface. `AppScaffold` therefore hides the mini player and
+  queue bar on the detail route — mounting both would have the mini bar steal the surface from the
+  full player mid-playback.
+- `Prefs.backgroundPlayback` has a settings row but nothing in `player/` reads it yet.
+- Only ONE screen may hold the shared video surface at a time. `AppScaffold.isFullPlayerRoute`
+  gates the mini player and queue bar off those routes — add any new full-bleed route to it.
+- Leaf media source factories (`ProgressiveMediaSource`, `HlsMediaSource`) IGNORE
+  `MediaItem.subtitleConfigurations`; only `DefaultMediaSourceFactory` reads them. Sideloaded
+  captions on the hand-built `MergingMediaSource` need one `SingleSampleMediaSource` per track
+  merged into an outer `MergingMediaSource`.
+- The POST_NOTIFICATIONS "media session exemption" does NOT hold in practice: this OEM keeps an
+  unrequested app at importance=NONE and the media card never shows. MainActivity requests the
+  permission once at launch. Verified on device both ways.
+- A STARTED (never bound) MediaSessionService must call addSession() itself — onGetSession only
+  fires on a controller bind, and without registration media3's notification manager never
+  attaches: no notification, no foreground promotion (startForegroundCount stays 0).
+- Start PlaybackService with startService, never startForegroundService: media3 promotes to
+  foreground itself once a session is engaged; the manual FGS contract killed the whole app
+  (ForegroundServiceDidNotStartInTimeException) whenever promotion hadn't happened yet.
+- enqueue() must call prefetchNext() like every other queue mutator — without it, anything queued
+  after the queue exhausted (player parked in STATE_ENDED) silently never played.
+- A resolve failure for the current item must stop + clear the player: the previous queue item
+  otherwise keeps playing under the error guardrail and auto-advances over it later.
+
+## Tried / rejected
+
+- Proactive re-resolve on resume after 50 min paused (`isStale`) — REMOVED 2026-09-27: made
+  every long-paused resume pay a full extractor call though YouTube URLs live ~6h. PipePipe just
+  plays and recovers on error; so do we (onPlayerError, retry re-armed per play press).
+- Bars-follow-chrome in fullscreen (tap shows status bar with the controls) — REVERTED. Repeated
+  insetsController hide/show inside a fullscreen session wedges this OEM's inset delivery: after
+  exit the window keeps landscape insets and the portrait page renders shifted right. Three
+  workarounds failed (requestApplyInsets, WM attribute round-trip, root-inset snapshot — the
+  snapshot also latches because Android mutates Configuration in place, so remember keys never
+  re-fire). Bars now change exactly twice per session (hide on entry, show on exit); the decor
+  inset listener (SystemBarInsetsState) and the WM round-trip stay as hardening.
+  PipePipe's recipe if this is ever re-attempted (researched from source): their activity
+  RECREATES on rotation (no configChanges), player survives in a Service, fullscreen/system-UI
+  state recomputed from scratch on reattach; bars-follow-controls via legacy systemUiVisibility;
+  and they STILL hand-reset insets ("Apply window insets because Android will not do it when
+  orientation changes from landscape to portrait" -- Player.toggleFullscreen +
+  setFragmentListener zero the padding manually). The OS bug is real; their cure is View-world
+  manual padding resets.
+- Once-per-nav-entry autoplay latch on Detail (rememberSaveable `autoplayed`) — REMOVED
+  2026-08-10: backing from C to B left C playing over B's page (user-reported mismatch). Detail
+  re-entry now takes playback whenever the session plays a different pageUrl; same-video re-entry
+  stays a no-op so reopening from the mini player never restarts.
+- Boolean FullscreenChrome.active — replaced with claim counting 2026-08-10: nav-transition
+  overlap (incoming pager composes before outgoing Detail disposes) let Detail's onDispose stomp
+  the pager's `true`; nav bar stayed visible on shorts-from-Similar. Never a single global
+  boolean for overlapping lifetimes.
