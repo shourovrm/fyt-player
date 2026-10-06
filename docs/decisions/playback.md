@@ -2,6 +2,17 @@
 
 ## Current state
 
+2026-10-07 (v0.2.25, tests green, NOT YET RUN ON A DEVICE -- phone was in use by another
+session): resume starts at the START of the video segment containing the saved position
+(`PlaybackSession.segmentStartFor` -> `MediaItemFactory.segmentStartMs` ->
+`DashUtil.loadChunkIndex` on the video representation -> `segmentStartAtOrBefore`). Targets
+cause (3) of the measured slow start: no keyframe->position download/decode before the first
+frame. Applies to every startAt with a resume position (saved position, error re-resolve,
+retry). Falls back to the exact position when: not a DASH pair, index unreadable, lookup over
+2.5 s, or the rewind would exceed 15 s. Logs `resume snap used=.. rewindMs=.. lookupMs=..`.
+The lookup reads the same init+index range the player asks for next; that second read should
+come from the disk cache (VERIFY on device: no second `range=0-N` request for the video itag).
+
 2026-10-07 DEVICE RUN of v0.2.24 (Nothing A059, WiFi + VPN, install -r over user data):
 - DASH path live: every YouTube pair logs `source=dash`, plays, all `range=` chunks answer 200.
   visionos responses DO carry initRange/indexRange. Request shape as designed: init+index per
@@ -210,8 +221,8 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   resumed start sourceSet->firstFrame vs the numbers above; range= chunks answer 200; captions;
   quality switch; whether visionos responses really carry initRange/indexRange (else every
   video logs reason=noSegmentIndex and nothing changed). Cause (3), the exact-seek download, is
-  NOT addressed: next step would be resuming at the containing segment's start once the index
-  is known. Not chosen: small head window; Cronet/HTTP3 (UDP often blocked on VPN, big dep).
+  addressed in v0.2.25 by segment-start resume (device-UNVERIFIED): compare `firstFrame` minus
+  `sourceSet` on resumed starts against the v0.2.24 numbers (1.8-3.2 s), and add `lookupMs`. Not chosen: small head window; Cronet/HTTP3 (UDP often blocked on VPN, big dep).
   The user's "shows an error msg" was never reproduced -- read Settings > Playback log first.
 - SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
   full video id), auto-skip in the session ticker. Device playback verified but an actual
