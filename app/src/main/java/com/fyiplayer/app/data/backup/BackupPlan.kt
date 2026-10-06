@@ -8,8 +8,47 @@ data class BackupPlan(
     val newPlaylistItems: Int,
     val newLiked: Int,
     val newChannels: Int,
+    /** Entries the file held that import refuses (URL not https or not owned by a source). */
+    val droppedEntries: Int = 0,
 ) {
     val isEmpty: Boolean get() = newPlaylists == 0 && newPlaylistItems == 0 && newLiked == 0 && newChannels == 0
+}
+
+/** One playlist an import writes. Same-name playlists in the file are already merged into one. */
+class PlaylistWrite(val name: String, val isNew: Boolean, val items: List<BackupVideo>)
+
+/** Exactly what an import writes -- both [planImport] and BackupIo.apply read this, so the counts
+ *  shown to the user cannot drift from what is written. [likes] and [channels] keep file order. */
+class ImportWrites(
+    val playlists: List<PlaylistWrite>,
+    val likes: List<BackupVideo>,
+    val channels: List<BackupChannel>,
+)
+
+fun planImportWrites(
+    doc: BackupDocument,
+    existingPlaylistItems: Map<String, Set<String>>, // only playlists that already exist are keys
+    existingLiked: Set<String>,
+    existingChannels: Set<String>,
+): ImportWrites {
+    // "Match playlists by name" must hold inside the file too: a second playlist of the same name
+    // is more items for the first, not a second playlist.
+    val itemsByName = LinkedHashMap<String, MutableList<BackupVideo>>()
+    for (playlist in doc.playlists) itemsByName.getOrPut(playlist.name) { mutableListOf() }.addAll(playlist.items)
+
+    val playlistWrites = itemsByName.map { (name, items) ->
+        val have = existingPlaylistItems[name]
+        PlaylistWrite(
+            name = name,
+            isNew = have == null,
+            items = items.distinctBy { it.pageUrl }.filter { it.pageUrl !in (have ?: emptySet()) },
+        )
+    }
+    return ImportWrites(
+        playlists = playlistWrites,
+        likes = doc.liked.distinctBy { it.pageUrl }.filter { it.pageUrl !in existingLiked },
+        channels = doc.channels.distinctBy { it.channelUrl }.filter { it.channelUrl !in existingChannels },
+    )
 }
 
 /**
@@ -24,17 +63,18 @@ fun planImport(
     existingLiked: Set<String>,
     existingChannels: Set<String>, // channelUrls already subscribed
 ): BackupPlan {
-    var newPlaylists = 0
-    var newItems = 0
-    for (playlist in doc.playlists) {
-        val have = existingPlaylistItems[playlist.name]
-        if (have == null) newPlaylists++
-        newItems += playlist.items.count { it.pageUrl !in (have ?: emptySet()) }
-    }
+    val writes = planImportWrites(doc, existingPlaylistItems, existingLiked, existingChannels)
     return BackupPlan(
-        newPlaylists = newPlaylists,
-        newPlaylistItems = newItems,
-        newLiked = doc.liked.count { it.pageUrl !in existingLiked },
-        newChannels = doc.channels.count { it.channelUrl !in existingChannels },
+        newPlaylists = writes.playlists.count { it.isNew },
+        newPlaylistItems = writes.playlists.sumOf { it.items.size },
+        newLiked = writes.likes.size,
+        newChannels = writes.channels.size,
     )
 }
+
+/**
+ * Timestamp for the like at [indexNewestFirst] among the likes an import writes. The list is shown
+ * by likedAt DESC and the file is exported newest-first, so counting back one millisecond per
+ * position keeps the exported order; stamping every like with "now" would reverse it or tie.
+ */
+fun likedAtForImport(indexNewestFirst: Int, nowMillis: Long): Long = nowMillis - indexNewestFirst

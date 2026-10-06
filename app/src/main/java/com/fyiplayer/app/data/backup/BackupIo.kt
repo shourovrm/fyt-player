@@ -2,10 +2,13 @@ package com.fyiplayer.app.data.backup
 
 import android.content.Context
 import android.net.Uri
+import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.flow.first
+
+private fun ownerSourceId(url: String): String? = SourceRegistry.forUrl(url)?.id
 
 /**
  * Everything that touches Android or Room for backup: reading the current library into a
@@ -45,9 +48,11 @@ object BackupIo {
     ): Pair<BackupDocument, BackupPlan> {
         val html = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
             ?: throw BackupFormatException("Could not open the chosen file for reading.")
-        val doc = parseBackupHtml(html)
+        val sanitized = sanitizeBackupDocument(parseBackupHtml(html), ::ownerSourceId)
+        val doc = sanitized.document
         val existing = readExisting(doc, likes, playlists, subscriptions)
         val plan = planImport(doc, existing.playlistItems, existing.liked, existing.channels)
+            .copy(droppedEntries = sanitized.droppedEntries)
         return doc to plan
     }
 
@@ -59,33 +64,26 @@ object BackupIo {
         playlists: PlaylistRepository,
         subscriptions: SubscriptionRepository,
     ): BackupPlan {
-        val existing = readExisting(doc, likes, playlists, subscriptions)
+        // Sanitized again: apply is public and must not trust that its caller went through preview.
+        val sanitized = sanitizeBackupDocument(doc, ::ownerSourceId)
+        val safeDoc = sanitized.document
+        val existing = readExisting(safeDoc, likes, playlists, subscriptions)
+        val writes = planImportWrites(safeDoc, existing.playlistItems, existing.liked, existing.channels)
 
-        var newPlaylists = 0
-        var newItems = 0
-        for (playlist in doc.playlists) {
-            val id = existing.playlistIdByName[playlist.name] ?: playlists.create(playlist.name).also { newPlaylists++ }
-            val have = existing.playlistItems[playlist.name] ?: emptySet()
-            for (item in playlist.items) {
-                if (item.pageUrl !in have) {
-                    playlists.addItem(id, item.toVideoRef())
-                    newItems++
-                }
-            }
+        for (playlist in writes.playlists) {
+            val id = existing.playlistIdByName[playlist.name] ?: playlists.create(playlist.name)
+            for (item in playlist.items) playlists.addItem(id, item.toVideoRef())
         }
 
-        var newLiked = 0
-        for (item in doc.liked) if (item.pageUrl !in existing.liked) { likes.like(item.toVideoRef()); newLiked++ }
-
-        var newChannels = 0
-        for (channel in doc.channels) {
-            if (channel.channelUrl !in existing.channels) {
-                subscriptions.subscribe(channel.channelUrl, channel.sourceId, channel.title)
-                newChannels++
-            }
+        val importedAtMillis = System.currentTimeMillis()
+        writes.likes.forEachIndexed { index, item ->
+            likes.like(item.toVideoRef(), likedAt = likedAtForImport(index, importedAtMillis))
         }
 
-        return BackupPlan(newPlaylists, newItems, newLiked, newChannels)
+        for (channel in writes.channels) subscriptions.subscribe(channel.channelUrl, channel.sourceId, channel.title)
+
+        return planImport(safeDoc, existing.playlistItems, existing.liked, existing.channels)
+            .copy(droppedEntries = sanitized.droppedEntries)
     }
 
     private class Existing(
@@ -102,9 +100,11 @@ object BackupIo {
         subscriptions: SubscriptionRepository,
     ): Existing {
         val idByName = playlists.observePlaylists().first().associate { it.name to it.id }
-        val items = doc.playlists.associate { p ->
-            val id = idByName[p.name]
-            p.name to (if (id != null) playlists.observeItems(id).first().map { it.pageUrl }.toSet() else emptySet())
+        // Only playlists that exist are keys: planImportWrites reads a missing key as "create it".
+        val items = mutableMapOf<String, Set<String>>()
+        for (name in doc.playlists.map { it.name }.distinct()) {
+            val id = idByName[name] ?: continue
+            items[name] = playlists.observeItems(id).first().map { it.pageUrl }.toSet()
         }
         return Existing(
             playlistIdByName = idByName,
