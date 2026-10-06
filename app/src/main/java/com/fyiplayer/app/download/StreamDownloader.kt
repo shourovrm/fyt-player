@@ -57,7 +57,9 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         baseName: String,
         signal: CancelSignal,
         onProgress: (DownloadProgress) -> Unit,
+        reResolve: suspend () -> List<MediaFormat>? = { null },
     ): Outcome = withContext(Dispatchers.IO) {
+        val recovery = UrlRecovery(reResolve)
         try {
             val ids = selector.split('+')
             val first = formats.firstOrNull { it.formatId == ids[0] }
@@ -68,14 +70,17 @@ internal class StreamDownloader(private val client: OkHttpClient) {
                 return@withContext Outcome.Failed("this quality is no longer offered — pick again")
             }
             if (ids.size == 1) {
-                downloadSingle(first, dir, baseName, signal, onProgress)
+                downloadSingle(first, dir, baseName, signal, recovery, onProgress)
             } else {
                 val audio = muxCompatibleAudio(first, formats, ids[1])
                     ?: return@withContext Outcome.Failed("no audio track can be merged with this video")
-                downloadPair(first, audio, dir, baseName, signal, onProgress)
+                downloadPair(first, audio, dir, baseName, signal, recovery, onProgress)
             }
         } catch (e: CancelledDownload) {
             Outcome.Cancelled
+        } catch (e: HttpStatusException) {
+            if (signal.cancelled) Outcome.Cancelled
+            else Outcome.Failed(refusalMessage(e.statusCode))
         } catch (e: IOException) {
             if (signal.cancelled) Outcome.Cancelled
             else Outcome.Failed("network error while downloading").also { logFailure(e) }
@@ -99,30 +104,40 @@ internal class StreamDownloader(private val client: OkHttpClient) {
 
     private class CancelledDownload : Exception()
 
-    private fun downloadSingle(
+    /** The part file is kept in every case, so a later retry resumes from it. */
+    private fun refusalMessage(statusCode: Int): String =
+        if (isExpiredUrlStatus(statusCode)) {
+            "the download link expired and could not be renewed — retry to resume"
+        } else {
+            "network error while downloading"
+        }
+
+    private suspend fun downloadSingle(
         format: MediaFormat,
         dir: File,
         baseName: String,
         signal: CancelSignal,
+        recovery: UrlRecovery,
         onProgress: (DownloadProgress) -> Unit,
     ): Outcome {
         val part = File(dir, partFileName(baseName, "dl", format.formatId))
         deleteStaleParts(dir, baseName, keep = setOf(part.name))
         val totalBytes = format.filesizeBytes ?: headContentLength(client, format)
         val meter = ProgressMeter(totalBytes)
-        val confirmedTotal = fetch(format, totalBytes, part, signal) { done -> onProgress(meter.progress(done)) }
+        val confirmedTotal = fetchRecovering(format, totalBytes, part, signal, recovery) { done -> onProgress(meter.progress(done)) }
         incompleteFailure(part, confirmedTotal)?.let { return it }
         val out = File(dir, "$baseName.${extensionOf(format)}")
         if (!part.renameTo(out)) return Outcome.Failed("could not write the finished file")
         return Outcome.Done(out)
     }
 
-    private fun downloadPair(
+    private suspend fun downloadPair(
         video: MediaFormat,
         audio: MediaFormat,
         dir: File,
         baseName: String,
         signal: CancelSignal,
+        recovery: UrlRecovery,
         onProgress: (DownloadProgress) -> Unit,
     ): Outcome {
         val videoPart = File(dir, partFileName(baseName, "video", video.formatId))
@@ -135,10 +150,10 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         val grandTotal = if (videoBytes != null && audioBytes != null) videoBytes + audioBytes else null
         val meter = ProgressMeter(grandTotal)
 
-        val confirmedVideoBytes = fetch(video, videoBytes, videoPart, signal) { done -> onProgress(meter.progress(done)) }
+        val confirmedVideoBytes = fetchRecovering(video, videoBytes, videoPart, signal, recovery) { done -> onProgress(meter.progress(done)) }
         incompleteFailure(videoPart, confirmedVideoBytes)?.let { return it }
         val videoDone = videoPart.length()
-        val confirmedAudioBytes = fetch(audio, audioBytes, audioPart, signal) { done -> onProgress(meter.progress(videoDone + done)) }
+        val confirmedAudioBytes = fetchRecovering(audio, audioBytes, audioPart, signal, recovery) { done -> onProgress(meter.progress(videoDone + done)) }
         incompleteFailure(audioPart, confirmedAudioBytes)?.let { return it }
 
         val webm = isWebmFamily(video)
@@ -147,6 +162,33 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         videoPart.delete()
         audioPart.delete()
         return Outcome.Done(out)
+    }
+
+    /** [fetch] plus the run's single URL recovery. A refused window after the URLs had served
+     *  bytes (expiry mid-file) re-resolves once, takes the same format from the fresh result and
+     *  continues from the part on disk. A vanished format, a failed re-resolve or a fresh URL
+     *  refused too rethrows the refusal, which download() reports honestly with the part kept.
+     *  Pause/cancel is checked as soon as the re-resolve returns, before any request goes out. */
+    private suspend fun fetchRecovering(
+        format: MediaFormat,
+        expected: Long?,
+        part: File,
+        signal: CancelSignal,
+        recovery: UrlRecovery,
+        onProgress: (Long) -> Unit,
+    ): Long? {
+        var source = recovery.current(format)
+        while (true) {
+            try {
+                return fetch(source, expected, part, signal, { recovery.urlsServedBytes = true }, onProgress)
+            } catch (refused: HttpStatusException) {
+                if (signal.cancelled) throw CancelledDownload()
+                if (!shouldRecoverExpiredUrl(refused.statusCode, recovery.urlsServedBytes, recovery.used)) throw refused
+                val fresh = recovery.recover(source)
+                if (signal.cancelled) throw CancelledDownload()
+                source = fresh ?: throw refused
+            }
+        }
     }
 
     /** Ranged, resumable fetch in 10 MB windows. googlevideo paces one long open request down to
@@ -161,6 +203,7 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         expected: Long?,
         part: File,
         signal: CancelSignal,
+        onUrlServed: () -> Unit,
         onProgress: (Long) -> Unit,
     ): Long? {
         var offset = part.length()
@@ -196,7 +239,8 @@ internal class StreamDownloader(private val client: OkHttpClient) {
                 call.execute().use { resp ->
                     if (signal.cancelled) throw CancelledDownload()
                     if (resp.code == 416 && offset > 0) return knownTotal // ranged past EOF
-                    if (!resp.isSuccessful) throw IOException("http ${resp.code}")
+                    if (!resp.isSuccessful) throw HttpStatusException(resp.code)
+                    onUrlServed()
                     // range= param windows answer 200, not 206 -- still bounded windows
                     val ranged = resp.code == 206 || googleRanged
                     if (!ranged && offset > 0) {
