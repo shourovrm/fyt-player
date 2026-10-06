@@ -5,6 +5,7 @@ import androidx.media3.common.C
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
+import java.io.IOException
 
 // Mirrors StreamDownloader's CHUNK_BYTES: the size the web player/yt-dlp read in, proven to
 // unlock full transfer speed on this network by the downloader.
@@ -41,25 +42,26 @@ private const val CHUNK_BYTES = 10L * 1024 * 1024
 internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSource {
 
     private var spec: DataSpec? = null
-    private var chunked = false
-    private var position = 0L // absolute offset of the next byte to read
-    private var endExclusive = C.LENGTH_UNSET.toLong() // absolute end of the whole requested span
+    // Non-null only while a chunked read is open; null means plain passthrough.
+    private var windowChain: WindowChain? = null
 
     override fun addTransferListener(transferListener: TransferListener) =
         upstream.addTransferListener(transferListener)
 
     override fun open(dataSpec: DataSpec): Long {
+        // Reset first: this instance is reused, and a stale chain from a previous chunked open
+        // would otherwise capture reads of a plain passthrough one.
+        windowChain = null
         if (!isChunkable(dataSpec.uri.encodedPath, dataSpec.uri.query)) return upstream.open(dataSpec)
 
         spec = dataSpec
-        position = dataSpec.position
+        val position = dataSpec.position
         val total = explicitTotal(dataSpec.position, dataSpec.length, dataSpec.uri.getQueryParameter("clen"))
 
         if (total != C.LENGTH_UNSET.toLong()) {
-            endExclusive = total
-            chunked = true
-            openChunk()
-            return endExclusive - position
+            windowChain = newWindowChain(position, total)
+            openChunk(position, total)
+            return total - position
         }
 
         // Total unknown: the first window itself doubles as the probe -- open it and read the
@@ -77,13 +79,21 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
             // Server refused or ignored the range param -- abandon chunking, replay once as a
             // plain open-ended passthrough rather than ever report a wrong length.
             if (opened) try { upstream.close() } catch (_: Throwable) { }
-            chunked = false
             return upstream.open(dataSpec)
         }
-        chunked = true
-        endExclusive = probedTotal
-        return endExclusive - position
+        windowChain = newWindowChain(position, probedTotal)
+        return probedTotal - position
     }
+
+    private fun newWindowChain(startPosition: Long, endExclusive: Long) = WindowChain(
+        startPosition = startPosition,
+        endExclusive = endExclusive,
+        readWindow = upstream::read,
+        openNextWindow = { nextPosition ->
+            upstream.close()
+            openChunk(nextPosition, endExclusive)
+        },
+    )
 
     private fun contentRangeTotal(): Long? = upstream.responseHeaders.entries
         .firstOrNull { it.key.equals("content-range", ignoreCase = true) }
@@ -91,7 +101,7 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
         ?.let(::parseContentRange)
 
     /** Opens the next bounded window at [position] via the `range=` param. */
-    private fun openChunk(): Long {
+    private fun openChunk(position: Long, endExclusive: Long): Long {
         val windowEnd = minOf(position + CHUNK_BYTES, endExclusive) // exclusive
         return upstream.open(rangeSpec(spec!!, position, windowEnd - 1))
     }
@@ -107,17 +117,8 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        val read = upstream.read(buffer, offset, length)
-        if (!chunked) return read
-        if (read != C.RESULT_END_OF_INPUT) {
-            if (read > 0) position += read
-            return read
-        }
-        // Current window exhausted: chain into the next one, or report the true end.
-        if (position >= endExclusive) return C.RESULT_END_OF_INPUT
-        upstream.close()
-        openChunk()
-        return read(buffer, offset, length)
+        val chain = windowChain ?: return upstream.read(buffer, offset, length)
+        return chain.read(buffer, offset, length)
     }
 
     override fun getUri(): Uri? = upstream.uri ?: spec?.uri
@@ -126,6 +127,7 @@ internal class ChunkedRangeDataSource(private val upstream: DataSource) : DataSo
 
     override fun close() {
         spec = null
+        windowChain = null
         upstream.close()
     }
 }
@@ -151,4 +153,36 @@ internal fun parseContentRange(value: String?): Long? {
     val totalStr = rangeSpec.substring(slashIndex + 1)
     if (totalStr == "*") return null
     return totalStr.toLongOrNull()
+}
+
+/**
+ * Read side of the chunked source, free of Android types so the window-chaining rules are
+ * unit-testable: reads through [readWindow] and, when a window ends before [endExclusive], asks
+ * [openNextWindow] for the next one starting at the current position.
+ */
+internal class WindowChain(
+    startPosition: Long,
+    private val endExclusive: Long,
+    private val readWindow: (ByteArray, Int, Int) -> Int,
+    private val openNextWindow: (position: Long) -> Unit,
+) {
+    private var position = startPosition // absolute offset of the next byte to read
+
+    fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        var reopenedWithoutProgress = false
+        while (true) {
+            val read = readWindow(buffer, offset, length)
+            if (read != C.RESULT_END_OF_INPUT) {
+                if (read > 0) position += read
+                return read
+            }
+            if (position >= endExclusive) return C.RESULT_END_OF_INPUT
+            // A reopened window that is empty again means the server will not serve this range.
+            // Failing loudly lets the player's error path decide; retrying here would be a request
+            // storm (and, recursively, a StackOverflowError).
+            if (reopenedWithoutProgress) throw IOException("range window returned no data")
+            reopenedWithoutProgress = true
+            openNextWindow(position)
+        }
+    }
 }

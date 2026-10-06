@@ -2,6 +2,13 @@
 
 ## Current state
 
+2026-10-06 wave 2 (tests green, device-UNverified): OkHttp does NOT strip a hand-set Cookie /
+X-Origin on a cross-host redirect (only Authorization) -- `NewPipeDownloader` now tags requests
+it injected the session into and a network interceptor strips Cookie/Authorization/X-Origin on
+any non-youtube.com hop. `executeAsync` delivers exactly one terminal callback. The account
+cookie is no longer passed to yt-dlp (`--add-header` applied to every request of an extraction
+and the engine ignored it for auth anyway); `EngineResolver` takes no arguments.
+
 2026-10-06 review wave (tests green, device-UNverified): `ExtractionError.AccessChallenge` carries
 an `AccessChallengeReason` (AGE_RESTRICTION, LOGIN_REQUIRED, BOT_CHECK, RATE_LIMIT, GEO_BLOCK,
 PAID, UNKNOWN). The signed-in TVHTML5 retry in NewPipeResolver runs ONLY for age/login -- it

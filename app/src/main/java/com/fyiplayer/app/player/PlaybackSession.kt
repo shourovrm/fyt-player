@@ -36,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -131,6 +132,11 @@ object PlaybackSession {
     // the session only decides WHEN: resume lookup at item start, save on tick/pause/end.
     private var loadPosition: suspend (String) -> Long? = { null }
     private var savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> }
+    // Playback resumption seams (page URL + title only, never a media URL): the owner persists the
+    // last non-short item that started, and hands it back when a headset/Bluetooth play press finds
+    // the process or service reborn over an empty player. Defaults make resumption a no-op.
+    private var saveLastPlayed: suspend (pageUrl: String, title: String) -> Unit = { _, _ -> }
+    private var loadLastPlayed: suspend () -> VideoRef? = { null }
     private var sponsorFetchJob: Job? = null
     // Segments for the item currently at `index`. Never trusted after an item change until
     // fetchSponsorSegments's own index check confirms the response is still for the right item.
@@ -167,6 +173,10 @@ object PlaybackSession {
     private var autoplayFired = false // guards STATE_ENDED's possible re-emission from double-firing autoplay
     // The pending "what plays after the queue ends" lookup. Kept so a user's own pick can cancel it.
     private var autoplayJob: Job? = null
+    // The item the PLAYER actually holds, as opposed to `index`/state.current which a skip or pick
+    // publishes before its resolve lands. Position saves must attribute the player's position to
+    // this one, or a pause during the resolve would write the old video's time onto the new one.
+    private var loadedRef: VideoRef? = null
 
     // Diagnostic timestamps (SystemClock.elapsedRealtime, ms); 0 = not set. See DiagLog.
     private var loadBeganAtMs = 0L
@@ -192,6 +202,8 @@ object PlaybackSession {
         autoplayNext: suspend (VideoRef) -> VideoRef? = { null },
         loadPosition: suspend (String) -> Long? = { null },
         savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> },
+        saveLastPlayed: suspend (pageUrl: String, title: String) -> Unit = { _, _ -> },
+        loadLastPlayed: suspend () -> VideoRef? = { null },
     ) {
         if (::player.isInitialized) return
         this.resolver = resolver
@@ -200,6 +212,8 @@ object PlaybackSession {
         this.autoplayNext = autoplayNext
         this.loadPosition = loadPosition
         this.savePosition = savePosition
+        this.saveLastPlayed = saveLastPlayed
+        this.loadLastPlayed = loadLastPlayed
         appContext = context.applicationContext
         MediaItemFactory.init(appContext)
         // Backstop for any launch without its own catch: log the class and carry on rather than
@@ -335,18 +349,11 @@ object PlaybackSession {
         // alone can leave PlayerView's shutter closed-check believing it's still the same period
         // -- see PlayerView.ComponentListener#onTracksChanged) empties the timeline, which is what
         // actually makes PlayerView close its shutter instead of holding the outgoing frame.
+        persistPosition() // the outgoing item's position, while the player still holds it
         player.stop()
         player.clearMediaItems()
-        // PlaybackService.onGetSession just hands back the session over this same player, so
-        // starting it here (idempotent if already running) is enough for lockscreen/Bluetooth
-        // controls and the notification to exist for the rest of this queue's lifetime.
-        // Plain startService, NOT startForegroundService: the latter arms the OS's
-        // must-call-startForeground timer, but media3 only promotes the service to foreground
-        // once a session is actually engaged (playWhenReady + READY/BUFFERING) — if resolution
-        // is still running when the timer fires, the system kills the whole app
-        // (ForegroundServiceDidNotStartInTimeException, seen on device). play() is always
-        // called with the app in the foreground, so startService is permitted.
-        appContext.startService(Intent(appContext, PlaybackService::class.java))
+        loadedRef = null
+        startPlaybackService()
         queue = refs
         order = null
         index = QueueMath.clamp(startIndex, refs.size)
@@ -369,6 +376,35 @@ object PlaybackSession {
         _progress.value = PlaybackProgress()
         startAt(index)
     }
+
+    /**
+     * PlaybackService.onGetSession just hands back the session over this same player, so starting
+     * it here (idempotent if already running) is enough for lockscreen/Bluetooth controls and the
+     * notification to exist for the rest of this queue's lifetime.
+     * Plain startService, NOT startForegroundService: the latter arms the OS's
+     * must-call-startForeground timer, but media3 only promotes the service to foreground once a
+     * session is actually engaged (playWhenReady + READY/BUFFERING) -- if resolution is still
+     * running when the timer fires, the system kills the whole app
+     * (ForegroundServiceDidNotStartInTimeException, seen on device).
+     * Not guaranteed to be allowed: autoplay calls play() from STATE_ENDED while the app may be
+     * backgrounded, and Android 12+ then refuses with ForegroundServiceStartNotAllowedException
+     * (an IllegalStateException). Playback itself needs no service, so a refusal only costs the
+     * notification/lockscreen controls -- never the playback call.
+     */
+    private fun startPlaybackService() {
+        try {
+            appContext.startService(Intent(appContext, PlaybackService::class.java))
+        } catch (e: RuntimeException) {
+            diag("startService refused error=${e.javaClass.simpleName}")
+        }
+    }
+
+    /** media3 stops [PlaybackService] after a long pause (seen on device: 25 min paused, process
+     *  alive, no service and no media session left). The player itself stays prepared, so an
+     *  in-app resume played -- but with no session there was no notification, no lockscreen or
+     *  headset control and no foreground service keeping background playback alive. Starting an
+     *  already-running service is a no-op. */
+    private fun ensureServiceForResume() = startPlaybackService()
 
     /** Inserts [ref] to play right after the current item. A video already in the queue is moved
      *  there instead of duplicated -- the queue never holds the same page twice. */
@@ -422,6 +458,7 @@ object PlaybackSession {
         val target = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order) ?: return
         val item = prepared
         if (window.size > 1 && window[1] == target && item != null && item.queueIndex == target) {
+            persistPosition() // before adoptPrepared moves loadedRef and the seek moves the player
             index = target
             adoptPrepared(item)
             player.seekTo(1, 0L)
@@ -430,8 +467,7 @@ object PlaybackSession {
             prefetchNext()
             return
         }
-        index = target
-        startAt(target)
+        switchToItem(target)
     }
 
     /** Back one item. Always re-resolves: only the current item and the one ahead of it are ever
@@ -439,8 +475,7 @@ object PlaybackSession {
     fun skipPrevious() {
         ensureInit()
         val target = QueueMath.previousIndex(index, queue.size, _state.value.repeatMode, order) ?: return
-        index = target
-        startAt(target)
+        switchToItem(target)
     }
 
     /** Jump to an arbitrary queue position — what tapping a row in the queue list does. Always
@@ -448,14 +483,22 @@ object PlaybackSession {
     fun playAt(i: Int) {
         ensureInit()
         if (i !in queue.indices || i == index) return
-        index = i
+        switchToItem(i)
+    }
+
+    /** The user moved to [target] and its source has to be resolved: publish the move NOW, not
+     *  after the async resolve in [startAt]. The queue sheet opens the target's watch page right
+     *  after playAt, and DetailScreen's entry guard replaces the whole queue with a single-item one
+     *  whenever state.current is not the page's video; the shorts pager decides its next swipe from
+     *  state.index, which lagged a whole resolve behind on the skip paths. firstFrameRendered goes
+     *  false because the surface still shows the old item's frame until the new one lands. */
+    private fun switchToItem(target: Int) {
+        index = target
         prepared = null
         retriedIndex = null
-        // Publish `current` NOW, not after the async resolve in startAt: the queue sheet opens the
-        // target's watch page right after this, and DetailScreen's entry guard replaces the whole
-        // queue with a single-item one whenever state.current is not the page's video.
         publishQueueState()
-        startAt(i)
+        _state.update { it.copy(firstFrameRendered = false, error = null) }
+        startAt(target)
     }
 
     /** Reorders the queue: moves the item at [from] to [to]. Keeps [index] pointing at the same
@@ -523,13 +566,17 @@ object PlaybackSession {
             autoplayJob?.cancel()
             autoplayJob = null
             autoplayFired = false
+            ensureServiceForResume()
             player.seekTo(0)
             player.playWhenReady = true
             return
         }
         val resuming = !player.playWhenReady
         diag("toggle branch=${if (resuming) "plainResume" else "pause"} pausedMs=$pausedForMs")
-        if (resuming) resumePressedAtMs = SystemClock.elapsedRealtime()
+        if (resuming) {
+            resumePressedAtMs = SystemClock.elapsedRealtime()
+            ensureServiceForResume()
+        }
         player.playWhenReady = resuming
     }
 
@@ -551,6 +598,7 @@ object PlaybackSession {
         val ref = queue.getOrNull(index) ?: return
         val resumeAt = _progress.value.positionMs
         diag("retryCurrent index=$index resumeAtMs=$resumeAt")
+        ensureServiceForResume()
         resolver.invalidate(ref.pageUrl) // resolver may have cached the dead/stale result
         _state.update { it.copy(error = null) }
         startAt(index, resumeAtMs = resumeAt)
@@ -684,8 +732,10 @@ object PlaybackSession {
 
     fun clear() {
         ensureInit()
+        persistPosition() // before the player is emptied below
         loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
         autoplayJob?.cancel(); autoplayJob = null
+        loadedRef = null
         queue = emptyList(); order = null; index = -1
         window = emptyList(); prepared = null; retriedIndex = null
         currentFormats = emptyList()
@@ -732,6 +782,9 @@ object PlaybackSession {
         autoplayJob?.cancel()
         autoplayJob = null
         val ref = queue.getOrNull(i) ?: return
+        // A genuinely new item replaces the one the player holds once its resolve lands; save the
+        // outgoing item's position now. A same-item restart (retry, expiry) keeps its own.
+        if (resumeAtMs == null) persistPosition()
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         window = emptyList()
         clearSponsorSegments() // item is changing -- the old item's segments must not carry over
@@ -741,17 +794,27 @@ object PlaybackSession {
         diag("load start index=$i resumeGiven=${resumeAtMs != null}")
         warmNext(i)
         loadJob = scope.launch {
+            // resumeAtMs given = the SAME item continuing (expiry re-resolve, retry). A genuinely
+            // new start may pick up its saved resume point instead. Shorts never resume -- a
+            // swipe-through clip restarting mid-way would just be confusing. The lookup runs beside
+            // the resolve so reading it costs no extra time on the path to the first frame.
+            val savedPositionLookup = if (resumeAtMs == null && !ref.isShort) {
+                async { loadPosition(ref.pageUrl) }
+            } else {
+                null
+            }
             val item = resolveItem(i, ref) ?: return@launch
-            player.setMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
+            val source = MediaItemFactory.create(item.selection, ref, item.resolved.captions)
+            // The source starts AT the resume point. Seeking after prepare() let playback begin
+            // from 0 first (audible blip, wasted first segment fetch) before jumping.
+            val resume = resumeAtMs ?: savedPositionLookup?.await()
+            if (resume != null) player.setMediaSource(source, resume) else player.setMediaSource(source)
             player.prepare()
+            loadedRef = ref
+            rememberForResumption(ref)
             awaitingReadyLog = true
             awaitingFirstFrameLog = true
             diag("sourceSet afterLoadStartMs=${msSince(loadBeganAtMs)}")
-            // resumeAtMs given = the SAME item continuing (expiry re-resolve, retry). A genuinely
-            // new start may pick up its saved resume point instead. Shorts never resume -- a
-            // swipe-through clip restarting mid-way would just be confusing.
-            val resume = resumeAtMs ?: if (!ref.isShort) loadPosition(ref.pageUrl) else null
-            if (resume != null) player.seekTo(resume)
             player.playWhenReady = true
             // retriedIndex is deliberately NOT cleared here. This runs on the re-resolve that a
             // failed item triggered, so clearing it would re-arm the retry for the same item and
@@ -771,9 +834,35 @@ object PlaybackSession {
                     selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                     availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                     isPlaying = player.isPlaying,
+                    // A new item's size is unknown until its own first frame; fullscreen orientation
+                    // reads these and would briefly lock to the previous item's shape. The same-item
+                    // paths (retry, expiry re-resolve) keep theirs: the decoder reports no new size.
+                    videoWidth = if (resumeAtMs == null) 0 else it.videoWidth,
+                    videoHeight = if (resumeAtMs == null) 0 else it.videoHeight,
                 )
             }
             prefetchNext()
+        }
+    }
+
+    /** Records [ref] as what a media-button play press should bring back. Shorts are excluded for
+     *  the same reason they never resume a position. Page URL and title only. */
+    private fun rememberForResumption(ref: VideoRef) {
+        if (ref.isShort) return
+        scope.launch { saveLastPlayed(ref.pageUrl, ref.title) }
+    }
+
+    /** Called by [PlaybackService] when a headset/Bluetooth play press arrives with nothing loaded
+     *  (process or service restarted): replays the last remembered item through the normal path.
+     *  A no-op while the session already holds a queue -- the press then just resumes that. */
+    fun resumeLastPlayed() {
+        ensureInit()
+        scope.launch {
+            if (queue.isNotEmpty()) return@launch
+            val last = loadLastPlayed() ?: return@launch
+            if (queue.isNotEmpty()) return@launch // something started during the lookup
+            diag("resumption from last played")
+            play(listOf(last), 0)
         }
     }
 
@@ -831,6 +920,7 @@ object PlaybackSession {
         tickerJob?.cancel()
         player.stop()
         player.clearMediaItems()
+        loadedRef = null
         prepared = null
         currentFormats = emptyList()
         currentCaptions = emptyList()
@@ -889,6 +979,8 @@ object PlaybackSession {
         retriedIndex = null
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         val ref = queue.getOrNull(item.queueIndex) ?: return
+        loadedRef = ref
+        rememberForResumption(ref)
         currentFormats = item.resolved.formats
         currentCaptions = item.resolved.captions
         clearSponsorSegments() // different item, same as startAt -- old item's segments must not carry over
@@ -904,6 +996,10 @@ object PlaybackSession {
                 // seed from the player: an advance between two already-playing items never fires
                 // onIsPlayingChanged, so a value left at the previous default would stick.
                 isPlaying = player.isPlaying,
+                // Same race as firstFrameRendered above: on an auto-advance the new item's size
+                // event can already have landed, so only a manual skip may clear it.
+                videoWidth = if (resetFirstFrame) 0 else it.videoWidth,
+                videoHeight = if (resetFirstFrame) 0 else it.videoHeight,
             )
         }
         prepared = null
@@ -930,8 +1026,10 @@ object PlaybackSession {
     private fun tickPosition(isPlaying: Boolean) {
         tickerJob?.cancel()
         if (!isPlaying) {
-            // pause/stop: capture the resume point now -- the 5s cadence below may be behind
-            persistPosition()
+            // pause/stop: capture the resume point now -- the 5s cadence below may be behind.
+            // isPlaying also drops on every rebuffer; that is not a stop and would write the DB
+            // each time the network dips.
+            if (shouldPersistOnStop(player.playWhenReady, player.playbackState)) persistPosition()
             return
         }
         tickerJob = scope.launch {
@@ -958,7 +1056,8 @@ object PlaybackSession {
      *  playback event: shorts are skipped, and a cleared/errored player (position 0, duration
      *  unset) writes nothing -- so a stop after an error can't wipe a real saved position. */
     private fun persistPosition() {
-        val ref = _state.value.current ?: return
+        // loadedRef, not state.current: a skip publishes current before the player holds it.
+        val ref = loadedRef ?: return
         if (ref.isShort) return
         val duration = player.duration
         val position = player.currentPosition
@@ -990,6 +1089,7 @@ object PlaybackSession {
     /** Seeks past a sponsor segment [positionMs] just entered, once per segment -- lastSkippedSegmentStart
      *  guards against re-seeking every tick while sitting inside (or just past) the same segment. */
     private fun checkSponsorSkip(positionMs: Long) {
+        lastSkippedSegmentStart = sponsorSkipGuardAfter(lastSkippedSegmentStart, positionMs)
         val segment = sponsorSegments.firstOrNull { positionMs >= it.startMs && positionMs < it.endMs } ?: return
         if (lastSkippedSegmentStart == segment.startMs) return
         lastSkippedSegmentStart = segment.startMs
@@ -1142,6 +1242,18 @@ internal fun httpResponseCodeOf(error: Throwable?): Int? {
     }
     return null
 }
+
+/** Whether [Player.Listener.onIsPlayingChanged] going false is a real stop (pause, end, idle)
+ *  worth a position write. A rebuffer -- wanting to play, waiting for data -- is not. */
+internal fun shouldPersistOnStop(playWhenReady: Boolean, playbackState: Int): Boolean =
+    !(playWhenReady && playbackState == Player.STATE_BUFFERING)
+
+/** The sponsor-skip guard after observing [positionMs]: dropped once playback is back before the
+ *  segment it last skipped (loop restart, seek back), so that segment is skipped again on the next
+ *  pass. While at or past the segment start the guard stays, so the tick right after a skip -- which
+ *  can still read a position inside the segment -- does not re-seek. */
+internal fun sponsorSkipGuardAfter(lastSkippedSegmentStart: Long?, positionMs: Long): Long? =
+    lastSkippedSegmentStart?.takeIf { positionMs >= it }
 
 /** What a caption pick becomes across a MediaSource rebuild: kept for [isSameItem] (same video,
  *  different rendition -- [PlaybackSession.selectQuality]), reset to Off for every other reload

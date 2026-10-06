@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 // NOTE: android.net.Uri/DataSpec are stubbed ("RuntimeException: Stub!") in this module's plain
@@ -66,5 +67,42 @@ class ChunkedRangeDataSourceTest {
 
     @Test fun `explicitTotal ignores malformed clen`() {
         assertEquals(C.LENGTH_UNSET.toLong(), explicitTotal(0L, C.LENGTH_UNSET.toLong(), "not-a-number"))
+    }
+
+    /** Scripted upstream: each entry is what one read() call returns; opens are counted. */
+    private class ScriptedWindows(private val script: ArrayDeque<Int>) {
+        var reopenCount = 0
+        fun read(buffer: ByteArray, offset: Int, length: Int): Int = script.removeFirstOrNull() ?: C.RESULT_END_OF_INPUT
+    }
+
+    @Test fun `window chain advances position and chains into the next window`() {
+        val windows = ScriptedWindows(ArrayDeque(listOf(4, C.RESULT_END_OF_INPUT, 2, C.RESULT_END_OF_INPUT)))
+        val chain = WindowChain(
+            startPosition = 0, endExclusive = 6,
+            readWindow = windows::read,
+            openNextWindow = { windows.reopenCount++ },
+        )
+        val buffer = ByteArray(8)
+        assertEquals(4, chain.read(buffer, 0, 8))
+        assertEquals(2, chain.read(buffer, 0, 8)) // END from window one, reopen, then 2 bytes
+        assertEquals(C.RESULT_END_OF_INPUT, chain.read(buffer, 0, 8)) // position == end
+        assertEquals(1, windows.reopenCount)
+    }
+
+    @Test fun `window chain throws instead of recursing when a reopened window is empty`() {
+        // Server answers every window with zero bytes while position < end: the old recursive
+        // read() looped to StackOverflowError.
+        val windows = ScriptedWindows(ArrayDeque())
+        val chain = WindowChain(
+            startPosition = 0, endExclusive = 100,
+            readWindow = windows::read,
+            openNextWindow = { windows.reopenCount++ },
+        )
+        try {
+            chain.read(ByteArray(8), 0, 8)
+            fail("expected IOException")
+        } catch (expected: java.io.IOException) {
+            assertEquals(1, windows.reopenCount) // one reopen, never a storm
+        }
     }
 }

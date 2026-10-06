@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-10-06 (tests green, device-UNverified): pager maps page <-> session item by pageUrl
+(`sessionIndexForPage`, `pageForSessionIndex`, `sessionHoldsFeed`,
+`feedItemsMissingFromSession` in ShortsNav) -- position-based mapping drifted when the feed
+re-interleaved or enqueue skipped a duplicate. Swipe decisions now see the index the session
+published synchronously, so a fast swipe-back is no longer overridden by the pending resolve.
+
 2026-09-27 DEVICE-VERIFIED: shorts show the channel name and it's tappable (` ›`) -> ChannelScreen.
 Shorts-tab items (shortsLockupViewModel) carry no uploader, so `channelTab` fills
 uploader/uploaderUrl from the channel (`withChannel`; continuation pages reuse the first page's
