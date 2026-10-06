@@ -60,6 +60,9 @@ viewer row in EngineSettings.
 
 ## Gotchas
 
+- System JDK 21 (`/usr/lib/jvm/java-21-openjdk`) is corrupt on this machine as of 2026-10-06
+  (libjli.so and several jmods zeroed; `java` won't start). Build with
+  `JAVA_HOME=~/.gradle/jdks/temurin-21 ./gradlew ...` until the package is reinstalled.
 - `AndroidManifest.xml` declares a service only in the phase that adds its class — a declaration
   pointing at a missing class is a runtime crash, not a build failure.
 - Release APK is ~66 MB at skeleton size; the engine ships a Python runtime. `abiFilters` is pinned

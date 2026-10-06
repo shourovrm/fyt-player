@@ -47,6 +47,13 @@ object QueueMath {
         return order.map { mapIndexAfterMove(it, from, to) }
     }
 
+    /** Where the entry at queue position [index] sits after [removed] (a different entry) left
+     *  the queue. Never called with [index] == [removed]: that entry no longer exists. */
+    fun indexAfterRemove(index: Int, removed: Int): Int = if (removed < index) index - 1 else index
+
+    /** Where the entry at [index] sits after the entry at [from] was moved to [to]. */
+    fun indexAfterMove(index: Int, from: Int, to: Int): Int = mapIndexAfterMove(index, from, to)
+
     private fun mapIndexAfterMove(index: Int, from: Int, to: Int): Int = when {
         index == from -> to
         from < to && index in (from + 1)..to -> index - 1

@@ -2,6 +2,20 @@
 
 ## Current state
 
+2026-10-06 review wave (370 tests green, device-UNverified until noted): autoplay-next lookup is
+a stored job (`autoplayJob`), cancelled by startAt/clear and re-checked against the ended item
+before play() -- it used to replace whatever the user picked meanwhile. removeAt/move always
+drop the prefetch slot and remap `window` (`QueueMath.indexAfterRemove/indexAfterMove`); the
+old `i < index` path left stale queue indices, so the next item inherited the previous one's
+formats/captions/sponsor segments and prefetch stopped for the rest of the queue.
+`setWakeMode(WAKE_MODE_NETWORK)`. resolveItem maps any non-ExtractionError to Unsupported
+(`failItem`), plus a scope-level CoroutineExceptionHandler backstop -- a resolver tier bug used
+to crash the process. selectQuality keeps playWhenReady. seekTo publishes `progress` (paused
+seek no longer snaps back). Retry budget (`retriedIndex`) re-arms after 30 s of continuous
+playing. Playback trace: `DiagLog` (app-private file, 64 KB cap, Settings > Video engine >
+Playback log) records load/resolve/ready/first-frame ms, toggle branch + paused ms, playerError
+code/http/action, non-2xx videoplayback -- class names and codes only, never URLs.
+
 2026-08-25 (v0.2.17) queue on the watch page, DEVICE-VERIFIED: AppScaffold docks `QueueBar` above the nav bar on
 every non-fullscreen route incl. Detail (stays when nav auto-hides; nav-inset spacer under the
 docked bars when nav is hidden); sheet rows have no pageUrl key (duplicate
@@ -117,12 +131,20 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
 
 ## Open items
 
+- "New video often slow then error" + "resume after long pause slow" (user, 2026-10-06, says
+  PipePipe on the same VPN is fine): NOT reproduced -- 14 starts on the A059 (v0.2.23, WiFi+VPN)
+  resolved in 1.5-2 s, no wall, no retry, incl. one after 4 min idle. Next occurrence: read
+  Settings > Playback log FIRST (logcat on this device holds ~20 min). Not the age-wall retry
+  on every video: no retry ran in any of the 14.
 - SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
   full video id), auto-skip in the session ticker. Device playback verified but an actual
   sponsored-segment skip is still user-unverified.
 
 ## Gotchas
 
+- Retry re-arm after 30 s healthy play means a host that serves ~30 s then 403s every fresh URL
+  re-resolves once per >=30 s, unbounded. Accepted (PipePipe has no bound at all); cap it if a
+  report shows that pattern in the Playback log.
 - Landscape cutout is a 126px LEFT system inset on this OEM; any nested Scaffold/TopAppBar re-pads
   it into a grey strip unless AppScaffold consumes WindowInsets.displayCutout (device-verified).
 - `AppScaffold` consumes system-bar insets for the whole app. A full-bleed surface opts out via

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.CrashLog
+import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.engine.EngineChannel
 import com.fyiplayer.app.engine.EngineUpdater
 import com.fyiplayer.app.engine.UpdateResult
@@ -57,6 +58,8 @@ fun EngineSettings() {
     var result by remember { mutableStateOf<String?>(null) }
     var crash by remember { mutableStateOf<String?>(null) }
     var showCrash by remember { mutableStateOf(false) }
+    var playbackLog by remember { mutableStateOf<String?>(null) }
+    var showPlaybackLog by remember { mutableStateOf(false) }
     // remember: lastChecked(context) builds a fresh Flow each call -- without this key,
     // collectAsStateWithLifecycle would see a new upstream and restart collection every recomposition.
     val lastCheckedFlow = remember(context) { EngineUpdater.lastChecked(context) }
@@ -67,6 +70,7 @@ fun EngineSettings() {
     LaunchedEffect(Unit) {
         version = EngineUpdater.installedVersion(context)
         crash = CrashLog.read(context)
+        playbackLog = DiagLog.read(context)
     }
 
     SettingsSection("Video engine") {
@@ -135,7 +139,49 @@ fun EngineSettings() {
                     TextButton(onClick = { showCrash = true }) { Text("View") }
                 }
             }
+            if (playbackLog != null) {
+                Row(
+                    Modifier.padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Playback log (recent timings and error types, no links)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { showPlaybackLog = true }) { Text("View") }
+                }
+            }
         }
+    }
+
+    if (showPlaybackLog) {
+        val text = playbackLog.orEmpty()
+        AlertDialog(
+            onDismissRequest = { showPlaybackLog = false },
+            title = { Text("Playback log") },
+            text = {
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    context.getSystemService<ClipboardManager>()
+                        ?.setPrimaryClip(ClipData.newPlainText("Playback log", text))
+                    showPlaybackLog = false
+                }) { Text("Copy") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    DiagLog.clear(context)
+                    playbackLog = null
+                    showPlaybackLog = false
+                }) { Text("Clear") }
+            },
+        )
     }
 
     if (showCrash) {
