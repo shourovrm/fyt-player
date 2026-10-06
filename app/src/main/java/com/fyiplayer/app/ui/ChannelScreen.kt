@@ -141,7 +141,10 @@ fun ChannelScreen(
             ChannelTabRow(vm.availableTabs, vm.selected) { vm.selectTab(listing, it) }
             when (val sel = vm.selected) {
                 is ChannelUiTab.Content -> if (sel.tab in CONTAINER_TABS) {
-                    ContainerTabBody(vm.containerTab(sel.tab), onOpen = onOpenListing) { vm.loadMoreTab(listing, sel.tab) }
+                    ContainerTabBody(
+                        vm.containerTab(sel.tab), onOpen = onOpenListing,
+                        onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
+                    )
                 } else {
                     VideoTabBody(
                         state = vm.videoTab(sel.tab), selecting = selecting,
@@ -235,6 +238,8 @@ internal fun SelectableVideoList(
         listState = listState,
         modifier = modifier,
         isLoadingMore = isLoadingMore,
+        // Every caller's errors belong to this one list, so any error means its last load failed.
+        loadMoreFailed = errors.isNotEmpty(),
     )
 }
 
@@ -262,7 +267,12 @@ private fun VideoTabBody(
 }
 
 @Composable
-private fun ContainerTabBody(state: ContainerTabState, onOpen: (Listing) -> Unit, onLoadMore: () -> Unit) {
+private fun ContainerTabBody(
+    state: ContainerTabState,
+    onOpen: (Listing) -> Unit,
+    onLoadMore: () -> Unit,
+    onRetry: () -> Unit,
+) {
     when {
         state.items.isEmpty() && state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -296,7 +306,10 @@ private fun ContainerTabBody(state: ContainerTabState, onOpen: (Listing) -> Unit
                     )
                 }
             }
-            if (state.nextPage != null) {
+            if (state.error != null) {
+                // A later page failed: no auto-reload, Retry continues from that page.
+                item { ErrorRowView(ErrorRow("Channel", state.error, onRetry = if (state.blocked) null else onRetry)) }
+            } else if (state.nextPage != null) {
                 item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(12.dp)) { Text("Load more") } }
             }
         }
@@ -334,7 +347,7 @@ private fun ChannelSearchBody(
             }
             else -> {
                 val errors = state.error?.let {
-                    listOf(ErrorRow("Search", it, onRetry = if (state.blocked) null else { { vm.runChannelSearch(listing, vm.searchQuery) } }))
+                    listOf(ErrorRow("Search", it, onRetry = if (state.blocked) null else { { vm.retrySearch(listing) } }))
                 } ?: emptyList()
                 // Same shape as global search (HomeScreen): shorts pulled into a shelf above the rows.
                 val (shortsItems, longformItems) = partitionShorts(state.items)

@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-10-06 review wave (tests green, device-UNverified): endless scroll no longer re-requests a
+failed page (`shouldAutoLoadMore`, `loadMoreFailed` on `ResultsListColumn`; channel tabs,
+in-channel search and playlists kept `nextPage` on error, so the effect refired back to back).
+Retry continues from the failed page and keeps loaded rows (`retryTab`, `retrySearch`); the
+error row renders at the list tail, container tabs included.
+
 2026-09-03 DEVICE-VERIFIED: Home feed fetches EVERY feed-visible subscription (was newest-
 subscribed 8 via `capChannels` -- Shorts still caps), `Semaphore(FEED_CONCURRENCY=6)` bounds the
 burst, watched videos stay in (progress bar says watched), viewport pinned to row 0 while the

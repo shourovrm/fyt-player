@@ -82,6 +82,10 @@ internal fun ResultsListColumn(
     endOfResults: Boolean = false,
     /** Rendered as the first list item so it scrolls away with the results (search's shorts shelf). */
     topContent: (@Composable () -> Unit)? = null,
+    /** The last page load failed (or hit a wall). Endless scroll stops asking for it -- only the
+     *  error row's Retry tries again -- and the error renders under the rows, where the user
+     *  stopped, instead of above them. */
+    loadMoreFailed: Boolean = false,
 ) {
     // Endless scroll: fire onLoadMore a few rows before the true bottom so scrolling never stalls.
     val shouldLoadMore by remember(listState) {
@@ -91,13 +95,14 @@ internal fun ResultsListColumn(
             lastVisible >= layout.totalItemsCount - 5
         }
     }
-    LaunchedEffect(shouldLoadMore, hasMore, isLoadingMore) {
-        if (shouldLoadMore && hasMore && !isLoadingMore) onLoadMore()
+    LaunchedEffect(shouldLoadMore, hasMore, isLoadingMore, loadMoreFailed) {
+        if (shouldAutoLoadMore(shouldLoadMore, hasMore, isLoadingMore, loadMoreFailed)) onLoadMore()
     }
+    val errorsAtTail = loadMoreFailed && items.isNotEmpty()
 
     LazyColumn(state = listState, modifier = modifier, contentPadding = PaddingValues(bottom = 24.dp)) {
         topContent?.let { item(key = "topContent") { it() } }
-        errors.forEach { row -> item { ErrorRowView(row) } }
+        if (!errorsAtTail) errors.forEach { row -> item { ErrorRowView(row) } }
         if (items.isEmpty() && skeletonRows > 0) {
             items(skeletonRows) { SkeletonRow() }
         }
@@ -108,8 +113,11 @@ internal fun ResultsListColumn(
         items(deduped, key = { it.pageUrl }) { ref ->
             ResultRow(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
         }
+        if (errorsAtTail) errors.forEach { row -> item { ErrorRowView(row) } }
         if (isLoadingMore) {
             item { LoadingTailRow() }
+        } else if (errorsAtTail) {
+            // The error row's Retry (or, for a wall, its absence) is the only affordance.
         } else if (endOfResults && items.isNotEmpty()) {
             item {
                 Text(
@@ -125,6 +133,11 @@ internal fun ResultsListColumn(
         }
     }
 }
+
+/** Endless-scroll trigger. A failed page keeps its token, so once loading stops this would be true
+ *  again and refire at once, forever; [loadMoreFailed] hands the next attempt to the user's Retry. */
+internal fun shouldAutoLoadMore(nearEnd: Boolean, hasMore: Boolean, isLoadingMore: Boolean, loadMoreFailed: Boolean): Boolean =
+    nearEnd && hasMore && !isLoadingMore && !loadMoreFailed
 
 /** One error banner: which source, what happened, and how to retry -- [onRetry] null means an
  *  [com.fyiplayer.app.core.ExtractionError.AccessChallenge] stopped it, an honest wall with no
@@ -269,7 +282,7 @@ private fun SkeletonRow() {
 }
 
 @Composable
-private fun ErrorRowView(row: ErrorRow) {
+internal fun ErrorRowView(row: ErrorRow) {
     Row(
         Modifier
             .fillMaxWidth()

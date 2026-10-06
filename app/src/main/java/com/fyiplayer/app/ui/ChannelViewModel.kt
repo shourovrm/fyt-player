@@ -136,7 +136,12 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
         loadTab(listing, tab, page = null)
     }
 
-    fun retryTab(listing: Listing, tab: ChannelTab) = loadTab(listing, tab, page = null)
+    /** Retries the page that failed, keeping what is already loaded. A failed first page has no
+     *  token yet, so `null` loads page 1 as before. */
+    fun retryTab(listing: Listing, tab: ChannelTab) {
+        val failedPage = if (tab in CONTAINER_TABS) containerTabs[tab]?.nextPage else videoTabs[tab]?.nextPage
+        loadTab(listing, tab, failedPage)
+    }
 
     fun loadMoreTab(listing: Listing, tab: ChannelTab) {
         val loading = if (tab in CONTAINER_TABS) containerTabs[tab]?.loading else videoTabs[tab]?.loading
@@ -246,12 +251,17 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Same rule as [retryTab]: continue from the failed page when results are already showing. */
+    fun retrySearch(listing: Listing) {
+        if (searchState.nextPage != null) loadMoreSearch(listing) else runChannelSearch(listing, searchQuery)
+    }
+
     fun loadMoreSearch(listing: Listing) {
         val before = searchState
         val page = before.nextPage ?: return
         if (before.loading) return
         val source = SourceRegistry.bySourceId(listing.sourceId) ?: return
-        searchState = before.copy(loading = true)
+        searchState = before.copy(loading = true, error = null, blocked = false)
         jobs["search"]?.cancel()
         jobs["search"] = viewModelScope.launch {
             try {
@@ -262,7 +272,9 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ExtractionError) {
-                searchState = before.copy(loading = false, error = e.userMessage())
+                searchState = before.copy(
+                    loading = false, error = e.userMessage(), blocked = e is ExtractionError.AccessChallenge,
+                )
             } catch (e: Exception) {
                 searchState = before.copy(loading = false, error = "Something went wrong")
             }
