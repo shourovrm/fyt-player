@@ -165,11 +165,21 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   session). Verify: fresh install, search-play-download, queue remove-above-current, shorts fast
   swipes, pause quality switch, paused seek, long-pause resume + notification, cancel during
   resolve, 1080p-cancel-then-720p download.
-- "New video often slow then error" + "resume after long pause slow" (user, 2026-10-06, says
-  PipePipe on the same VPN is fine): NOT reproduced -- 14 starts on the A059 (v0.2.23, WiFi+VPN)
-  resolved in 1.5-2 s, no wall, no retry, incl. one after 4 min idle. Next occurrence: read
-  Settings > Playback log FIRST (logcat on this device holds ~20 min). Not the age-wall retry
-  on every video: no retry ran in any of the 14.
+- SLOW START, MEASURED 2026-10-06 on the A059 (WiFi + VPN, v0.2.23 + waves, instrumented
+  throwaway build). Fresh video: resolve 1.4-2.6 s (one 4.6 s), then ~1.1 s to first frame.
+  Video WITH a saved resume position: +1.5-3.5 s (worst seen 7-10 s tap-to-frame on a cold
+  process). Not the age-wall retry: none ran in ~45 starts. Causes, each measured:
+  (1) googlevideo rr hosts are HTTP/1.1-only over TCP (`curl --http2` -> 1.1, no ALPN; h3 works),
+  so OkHttp cannot multiplex; (2) a resumed start first opens a 10 MB window at 0, reads
+  1-36 KB (moov+sidx) and aborts it, which kills that connection -- the seek request then pays
+  a second full connect (new conn ttfb ~430 ms vs ~135 ms reused; two in a row);
+  (3) exact seek: after the seek request, 1.4-2.5 s to download keyframe->position at 1080p on a
+  ~1.3 MB/s link. Media3 1.9.4 applies SeekParameters only in seekToInternal, NOT to the initial
+  position, so a keyframe-snapped resume is not available by a setter.
+  Options, none done: small head window when a resume is pending (keeps the connection, ~0.3 s);
+  Cronet/HTTP3 data source (removes connect cost, big dependency); PipePipe-style DASH manifest
+  from init/index ranges (bounded segment requests that complete).
+  The user's "shows an error msg" was never reproduced -- read Settings > Playback log first.
 - SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
   full video id), auto-skip in the session ticker. Device playback verified but an actual
   sponsored-segment skip is still user-unverified.

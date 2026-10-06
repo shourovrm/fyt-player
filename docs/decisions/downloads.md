@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-10-06 PipePipe-port (tests green, device-UNverified): `download/UrlRecovery.kt` -- a
+mid-file 403/410 on a YouTube stream download triggers ONE invalidate + re-resolve per run,
+continues the same format id from the bytes on disk; only after the current URLs have served
+bytes (a 403 on a fresh first request is not retried). Format gone / size changed / fresh URL
+refused = honest failure, part kept.
+
 2026-10-06 review wave (425 tests green, device-UNverified): part files are keyed by format
 (`<base>.<role>.<formatTag>.part`, `partFileName`); other-format and legacy-named parts are
 deleted before a fetch (`stalePartFileNames`) -- cancelling 1080p then downloading 720p used to

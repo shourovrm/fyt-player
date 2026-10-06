@@ -14,9 +14,9 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 ## Next
 - Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
-- Slow start / slow long-pause resume (user report) not reproduced; read Settings > Playback
-  log on the next occurrence. See playback.md Open items.
-- Two 2026-10-06 review waves are committed but DEVICE-UNVERIFIED; checklist in playback.md
+- Slow resumed start is MEASURED (playback.md Open items): HTTP/1.1-only CDN, aborted probe
+  window, exact seek. Fix options listed there, none chosen.
+- Three 2026-10-06 waves (review x2 + PipePipe port) are committed but DEVICE-UNVERIFIED; checklist in playback.md
   Open items. Remaining review items: ui.md Open items.
 - Shorts age/CAPTCHA wall not reproduced; on the next report read the `wall:` log line first. See shorts.md.
 - Shorts in Similar wait on a signed-in watch-next. See shorts.md.

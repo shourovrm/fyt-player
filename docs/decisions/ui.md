@@ -155,8 +155,7 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
 
 - Not done from the 2026-10-06 review: strings to resources (app is not localisable, ~93
   literals), tablet/landscape layout (Detail header is width*9/16 with no height cap), single
-  followed-playlist unfollow has no confirm, Loop control is still a text button (user wants an
-  icon button).
+  followed-playlist unfollow has no confirm.
 - Old Library rows persisted before v0.2.20 keep "Untitled" (no backfill); shared-in playlist
   listing shows "Listing" as title (URL-only ref); followed playlist row has no thumbnail (no
   stored data, no per-row fetch). All cosmetic.
