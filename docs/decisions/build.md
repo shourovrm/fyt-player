@@ -23,6 +23,31 @@ shorts grid thumbnails+meta, Channels tab, background-play notification/lockscre
   the engine returns search, metadata and formats as JSON.
 - Release-only. Debug variant is never built; there is no debug keystore in this repo.
 
+2026-08-24 (v0.2.13): Settings manual update check hit live GitHub API -> "You're on the latest
+version" (0.2.13 > released 0.2.12). Banner untestable until a release newer than installed
+exists.
+- **In-app update** (`update/UpdateCheck.kt`, `update/ApkInstaller.kt`): GitHub
+  releases/latest (unauthenticated; tag_name minus "v", first .apk asset), `isNewer` numeric
+  segment compare (unit-tested, garbage tag -> false). Auto check once per process
+  (FyiApp.onCreate, silent offline) -> dismissible banner above content in AppScaffold (hidden on
+  full-player routes; dismissal per version in Prefs.dismissedUpdateVersion). Settings > App:
+  "Check for updates" button with inline states (checking/latest/found+Get/offline). Install via
+  DownloadManager + ACTION_VIEW (visit-logs port); REQUEST_INSTALL_PACKAGES added to manifest.
+
+2026-08-10 (v0.2.3) device-verified: R8+ resource shrinking ON (59.5 MB APK, proguard-rules.pro,
+search/play/download exercised under minify).
+
+2026-08-08 field-report wave (275 tests green, device-UNverified): crash visibility: `CrashLog.kt`
+uncaught handler writes class-names+frames only (never messages — they carry URLs), "Last crash"
+viewer row in EngineSettings.
+
+- 2026-08-07 wave device-verified on the Nothing A059 EXCEPT sign-in (user is testing that
+  themselves): language/country (results shift region, applies live and across cold start),
+  Courses tab (freeCodeCamp: two learning paths), description tab (HTML rendered, entities
+  decoded, timestamp link seeks in place 15:03 -> 15:33, no navigation), queue × ("1 of 16" ->
+  gone, playback continued; enqueue -> "1 of 2"), both seekbars drag (video 16:01 -> 63:01,
+  shorts ~70%).
+
 ## Open items
 
 - Device-verify the 2026-08-09 wave (v0.2.2): home recency sort, playlist
@@ -32,12 +57,6 @@ shorts grid thumbnails+meta, Channels tab, background-play notification/lockscre
   full-bleed — all three device-verified by me already. STILL DEVICE-UNVERIFIED (USB dropped
   mid-check): back-return playback switch, YouTube download real mp4 (was .m3u8), no per-segment
   probe 400s. Verify these first on reconnect.
-- 2026-08-07 wave device-verified on the Nothing A059 EXCEPT sign-in (user is testing that
-  themselves): language/country (results shift region, applies live and across cold start),
-  Courses tab (freeCodeCamp: two learning paths), description tab (HTML rendered, entities
-  decoded, timestamp link seeks in place 15:03 -> 15:33, no navigation), queue × ("1 of 16" ->
-  gone, playback continued; enqueue -> "1 of 2"), both seekbars drag (video 16:01 -> 63:01,
-  shorts ~70%).
 
 ## Gotchas
 

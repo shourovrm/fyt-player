@@ -71,10 +71,10 @@ header, metadata, channel tap-through, Similar/Comments tabs below), listing, se
 and the full player — chrome, gestures, quality/speed sheets, mini player, queue bar,
 seek-thumbnail mapping.
 
-Detail's "more from this channel" section is two tabs (`DetailTabsViewModel`): **Similar** (title
-search on the video's own topic — deliberately NOT the platform's recommendations, user's call;
-`VideoDetail.related` is populated by the extractor but unused) and **Comments** (unchanged
-threading/replies, fed by the state holder instead of owning its own fetch). Each tab fetches at
+Detail's section below the video is three tabs (`DetailTabsViewModel`): **Similar** (YouTube
+watch-next from `VideoDetail.related`, title search as fallback), **Description** and **Comments**
+(unchanged threading/replies, fed by the state holder instead of owning its own fetch). Each tab
+fetches at
 most once per video, gated the same idempotent way `ListingViewModel.ensureLoaded` is.
 
 And: library (likes / playlists / history, multi-select, resume bars), playlist detail with
@@ -89,6 +89,46 @@ channels (`WatchHistoryEntity.uploaderUrl`, new column, `Migration(1, 2)`), roun
 interleaved, already-watched excluded, appended incrementally per channel. Cached in the
 ViewModel for its lifetime; a refresh icon next to the search pill is the explicit reload (no
 pull-to-refresh — smaller diff, same effect). Search is untouched and still per-source-tabbed.
+
+2026-08-30 (v0.2.20) Keep-note wave, DEVICE-VERIFIED (Nothing Phone): Similar tab = YouTube
+watch-next recommendations (`detail.related`, DetailScreen gates the fetch on `detailLoaded`),
+title search only as fallback. Library: `youtubeThumbnailFor(pageUrl)` hqdefault fallback
+everywhere a row renders, `withTitleIfBlank()` enriches bare refs on like/playlist-add/
+download-start, "Untitled" instead of an empty line. Description: bare URLs / scheme-less youtube
+links / @handles / timestamps linkified on both HTML and plain branches. Playlists: `list=`
+share-in opens the remote listing (mix RD* rejected), Share on listing / followed / local
+playlists (local = title + one URL per line), one `PlaylistRowItem` for followed and local.
+
+2026-08-10 (v0.2.3) device-verified: canonical thumbnail URLs at all three persist seams
+(`data/repo/ThumbnailUrl.kt`); backup HTML parse no longer double-unescapes; typed channel rows
+(ResultKind/subscriberCount, "21.1M subscribers" renders). Similar-chain BACK itself verified
+correct, 3 hops each way.
+
+2026-08-09 wave (tests green, device-UNverified): Home merged feed sorts `uploadEpochMs`
+descending (new `VideoRef` field from `uploadDate.offsetDateTime()`; nulls last, stable;
+`sortByRecency` applied ONLY at Home's merge — channel tabs/playlists keep service order, Shorts
+interleave untouched). Playlist rows now persist `uploaderUrl` (schema v6, additive column — the
+WatchHistory v1→2 bug all over again) and Detail's fallback header links the channel straight off
+the ref instead of plain text.
+
+2026-08-08 field-report wave (tests green, device-UNverified): search: BackHandler exits search
+mode, suggestion dropdown (fork `YoutubeSuggestionExtractor` via
+`source/newpipe/SearchSuggestions.kt`, 300ms debounce), Clear-all in history dropdown,
+PullToRefreshBox on home feed; search returns playlists (stopgap VideoRef, canonical
+`playlist?list=` URL, RD* mixes dropped, HomeScreen URL-heuristic routes to listing) and
+LIVE/UPCOMING badges (`VideoRef.isLive/isUpcoming`; upcoming = future upload date, the fork
+reports premiere start time as upload date); EngineSettings copy now says extractor updates
+require a new APK (yt-dlp rows relabelled).
+
+2026-08-07 wave: Video **description is now its own tab** (Similar / Description / Comments)
+rendering HTML via `AnnotatedString.fromHtml` with in-app link routing (same-video timestamps
+seek, other videos open Detail, channels/playlists open Listing, rest to the browser).
+
+2026-08-06 wave (device-verified): List cells now carry real views/age/uploader. Library gained a
+Channels tab (subscriptions, multi-select unsubscribe) and followed remote playlists (schema v4,
+`followed_playlists`, merged into the Playlists tab). Search channel rows navigate to the channel
+screen. Detail page has a Like/Save/Download/Share/Queue action row; video/shorts cells carry a
+`Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
 ## Open items
 
@@ -106,11 +146,6 @@ pull-to-refresh — smaller diff, same effect). Search is untouched and still pe
 - User-side verification pending on the newest wave: queue-after-exhaustion on device, channel
   Videos/Shorts play-selected/play-all, followed playlists end-to-end (follow → Library → open →
   remove), playlist tab thumbnails, unsubscribe flow.
-- Search channel rows: `toChannelRef` maps subscriber count into viewCountText as a stopgap; a
-  typed channel result (Contracts-level) would let the row render properly and drop the URL
-  heuristic in HomeScreen.
-- Older open items from review: positions never saved (resume bars empty), signed thumbnail URLs
-  persisted for Likes/PlaylistItems, shuffle desync, backup `unescapeForScript` round-trip.
 
 ## Gotchas
 

@@ -26,6 +26,35 @@ shelf card 3 -> card 3 plays, swipe -> card 4). ShortsPager's playback->pager fo
 reads the LIVE session index + checks the queue is this feed; the `collectAsState` snapshot
 it is keyed on is one composition stale and carried the previous queue's index.
 
+2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Shorts grid pull-to-refresh
+(PullToRefreshBox). Shorts feed fetches EVERY subscription (`capChannels`/MAX_FEED_CHANNELS
+deleted), Semaphore(FEED_CONCURRENCY) on first page and loadMore -- the cap was why Squat
+University's shorts never showed.
+
+2026-08-24 (v0.2.13) DEVICE-VERIFIED: shorts pager holds KEEP_SCREEN_ON while playing, cleared on
+pause.
+- **Shorts screen timeout**: `setKeepScreenOn` was only wired in PlayerScreen; ShortsPager now
+  holds the same isPlaying-keyed wakelock.
+
+2026-08-22 wave (v0.2.4): channel search on the fork + shorts shelf; Shorts tab pages per channel.
+
+2026-08-08 field-report wave (tests green, device-UNverified): Similar tab gained the shorts shelf
+(`onOpenShorts` threaded through AppShell→DetailScreen); shorts overlay gained HD quality + speed
+rail entries (same QualitySheet/SpeedSheet + PlaybackSession seams as PlayerScreen).
+
+2026-08-06 wave (device-verified): shorts pager full-bleed via `FullscreenChrome` with a real
+seekbar; mini player on the shorts grid.
+
+- 2026-08-07 shorts/guardrail wave device-verified (this session): back from either shorts pager
+  stops playback; channel Shorts tab opens the swipe pager at the tapped clip; resolve failure no
+  longer leaves the previous video playing under the guardrail.
+- Search Shorts shelf (`ui/ShortsShelf.kt`, `VideoRef.isShort` wired in `NewPipeYoutubeSource.
+  toVideoRef` from `StreamInfoItem.isShortFormContent` + `/shorts/` URL fallback): LazyRow as the
+  results list's first item (`ResultsListColumn.topContent`), search mode only. `partitionShorts`
+  splits shelf vs. regular/queue. Auto-grows to `MIN_SHELF_SHORTS` (20) by pulling up to
+  `MAX_SHELF_AUTO_FETCHES` (3) extra search pages. Device-verified (shelf renders, tap opens the
+  pager, swipe navigates, ≥20 cards on a generic query).
+
 ## Open items
 
 - Shorts in Similar need a signed-in watch-next (sidebar shelf is personalised); revisit when
@@ -36,15 +65,6 @@ it is keyed on is one composition stale and carried the previous queue's index.
 - Shorts-tab paging landed 2026-08-22 (grid + pager load-more, device-verified growing past the
   old 64-item cap). UNVERIFIED: the "all caught up" end footer (needs every channel exhausted)
   and pager-tail trigger in isolation (shares `loadMore`, grid path proven).
-- 2026-08-07 shorts/guardrail wave device-verified (this session): back from either shorts pager
-  stops playback; channel Shorts tab opens the swipe pager at the tapped clip; resolve failure no
-  longer leaves the previous video playing under the guardrail.
-- Search Shorts shelf (`ui/ShortsShelf.kt`, `VideoRef.isShort` wired in `NewPipeYoutubeSource.
-  toVideoRef` from `StreamInfoItem.isShortFormContent` + `/shorts/` URL fallback): LazyRow as the
-  results list's first item (`ResultsListColumn.topContent`), search mode only. `partitionShorts`
-  splits shelf vs. regular/queue. Auto-grows to `MIN_SHELF_SHORTS` (20) by pulling up to
-  `MAX_SHELF_AUTO_FETCHES` (3) extra search pages. Device-verified (shelf renders, tap opens the
-  pager, swipe navigates, ≥20 cards on a generic query).
 
 ## Gotchas
 
