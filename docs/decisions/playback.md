@@ -22,7 +22,8 @@ lower rendition via selectQuality; expired URL / transport = one re-resolve; a 4
 URL is shown, never retried. SponsorBlock: 8 categories x Off / Skip automatically / Show skip
 button (`core/SponsorPolicy.kt`, per-category DataStore keys, default sponsor=auto so old
 installs behave the same), seekbar markers, "Skip <category>" overlay, per-channel whitelist
-(DataStore string set, toggle on Detail). Still the sha256 4-char prefix fetch. Session takes a
+(DataStore string set; "Skips on" / "Skips off" switch at the right of Detail's channel line,
+full sentence only in the content description -- user found the sentence-long button too long). Still the sha256 4-char prefix fetch. Session takes a
 `sponsorPolicy` lambda (was `sponsorBlockEnabled`). Loop control = icon button
 (`player/RepeatGlyph.kt`, red when on).
 

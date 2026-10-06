@@ -218,13 +218,18 @@ fun DetailScreen(
                 }
                 item {
                     when {
-                        uploaderListing != null -> Text(
-                            "${uploaderListing.title}  ›",
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.fillMaxWidth().clickable { onOpenListing(uploaderListing) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
+                        uploaderListing != null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${uploaderListing.title}  ›",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f).clickable { onOpenListing(uploaderListing) }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                            // Sits on the channel's own line: it is a per-channel switch, and a
+                            // row of its own pushed the view count down for one short label.
+                            if (shownRef.sourceId == "youtube") SponsorChannelToggle(uploaderListing.key)
+                        }
                         shownRef.uploader != null -> Text(
                             shownRef.uploader,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -232,9 +237,6 @@ fun DetailScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
-                }
-                if (shownRef.sourceId == "youtube") {
-                    item { SponsorChannelToggle(uploaderListing?.key) }
                 }
                 item {
                     val meta = listOfNotNull(
