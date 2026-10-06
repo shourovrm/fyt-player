@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-10-07 DEVICE-VERIFIED (v0.2.24): quality sheet shows sizes at once (no HEAD); 1080p
+started, cancelled at 12% with "Remove from list" (parts kept), row did not come back; same
+video then downloaded at 720p -> "Downloaded 28.6 MB" against a published 28.5 MB, i.e. no
+1080p bytes carried over. File itself not ffprobed (app-private storage on a release build).
+Not verified: cancel during the resolve seconds, mid-file link renewal, CJK title.
+
 2026-10-06 PipePipe-port (tests green, device-UNverified): `download/UrlRecovery.kt` -- a
 mid-file 403/410 on a YouTube stream download triggers ONE invalidate + re-resolve per run,
 continues the same format id from the bytes on disk; only after the current URLs have served

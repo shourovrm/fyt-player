@@ -2,6 +2,13 @@
 
 ## Current state
 
+2026-10-07 DEVICE-VERIFIED (v0.2.24): Settings has SponsorBlock (8 categories x 3 modes),
+Video page (dislike opt-in), Downloads without "File format", "Clear watch and search
+history", Playback log row. Search: type chips work (Channels returns channels), sort chips
+scroll off to the right; the keyboard hides on the IME search key (a hardware Enter does not
+hide it -- irrelevant on a phone). Not verified: confirm dialogs, empty states, selection
+highlight, shared-link replay, Home pin, Detail no-refetch, backup import.
+
 2026-10-06 review wave 2 (425 tests green, device-UNverified): dead "File format" setting and
 `Prefs.preferredContainer` removed (nothing read it). Confirm dialogs on delete playlist (both
 screens; PlaylistDetail pops after delete via `onDeleted`), Library "Clear history", Settings
