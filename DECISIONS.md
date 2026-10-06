@@ -14,8 +14,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 ## Next
 - Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
-- v0.2.25 (segment-start resume) is built and committed but NOT run on a device and NOT
-  released. Verify per playback.md newest entry, then release. v0.2.24 (DASH) is released.
+- v0.2.25 (segment-start resume) is RELEASED and installed on the A059 but its new path has
+  never been exercised on a device. Verify per playback.md newest entry before building on it.
 - Three 2026-10-06 waves (review x2 + PipePipe port) are committed; partly device-verified 2026-10-07 -- each topic's newest
   Current state entry lists what was and was NOT verified. Remaining review items: ui.md Open items.
 - Shorts age/CAPTCHA wall not reproduced; on the next report read the `wall:` log line first. See shorts.md.
