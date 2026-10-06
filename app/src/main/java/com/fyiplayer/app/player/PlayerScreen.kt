@@ -373,6 +373,15 @@ fun PlayerScreen(
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
 
+                val sponsorOffer by PlaybackSession.sponsorOffer.collectAsState()
+                sponsorOffer?.let { offer ->
+                    // Above the bottom chrome (time row + seekbar), clear of the fullscreen side inset.
+                    SponsorSkipButton(
+                        offer,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = if (fullscreen) 72.dp else 64.dp),
+                    )
+                }
+
                 if (showQualitySheet) {
                     QualitySheet(
                         heights = state.availableHeights,

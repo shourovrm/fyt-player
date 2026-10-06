@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.SearchFilter
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.core.VideoRef
@@ -45,6 +46,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var selectedTab: String by mutableStateOf(ALL_TAB_ID)
 
     internal val searchResults = mutableStateMapOf<String, TabResult>()
+
+    /** Type and sort for the search on screen. Kept across searches until the user changes it. */
+    var searchFilter: SearchFilter by mutableStateOf(SearchFilter())
+        private set
 
     /** Autocomplete rows for the search field. Empty until [requestSuggestions] lands, or once
      *  [clearSuggestions] runs -- never stale text from a since-abandoned query. */
@@ -200,7 +205,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         searchResults[source.id] = before.copy(loading = true, error = null)
         activeJobs[key] = viewModelScope.launch {
             val cur = searchResults[source.id] ?: before
-            val outcome = runCatching { source.search(q, page) }
+            val outcome = runCatching { source.search(q, page, searchFilter) }
                 .fold(
                     onSuccess = { applySuccess(cur, page, it) },
                     onFailure = { e -> if (e is CancellationException) throw e else outcomeFor(cur, page, e) },
@@ -219,6 +224,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         searchResults.clear()
         sources.forEach { loadSearch(it, q, null) }
+    }
+
+    /** Re-runs the current search under [filter], from page one. Not a new search: it is not
+     *  recorded in the history. */
+    fun applySearchFilter(filter: SearchFilter, sources: List<VideoSource>) {
+        if (filter == searchFilter) return
+        searchFilter = filter
+        if (query.isBlank()) return
+        cancelJobsWithPrefix("search:")
+        searchResults.clear()
+        sources.forEach { loadSearch(it, query, null) }
     }
 
     fun clearSearch() {

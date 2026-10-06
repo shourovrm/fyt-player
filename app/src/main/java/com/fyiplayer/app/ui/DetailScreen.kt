@@ -233,10 +233,14 @@ fun DetailScreen(
                         )
                     }
                 }
+                if (shownRef.sourceId == "youtube") {
+                    item { SponsorChannelToggle(uploaderListing?.key) }
+                }
                 item {
                     val meta = listOfNotNull(
                         detail.viewCount?.let { "${formatCount(it)} views" } ?: shownRef.viewCountText,
                         detail.likeCount?.let { "${formatCount(it)} likes" },
+                        detail.dislikeCount?.let { "${formatCount(it)} dislikes" },
                         detail.uploadDate?.let(::formatUploadDate),
                     ).joinToString(" · ")
                     if (meta.isNotBlank()) {

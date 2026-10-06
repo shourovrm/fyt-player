@@ -224,6 +224,9 @@ fun HomeScreen(
                         }
                     }
                 }
+                if (browseSources.any { it.providesSearchFilters }) {
+                    SearchFilterRow(vm.searchFilter, onChange = { vm.applySearchFilter(it, browseSources) })
+                }
                 when {
                     initialLoading -> {
                         ResultsListColumn(

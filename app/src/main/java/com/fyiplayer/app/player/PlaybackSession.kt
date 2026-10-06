@@ -27,7 +27,11 @@ import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Resolved
+import com.fyiplayer.app.core.SponsorPolicy
+import com.fyiplayer.app.core.SponsorSegment
 import com.fyiplayer.app.core.StreamResolver
+import com.fyiplayer.app.core.decideSponsorAction
+import com.fyiplayer.app.core.usableSponsorSegments
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.prefs.Prefs
 import kotlinx.coroutines.CancellationException
@@ -122,9 +126,10 @@ object PlaybackSession {
     // and re-reads reactively so flipping the setting applies without an app restart.
     @Volatile private var backgroundPlaybackAllowed = true
 
-    // Mirror of Prefs.sponsorBlock, same pattern as maxHeight: format selection/skip checks run
-    // on the player thread and cannot suspend on a DataStore read.
-    private var sponsorBlockEnabled: () -> Boolean = { false }
+    // Mirror of the SponsorBlock prefs (master switch, per-category modes, channel whitelist),
+    // same pattern as maxHeight: skip checks run on the player thread and cannot suspend on a
+    // DataStore read.
+    private var sponsorPolicy: () -> SponsorPolicy = { SponsorPolicy() }
     // Injected by FyiApp; returns null when the pref is off, the search fails, or nothing
     // qualifies -- STATE_ENDED's handler treats null as "nothing to autoplay", same as no queue.
     private var autoplayNext: suspend (VideoRef) -> VideoRef? = { null }
@@ -141,6 +146,12 @@ object PlaybackSession {
     // Segments for the item currently at `index`. Never trusted after an item change until
     // fetchSponsorSegments's own index check confirms the response is still for the right item.
     private var sponsorSegments: List<SponsorSegment> = emptyList()
+    private val _sponsorMarkers = MutableStateFlow<List<SponsorSegment>>(emptyList())
+    /** Segments the seekbar draws: those the user's current modes and channel whitelist allow. */
+    val sponsorMarkers: StateFlow<List<SponsorSegment>> = _sponsorMarkers.asStateFlow()
+    private val _sponsorOffer = MutableStateFlow<SponsorSegment?>(null)
+    /** The show-button segment playback is inside right now, or null. */
+    val sponsorOffer: StateFlow<SponsorSegment?> = _sponsorOffer.asStateFlow()
     private var lastSkippedSegmentStart: Long? = null // guards re-seeking every tick inside a segment
 
     private val _state = MutableStateFlow(PlayerState())
@@ -170,6 +181,12 @@ object PlaybackSession {
     // One re-resolve attempt per item after an expired URL or a transport failure. Re-armed on item
     // change, on a play press, and after HEALTHY_TICKS_TO_REARM_RETRY ticks of continuous playing.
     private var retriedIndex: Int? = null
+    // The other bounded error recoveries (see PlayerErrorPolicy). Per item: re-armed with
+    // resetPlayerErrorBudget() when a genuinely new item starts and after a healthy stretch.
+    private var defaultPositionSeeks = 0
+    private var lowerRenditionSpent = false
+    // Not per item: the surface belongs to the app, so its cooldown is wall-clock.
+    private var lastSurfaceRecoveryAtMs: Long? = null
     private var autoplayFired = false // guards STATE_ENDED's possible re-emission from double-firing autoplay
     // The pending "what plays after the queue ends" lookup. Kept so a user's own pick can cancel it.
     private var autoplayJob: Job? = null
@@ -198,7 +215,7 @@ object PlaybackSession {
         context: Context,
         resolver: StreamResolver,
         maxHeight: () -> Int = { 1080 },
-        sponsorBlockEnabled: () -> Boolean = { false },
+        sponsorPolicy: () -> SponsorPolicy = { SponsorPolicy() },
         autoplayNext: suspend (VideoRef) -> VideoRef? = { null },
         loadPosition: suspend (String) -> Long? = { null },
         savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> },
@@ -208,7 +225,7 @@ object PlaybackSession {
         if (::player.isInitialized) return
         this.resolver = resolver
         this.maxHeight = maxHeight
-        this.sponsorBlockEnabled = sponsorBlockEnabled
+        this.sponsorPolicy = sponsorPolicy
         this.autoplayNext = autoplayNext
         this.loadPosition = loadPosition
         this.savePosition = savePosition
@@ -310,6 +327,11 @@ object PlaybackSession {
     private fun ensureInit() = check(::player.isInitialized) { "PlaybackSession.init() was not called" }
 
     private fun diag(line: String) = DiagLog.log("Playback", line)
+
+    private fun resetPlayerErrorBudget() {
+        defaultPositionSeeks = 0
+        lowerRenditionSpent = false
+    }
 
     private fun msSince(startedAtMs: Long): Long = SystemClock.elapsedRealtime() - startedAtMs
 
@@ -784,7 +806,10 @@ object PlaybackSession {
         val ref = queue.getOrNull(i) ?: return
         // A genuinely new item replaces the one the player holds once its resolve lands; save the
         // outgoing item's position now. A same-item restart (retry, expiry) keeps its own.
-        if (resumeAtMs == null) persistPosition()
+        if (resumeAtMs == null) {
+            persistPosition()
+            resetPlayerErrorBudget()
+        }
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         window = emptyList()
         clearSponsorSegments() // item is changing -- the old item's segments must not carry over
@@ -977,6 +1002,7 @@ object PlaybackSession {
      *  their first frame always comes later and the reset is safe. */
     private fun adoptPrepared(item: PreparedItem, resetFirstFrame: Boolean = true) {
         retriedIndex = null
+        resetPlayerErrorBudget()
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         val ref = queue.getOrNull(item.queueIndex) ?: return
         loadedRef = ref
@@ -1039,10 +1065,13 @@ object PlaybackSession {
                 val position = player.currentPosition.coerceAtLeast(0)
                 _progress.value = PlaybackProgress(position, player.duration.coerceAtLeast(0))
                 if (player.isPlaying) {
-                    checkSponsorSkip(position)
+                    applySponsorPolicy(position)
                     // A long video can blip more than once; after a sustained healthy stretch the
                     // one-retry budget is spent on a NEW failure, not the one already recovered from.
-                    if (++healthyPlayingTicks == HEALTHY_TICKS_TO_REARM_RETRY) retriedIndex = null
+                    if (++healthyPlayingTicks == HEALTHY_TICKS_TO_REARM_RETRY) {
+                        retriedIndex = null
+                        resetPlayerErrorBudget()
+                    }
                 } else {
                     healthyPlayingTicks = 0
                 }
@@ -1072,28 +1101,52 @@ object PlaybackSession {
         sponsorFetchJob = null
         sponsorSegments = emptyList()
         lastSkippedSegmentStart = null
+        _sponsorMarkers.value = emptyList()
+        _sponsorOffer.value = null
     }
 
-    /** Fires a SponsorBlock lookup for the item now at [i] -- gated by the mirrored pref and only
-     *  for YouTube page URLs. The response is applied only if [index] still points at [i] when it
-     *  lands, so a slow reply can't skip in whatever plays next. */
+    /** Fires a SponsorBlock lookup for the item now at [i] -- gated by the master switch, by at
+     *  least one category being on, by the channel whitelist, and by YouTube page URLs. The
+     *  response is applied only if [index] still points at [i] when it lands, so a slow reply
+     *  can't skip in whatever plays next. */
     private fun fetchSponsorSegments(i: Int, ref: VideoRef) {
-        if (!sponsorBlockEnabled() || ref.sourceId != "youtube") return
+        val policy = sponsorPolicy()
+        if (!policy.enabled || !policy.anyCategoryActive || ref.sourceId != "youtube") return
+        if (policy.isChannelWhitelisted(ref.uploaderUrl)) return
         val videoId = youtubeVideoId(ref.pageUrl) ?: return
         sponsorFetchJob = scope.launch {
             val segments = SponsorBlock.fetchSponsorSegments(videoId)
-            if (index == i) sponsorSegments = segments
+            if (index == i) {
+                sponsorSegments = segments
+                applySponsorPolicy(player.currentPosition)
+            }
         }
     }
 
-    /** Seeks past a sponsor segment [positionMs] just entered, once per segment -- lastSkippedSegmentStart
-     *  guards against re-seeking every tick while sitting inside (or just past) the same segment. */
-    private fun checkSponsorSkip(positionMs: Long) {
+    /** Runs every tick while playing: re-reads the policy (so a mode or whitelist change applies
+     *  to the video already playing), publishes markers and the skip offer, and performs an
+     *  automatic skip once per segment -- lastSkippedSegmentStart guards against re-seeking every
+     *  tick while sitting inside (or just past) the segment that was skipped. */
+    private fun applySponsorPolicy(positionMs: Long) {
+        if (sponsorSegments.isEmpty()) return
+        val policy = sponsorPolicy()
+        val usable = usableSponsorSegments(sponsorSegments, policy, queue.getOrNull(index)?.uploaderUrl)
+        _sponsorMarkers.value = usable
         lastSkippedSegmentStart = sponsorSkipGuardAfter(lastSkippedSegmentStart, positionMs)
-        val segment = sponsorSegments.firstOrNull { positionMs >= it.startMs && positionMs < it.endMs } ?: return
-        if (lastSkippedSegmentStart == segment.startMs) return
-        lastSkippedSegmentStart = segment.startMs
-        player.seekTo(segment.endMs)
+        val decision = decideSponsorAction(positionMs, usable, policy, lastSkippedSegmentStart)
+        _sponsorOffer.value = decision.offer
+        val skipped = decision.skip ?: return
+        lastSkippedSegmentStart = skipped.startMs
+        player.seekTo(skipped.endMs)
+    }
+
+    /** The skip button: jumps to the end of the show-button segment playback is inside. */
+    fun skipSponsorSegment() {
+        ensureInit()
+        val offer = _sponsorOffer.value ?: return
+        lastSkippedSegmentStart = offer.startMs
+        seekTo(offer.endMs)
+        _sponsorOffer.value = null
     }
 
     private val playerListener = object : Player.Listener {
@@ -1169,35 +1222,70 @@ object PlaybackSession {
             prefetchNext()
         }
 
-        /** A prefetched signed URL can age out before the player reaches it, or the network can
-         *  drop under it (WiFi->LTE handover). Re-prepare the current item once from where it
-         *  was; a second failure on the same item stops instead of looping. */
+        /** Asks [classifyPlayerError] what to do and carries it out; each recovery is bounded by
+         *  the budget it reads (see PlayerErrorPolicy), so a failing item always ends on the
+         *  error screen. A prefetched signed URL can age out before the player reaches it, the
+         *  network can drop under it (WiFi->LTE), a live window can fall behind, the shared
+         *  surface can be released under the codec, or a device decoder can refuse a rendition. */
         override fun onPlayerError(error: PlaybackException) {
-            val expired = isExpiredHttpError(error)
-            val network = isNetworkCause(error)
-            val willReResolve = (expired || network) && retriedIndex != index
+            val facts = PlayerErrorFacts(
+                errorCode = error.errorCode,
+                httpStatus = httpResponseCodeOf(error),
+                isTransportFailure = isNetworkCause(error),
+                isSurfaceReleased = isSurfaceReleasedFailure(error),
+            )
+            val lowerCeiling = lowerRenditionCeiling(_state.value.availableHeights, _state.value.selectedHeight)
+            val now = SystemClock.elapsedRealtime()
+            val budget = PlayerErrorBudget(
+                reResolveSpent = retriedIndex == index,
+                defaultPositionSeeksSpent = defaultPositionSeeks,
+                lowerRenditionSpent = lowerRenditionSpent,
+                lowerRenditionAvailable = lowerCeiling != null && currentFormats.isNotEmpty(),
+                msSinceSurfaceRecovery = lastSurfaceRecoveryAtMs?.let { now - it },
+            )
+            val action = classifyPlayerError(facts, budget)
+            // Codes and class names only, never the exception's message -- it can embed the dead URL.
             diag(
                 "playerError code=${error.errorCode} name=${error.errorCodeName} " +
-                    "http=${httpResponseCodeOf(error)} expired=$expired network=$network " +
-                    "index=$index action=${if (willReResolve) "re-resolve" else "surface-error"}",
+                    "http=${facts.httpStatus} network=${facts.isTransportFailure} " +
+                    "surface=${facts.isSurfaceReleased} cause=${error.cause?.javaClass?.simpleName} " +
+                    "index=$index action=$action",
             )
-            if (willReResolve) {
-                retriedIndex = index
-                val ref = queue.getOrNull(index)
-                // Only a dead URL invalidates the resolver: after a transport blip the cached
-                // formats are still good and re-using them is the fast path.
-                if (expired && ref != null) resolver.invalidate(ref.pageUrl)
-                startAt(index, resumeAtMs = player.currentPosition)
-            } else {
-                // ids/codes only, never the exception's message — it can embed the dead signed URL.
-                // Only genuine transport trouble may claim "no connection": a googlevideo 403 on a
-                // fresh URL (seen live) is the platform refusing this client, not the user's network.
-                val mapped = if (network) {
-                    ExtractionError.Network("playback error ${error.errorCode}")
-                } else {
-                    ExtractionError.Unsupported("playback error ${error.errorCode}")
+            when (action) {
+                PlayerErrorAction.SEEK_TO_DEFAULT_POSITION -> {
+                    defaultPositionSeeks++
+                    player.seekToDefaultPosition()
+                    player.prepare()
                 }
-                _state.update { it.copy(error = mapped) }
+                PlayerErrorAction.REPREPARE_AFTER_SURFACE_LOSS -> {
+                    lastSurfaceRecoveryAtMs = now
+                    // Same source, same position: prepare() after an error resumes from where the
+                    // player stopped. No re-resolve -- the URL is fine, the surface was not.
+                    player.prepare()
+                }
+                PlayerErrorAction.RERESOLVE_EXPIRED_URL, PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE -> {
+                    retriedIndex = index
+                    val ref = queue.getOrNull(index)
+                    // Only a dead URL invalidates the resolver: after a transport blip the cached
+                    // formats are still good and re-using them is the fast path.
+                    if (action == PlayerErrorAction.RERESOLVE_EXPIRED_URL && ref != null) resolver.invalidate(ref.pageUrl)
+                    startAt(index, resumeAtMs = player.currentPosition)
+                }
+                PlayerErrorAction.FALL_BACK_TO_LOWER_RENDITION -> {
+                    lowerRenditionSpent = true
+                    selectQuality(lowerCeiling)
+                }
+                PlayerErrorAction.SHOW_ERROR -> {
+                    // Only genuine transport trouble may claim "no connection": a googlevideo 403
+                    // on a fresh URL (seen live) is the platform refusing this client, not the
+                    // user's network.
+                    val mapped = if (facts.isTransportFailure) {
+                        ExtractionError.Network("playback error ${error.errorCode}")
+                    } else {
+                        ExtractionError.Unsupported("playback error ${error.errorCode}")
+                    }
+                    _state.update { it.copy(error = mapped) }
+                }
             }
         }
     }

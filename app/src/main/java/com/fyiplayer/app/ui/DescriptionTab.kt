@@ -41,6 +41,7 @@ internal fun LazyListScope.descriptionTabSection(
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
 ) {
+    chaptersSection(detail.chapters)
     item {
         val description = detail.description
         if (description.isNullOrBlank()) {

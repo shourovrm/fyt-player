@@ -6,6 +6,7 @@ import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.ListingPage
 import com.fyiplayer.app.core.ResultKind
+import com.fyiplayer.app.core.SearchFilter
 import com.fyiplayer.app.core.SearchPage
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.SpriteSheet
@@ -86,13 +87,25 @@ class NewPipeYoutubeSource(
         return host in HOSTS
     }
 
-    override suspend fun search(query: String, page: String?): SearchPage = withContext(Dispatchers.IO) {
+    override val providesSearchFilters = true
+
+    override suspend fun search(query: String, page: String?): SearchPage = search(query, page, SearchFilter())
+
+    override suspend fun search(query: String, page: String?, filter: SearchFilter): SearchPage = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
         guarded {
             // getFilterItem(0) is the registered "all" filter -- the fork's filter engine REQUIRES
             // a registered item (an empty list throws), same default PipePipe's own client passes.
             val factory = ServiceList.YouTube.searchQHFactory
-            val handler = factory.fromQuery(query, listOf(factory.getFilterItem(0)), emptyList())
+            val items = resolveSearchFilter(
+                filter,
+                contentFilters = factory.availableContentFilter,
+                sortFilters = factory.availableSortFilter,
+                defaultContent = factory.getFilterItem(0),
+            )
+            // The handler is rebuilt from the same filter on every page, so a continuation token
+            // always belongs to the query it was minted for.
+            val handler = factory.fromQuery(query, items.content, items.sort)
             if (page == null) {
                 val info = SearchInfo.getInfo(ServiceList.YouTube, handler)
                 SearchPage(items = info.relatedItems.mapNotNull { it.toSearchVideoRef() }, nextPage = info.nextPage.tokenOrNull())
@@ -208,7 +221,10 @@ class NewPipeYoutubeSource(
             descriptionIsHtml = info.description?.type == Description.HTML,
             uploadDate = info.textualUploadDate,
             likeCount = info.likeCount.takeIf { it >= 0 },
+            // -1 unless the user opted in (NewPipeInit.updateFetchDislike) and the lookup answered.
+            dislikeCount = info.dislikeCount.takeIf { it >= 0 },
             viewCount = info.viewCount.takeIf { it >= 0 },
+            chapters = toChapters(info.streamSegments),
         )
     }
 

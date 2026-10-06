@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fyiplayer.app.core.SponsorCategory
+import com.fyiplayer.app.core.SponsorMode
+import com.fyiplayer.app.core.canonicalChannelKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -37,6 +40,9 @@ class Prefs(private val context: Context) {
         val CONTENT_COUNTRY = stringPreferencesKey("content_country")
         val DOWNLOAD_TREE_URI = stringPreferencesKey("download_tree_uri")
         val SPONSOR_BLOCK = booleanPreferencesKey("sponsor_block")
+        val SPONSOR_WHITELIST = stringSetPreferencesKey("sponsor_whitelist")
+        fun sponsorModeKey(category: SponsorCategory) = stringPreferencesKey("sponsor_mode_${category.apiName}")
+        val SHOW_DISLIKE_COUNTS = booleanPreferencesKey("show_dislike_counts")
         val AUTOPLAY_NEXT = booleanPreferencesKey("autoplay_next")
         val SAVE_PLAY_POSITION = booleanPreferencesKey("save_play_position")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
@@ -89,6 +95,34 @@ class Prefs(private val context: Context) {
     // (No originalTitles pref: the extractor fork forces non-localized titles unconditionally.)
     val sponsorBlock: Flow<Boolean> = flow(SPONSOR_BLOCK, false)
     suspend fun setSponsorBlock(v: Boolean) = set(SPONSOR_BLOCK, v)
+
+    /** Per-category SponsorBlock behaviour. An unset category reads as its own default (sponsor =
+     *  skip automatically, the rest off), which is what installs did before categories existed. */
+    val sponsorModes: Flow<Map<SponsorCategory, SponsorMode>> = data.map { stored ->
+        SponsorCategory.entries.associateWith { category ->
+            stored[sponsorModeKey(category)]
+                ?.let { name -> SponsorMode.entries.firstOrNull { it.name == name } }
+                ?: category.defaultMode
+        }
+    }
+    suspend fun setSponsorMode(category: SponsorCategory, mode: SponsorMode) =
+        set(sponsorModeKey(category), mode.name)
+
+    /** Canonical channel keys ([canonicalChannelKey]) SponsorBlock leaves alone. Channel URLs
+     *  only, like every other persisted identity here. */
+    val sponsorWhitelist: Flow<Set<String>> = flow(SPONSOR_WHITELIST, emptySet())
+    suspend fun setSponsorChannelWhitelisted(channelUrl: String, whitelisted: Boolean) {
+        val key = canonicalChannelKey(channelUrl) ?: return
+        context.settingsStore.edit {
+            val current = it[SPONSOR_WHITELIST].orEmpty()
+            it[SPONSOR_WHITELIST] = if (whitelisted) current + key else current - key
+        }
+    }
+
+    // Off by default: the count comes from returnyoutubedislike.com, a third party that is told
+    // the id of every video opened while this is on.
+    val showDislikeCounts: Flow<Boolean> = flow(SHOW_DISLIKE_COUNTS, false)
+    suspend fun setShowDislikeCounts(v: Boolean) = set(SHOW_DISLIKE_COUNTS, v)
 
     // Off by default: there is no real recommendation system here, only a title search against
     // the current video -- opt-in so it never surprises someone who just wants the queue to stop.
