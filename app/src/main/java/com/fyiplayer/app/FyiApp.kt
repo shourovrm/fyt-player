@@ -76,6 +76,7 @@ class FyiApp : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashLog.install(this) // first thing: must observe every crash from here on
+        DiagLog.init(this)
 
         prefs.maxResolutionWifi.onEach { maxHeightWifi = it }.launchIn(appScope)
         prefs.maxResolutionMobile.onEach { maxHeightMobile = it }.launchIn(appScope)
