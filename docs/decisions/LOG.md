@@ -230,3 +230,6 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-10-06 | MediaButtonReceiver NOT added | would start the service as FGS before a multi-second resolve; known FGS-timeout crash
 - 2026-10-06 | backup import accepts any https video URL, not only registered sources | owner-only rule dropped saved Facebook/TikTok/X videos
 - 2026-10-06 | account cookie no longer sent to yt-dlp | header applied to every request of an extraction; engine ignored it for auth
+- 2026-10-06 | dislike fetch off by default, opt-in setting | fork default sent every opened video id to a third party
+- 2026-10-06 | slow resumed start measured: HTTP/1.1-only CDN + aborted 10 MB probe window + exact seek at 1080p | user-reported slowness; extraction and age wall ruled out by ~45 timed starts
+- 2026-10-06 | SponsorBlock whitelist in DataStore, not Room | avoids a schema migration

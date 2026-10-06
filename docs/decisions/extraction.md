@@ -2,6 +2,15 @@
 
 ## Current state
 
+2026-10-06 PipePipe-port (tests green, device-UNverified). FINDING: the v5.2.5 fork defaults
+`StreamingService.fetchDislike = true`, so every video open had been sending its id to
+returnyoutubedislikeapi.com. `NewPipeInit` now latches it OFF; Settings > Video page has the
+opt-in ("asks returnyoutubedislike.com about each video you open"). Chapters:
+`info.streamSegments` -> `VideoDetail.chapters` -> tappable list in the Description tab.
+Search filters: `VideoSource.providesSearchFilters` + 3-arg `search` (default ignores the
+filter); `source/newpipe/SearchFilterItems.kt` finds the fork's filter items BY NAME via
+`searchQHFactory.availableContentFilter/availableSortFilter`; type + sort chips on results.
+
 2026-10-06 wave 2 (tests green, device-UNverified): OkHttp does NOT strip a hand-set Cookie /
 X-Origin on a cross-host redirect (only Authorization) -- `NewPipeDownloader` now tags requests
 it injected the session into and a network interceptor strips Cookie/Authorization/X-Origin on
@@ -131,6 +140,8 @@ Paging via PageToken (JSON-serialized NewPipe Page).
 
 ## Gotchas
 
+- `StreamInfoCache` has no clear-all: toggling the dislike setting only affects videos fetched
+  afterwards (a cached one keeps its state up to 60 min).
 - TikTok CDN 403s without session cookies; yt-dlp's per-format `cookies` is Set-Cookie shaped
   (name=val; Domain=..; Path=..) -- strip attributes to a `Cookie:` header (EngineResolver.cookieHeaderFrom).
 - TikTok IP-rate-limits repeated extraction: same request that gave 206 flips to 403 after ~10 hits,
