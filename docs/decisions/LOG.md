@@ -221,3 +221,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-09-27 | shorts channel link: fill uploader at source, clear playback on open | shorts-tab listings have no uploader; vertical clip must not leak into mini player
 - 2026-09-27 | resume after long pause just plays; dead URL recovers via onPlayerError | proactive 50-min re-resolve slowed resume (user-reported); PipePipe v5.4.0 keeps the source prepared, re-extracts only on error
 - 2026-10-06 | DECISIONS.md = index; knowledge split into docs/decisions/ topic files | whole file was ~15k tokens read at every session start
+- 2026-10-06 | waves.md folded into topic files; closed Open items moved to Current state, 4 resolved ones dropped | a topic file must be complete on its own; stale open items mislead

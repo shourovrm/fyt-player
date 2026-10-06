@@ -9,7 +9,6 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/downloads.md` — download queue, stream downloader, export
 - `docs/decisions/ui.md` — home, search, detail tabs, library, playlists, settings, backup
 - `docs/decisions/build.md` — Gradle, R8, release, project shape, compile quirks, verification backlog
-- `docs/decisions/waves.md` — dated multi-topic snapshots; grep only
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next

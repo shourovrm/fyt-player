@@ -1,6 +1,29 @@
 # Downloads: queue, stream downloader, export
 
-## Open items
+## Current state
+
+2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Long-press sheet scrolls (landscape clipped
+Download). Stream downloads HEAD for the total when a format has no clen (row sat at 0% until
+done) + ProgressMeter speed/ETA; device-verified 80% -> 95% -> done with MB/s + ETA.
+
+2026-08-30 (v0.2.20) DEVICE-VERIFIED (Nothing Phone): Downloads: quality sheet sizes via HEAD
+Content-Length on open (one dialog = one video, I/O allowed), live speed/ETA + final
+size/duration (startedAt/finishedAt), "Download complete/failed" one-shot notification +
+stopForeground when drained, "Also save subtitles" checkbox writes a same-basename sidecar
+(findProducedFile skips .srt/.ttml/.vtt or the row points at the sidecar), thumbnailUrl column
+(DB v7).
+
+2026-08-10 (v0.2.3): YouTube downloads offer progressive-only options and StreamDownloader refuses
+manifests (was saving .m3u8 as the video).
+
+2026-08-07 wave: Optional **download folder** (`settings/DownloadSettings.kt`,
+`Prefs.downloadTreeUri`): SAF tree picker via `OpenDocumentTree`, persisted read+write grant.
+Production download path is untouched -- `DownloadQueue.processNext`'s `EngineOutcome.Done` branch
+best-effort COPIES the finished app-private file into the tree (`download/DownloadExport.kt`,
+`DocumentsContract.createDocument` + stream copy) after the row is already COMPLETED; copy failure
+is swallowed, private file stays the source of truth. `FyiApp` mirrors the pref into a `@Volatile`
+field (same pattern as `maxHeightWifi`) and hands `DownloadQueue.get` a `treeUri: () -> String?`
+lambda.
 
 - YouTube downloads now stream via the extractor chain + OkHttp + MediaMuxer
   (`download/StreamDownloader.kt`); yt-dlp keeps every non-YouTube source. Age-gated download

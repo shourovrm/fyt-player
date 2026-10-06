@@ -54,11 +54,56 @@ back -> back to Home keeps nav bar + status-bar padding). Any Compose `onDispose
 on the effect KEY, never re-read the state it is keyed on -- by dispose time it already holds
 the new value.
 
-## Open items
+2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Replay = centre button turns into a Refresh
+glyph at STATE_ENDED (`PlayerState.ended`), togglePlayPause seeks 0 + plays; controls come up at
+the end. "Loop" text button in the bottom row (red when on) = RepeatMode.ONE, per video (play()
+resets the player's repeatMode).
 
-- SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
-  full video id), auto-skip in the session ticker. Device playback verified but an actual
-  sponsored-segment skip is still user-unverified.
+2026-08-30 (v0.2.20) DEVICE-VERIFIED: Queue sheet: Shuffle text button (no glyph in icons-core).
+
+2026-08-24 (v0.2.13) DEVICE-VERIFIED (Nothing Phone, gesture nav): fullscreen entry+rotation = no
+bars; Home->relaunch while fullscreen = bars stay hidden (ON_RESUME re-assert); exit = no
+right-shift. Still unverified on a 3-button-nav OEM device (the original reporter's hardware):
+- **Fullscreen nav/status bar reappearing** (3-button-nav OEMs): the single entry hide got undone
+  by the OEM re-showing bars after the in-process rotation and after return-to-app. Fix: bounded
+  fullscreen-scoped re-hides in PlayerScreen (orientation key + ON_RESUME), reusing
+  `setSystemBarsVisible`. NOT bars-follow-chrome (still banned, see Tried/rejected) — PipePipe
+  re-asserts the same way; safe because layout ignores bar visibility while fullscreen
+  (`contentWindowInsets = WindowInsets(0)`), so re-hides can't churn insets. Exit path untouched.
+
+2026-08-10 (v0.2.3) device-verified on the A059: shuffle order remapped through every queue
+mutator; Detail re-entry takes playback (Similar-chain back mismatch fix); FullscreenChrome
+claim-counted (shorts-from-Similar full-bleed fix).
+
+2026-08-09 wave (tests green, device-UNverified): `PlaybackSession.play()` now does
+`stop()+clearMediaItems()` first: new-queue start while something else played left the old item
+running (audio + frame) on the shared surface ~1 s until the async resolve landed — the "shorts
+shows previous video" flash. clearMediaItems is what actually closes PlayerView's shutter (stop
+alone can skip the same-period check).
+
+2026-08-08 field-report wave (tests green, device-UNverified): `PlaybackSession.retryCurrent()` +
+Retry button on player error states (except AccessChallenge — honest wall keeps no retry) and
+togglePlayPause routes to it on error/STATE_IDLE (stuck-after-background fix); player gestures got
+edge dead zones (24dp sides / 32dp bottom for system back/home), 24px slop before mode lock, and
+full-height-drag ≈ 150% range sensitivity (float accumulator); h:mm:ss time labels
+(`formatPosition` seam, feeds mini player too); tap in fullscreen shows system bars with the
+chrome (entering fullscreen seeds controlsVisible=false or paused video would pin bars on) --
+REVERTED since, see Tried / rejected; PipePipe queue semantics — row taps everywhere open Detail
+(single-item play), whole-list play only via explicit Play All/Background; autoplay-next pref (off
+default, title-search based, honest subtitle) via injected `autoplayNext` lambda + STATE_ENDED
+latch.
+
+2026-08-07 wave (device-verified): Queue **close = clear** (`PlaybackSession.clearQueue`, × on the
+strip + "Clear" in the sheet) keeps the playing item and drops the rest. Both seekbars got real
+touch targets (40dp bounds, unchanged 2.5/3dp art) and the shorts bar clears the nav-gesture zone.
+
+2026-08-06 wave (device-verified): Queue append works after queue exhaustion and toasts feedback.
+Background playback works: `PlaybackSession.play()` starts `PlaybackService` (media3
+MediaSessionService), notification/lockscreen/Bluetooth controls, `Prefs.backgroundPlayback`
+honored reactively (pause on ON_STOP when off). Captions: `Resolved.captions` →
+`SingleSampleMediaSource` merged per track, off by default, CC button + `CaptionSheet` picker,
+selection survives quality switch. Edge-to-edge chrome (scaffold background behind status bar).
+
 - 2026-08-08 late wave (device-verified): fullscreen-exit right-shift FIXED — the OEM skips the
   window's inset re-dispatch after the in-process rotation; every app-side cache (Compose holder
   AND getRootWindowInsets) then serves landscape values to the portrait layout. Fix is a forced
@@ -69,6 +114,12 @@ the new value.
   FyiApp owns pref gating + near-end-clears (>=90% clears the row, <5s not saved),
   PlaybackSession saves every ~5s tick + on pause + at STATE_ENDED and resumes via
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
+
+## Open items
+
+- SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
+  full video id), auto-skip in the session ticker. Device playback verified but an actual
+  sponsored-segment skip is still user-unverified.
 
 ## Gotchas
 
@@ -84,7 +135,6 @@ the new value.
 - There is exactly ONE shared video surface. `AppScaffold` therefore hides the mini player and
   queue bar on the detail route — mounting both would have the mini bar steal the surface from the
   full player mid-playback.
-- `Prefs.backgroundPlayback` has a settings row but nothing in `player/` reads it yet.
 - Only ONE screen may hold the shared video surface at a time. `AppScaffold.isFullPlayerRoute`
   gates the mini player and queue bar off those routes — add any new full-bleed route to it.
 - Leaf media source factories (`ProgressiveMediaSource`, `HlsMediaSource`) IGNORE

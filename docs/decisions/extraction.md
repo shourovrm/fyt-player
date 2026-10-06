@@ -45,15 +45,39 @@ identical to 5.2.4 + version bump; local JDK-21 toolchain patch kept). Redaction
 diagnostics kept on purpose: `NewPipeResolver` logs media URL param NAMES only,
 `MediaHttp` logs client/UA-prefix/range-flags/response-code only.
 
-## Open items
+2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Settings "Sign in again" + a Sign in / Sign in
+again button on AccessChallenge in player and shorts (`settings/YoutubeSignIn.kt`; fresh=true
+clears WebView cookies first, stored session kept until a new one lands). Extractor SHIPPED =
+v5.2.5 + our 2 patches (local checkout on branch `backup-fyt-5.2.5`, GitHub `fyt-patches-5.2.5`).
+v5.3.1 rebase lives on `fyt-patches` (local + GitHub) but is NOT shipped: see Open items.
 
-- Extractor v5.3.1 (`fyt-patches`): direct/progressive googlevideo URLs 403 (downloads fail,
-  quality-sheet HEAD sizes 403); HLS playback + shorts fine. Suspect: v5.3 player request wants a
-  PO token (`NewPipe.setYoutubePoTokenResolver`, new in 5.3) that PipePipe's app supplies and we
-  don't. Also needs `Comment.text` from `Description` (getCommentText type changed). Fix before
-  switching the checkout back to `fyt-patches`.
-- Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
-  (playback rides HLS manifests now) — verify when a progressive-only video shows up.
+2026-08-10 (v0.2.3) device-verified: ChunkedRangeDataSource probes totals for clen-less
+QUERY-STYLE /videoplayback only (HLS segments are path-encoded, range= query on them = HTTP 400).
+
+2026-08-09 wave (tests green, device-UNverified): Share-with/open-with: manifest SEND(text/plain)
++ VIEW filters (youtube/youtu.be/facebook/fb.watch/twitter/x hosts), `singleTask` +
+`onNewIntent`; first https URL in the text → `nav.openDetail` via a `PendingSharedUrl`
+compose-state seam (cold start waits for NavHost). YouTube rides tier0, FB/Twitter fall through to
+yt-dlp tier1 — no per-host code.
+
+2026-08-08 field-report wave (tests green, device-UNverified): IOException no longer blanket-maps
+to Network ("No connection" spam fix — only real transport exceptions in an 8-deep cause chain
+qualify).
+
+2026-08-07 wave: content **language + country** settings (`Prefs.contentLanguage/contentCountry`,
+`settings/ContentSettings.kt`) latch into `NewPipeInit` and reach the extractor as
+`Localization`/`ContentCountry`; changes apply live (`setupLocalization`), no restart. Optional
+first-party **YouTube sign-in** (`YoutubeLoginActivity` WebView on Google's real sign-in page →
+`YoutubeAuth` app-private prefs → `NewPipeDownloader` attaches Cookie/Authorization SAPISIDHASH/
+X-Origin to youtube.com hosts only), surfaced as `settings/AccountSettings.kt`. Channel **Courses**
+tab delegates to yt-dlp (NewPipe has no such tab).
+
+2026-08-06 wave: NewPipeExtractor v0.26.4 is BOTH tier-0 of the resolver chain AND the YouTube
+VideoSource (`source/newpipe/NewPipeYoutubeSource`, id stays "youtube"): search, channel tabs,
+playlists, detail, comments, seek thumbnails, shorts (providesShorts=true now). yt-dlp keeps
+downloads, channel Courses tab and resolver fallback (searchChannel moved to the fork 2026-08-22).
+Paging via PageToken (JSON-serialized NewPipe Page).
+
 - **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
   built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
   (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
@@ -64,13 +88,6 @@ diagnostics kept on purpose: `NewPipeResolver` logs media URL param NAMES only,
   dates therefore arrive in Zulu; list/comment mappers now format `uploadDate` (DateWrapper,
   parsed via the fork's own zu timeago patterns) through `englishAge()` and fall back to raw
   text only when parsing failed. Device-verified (comments show "1 hour ago").
-- If stutter persists after the rn/UA media shaping (user judging): the next step is a ranged
-  10 MB chunking media3 DataSource for googlevideo progressive streams — PipePipe's smooth path
-  is synthesized-DASH with bounded `range=` chunk fetches, plain open-ended progressive is only
-  its fallback. The downloader already proves chunking unlocks full speed on this network.
-- Signature/throttling decode falls back to PipePipe's REMOTE decoder API
-  (`api.pipepipe.dev/decoder/decode`, sends playerId + sig params only) when no local decoder
-  is registered. Wire the fork's WebView JS-decoder seam locally if that dependency bothers us.
 - 2026-08-08 wave (device-verified except where noted): resolver LRU cache (60 entries/60 min,
   `ChainResolver`, `StreamResolver.invalidate` seam), expired-URL fast-fail policy + resume
   staleness refresh (REMOVED 2026-09-27, see Tried / rejected),
@@ -78,6 +95,16 @@ diagnostics kept on purpose: `NewPipeResolver` logs media URL param NAMES only,
   fix is registry-by-construction), googlevideo chunked ranged reads
   (`player/ChunkedRangeDataSource.kt`, 10 MB windows, mirrors StreamDownloader) for full-speed
   transfer instead of realtime pacing.
+
+## Open items
+
+- Extractor v5.3.1 (`fyt-patches`): direct/progressive googlevideo URLs 403 (downloads fail,
+  quality-sheet HEAD sizes 403); HLS playback + shorts fine. Suspect: v5.3 player request wants a
+  PO token (`NewPipe.setYoutubePoTokenResolver`, new in 5.3) that PipePipe's app supplies and we
+  don't. Also needs `Comment.text` from `Description` (getCommentText type changed). Fix before
+  switching the checkout back to `fyt-patches`.
+- Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
+  (playback rides HLS manifests now) — verify when a progressive-only video shows up.
 
 ## Gotchas
 
