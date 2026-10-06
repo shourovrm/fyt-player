@@ -28,7 +28,6 @@ class Prefs(private val context: Context) {
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val MAX_RES_WIFI = intPreferencesKey("max_res_wifi")
         val MAX_RES_MOBILE = intPreferencesKey("max_res_mobile")
-        val CONTAINER = stringPreferencesKey("container")
         val RECORD_WATCH_HISTORY = booleanPreferencesKey("record_watch_history")
         val RECORD_SEARCH_HISTORY = booleanPreferencesKey("record_search_history")
         val GESTURE_BRIGHTNESS = booleanPreferencesKey("gesture_brightness")
@@ -41,6 +40,8 @@ class Prefs(private val context: Context) {
         val AUTOPLAY_NEXT = booleanPreferencesKey("autoplay_next")
         val SAVE_PLAY_POSITION = booleanPreferencesKey("save_play_position")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
+        val LAST_PLAYED_PAGE_URL = stringPreferencesKey("last_played_page_url")
+        val LAST_PLAYED_TITLE = stringPreferencesKey("last_played_title")
     }
 
     // only platform live today; default matches SourceRegistry without this file naming it
@@ -61,9 +62,6 @@ class Prefs(private val context: Context) {
 
     val maxResolutionMobile: Flow<Int> = flow(MAX_RES_MOBILE, 720)
     suspend fun setMaxResolutionMobile(v: Int) = set(MAX_RES_MOBILE, v)
-
-    val preferredContainer: Flow<String> = flow(CONTAINER, "mp4")
-    suspend fun setPreferredContainer(v: String) = set(CONTAINER, v)
 
     val recordWatchHistory: Flow<Boolean> = flow(RECORD_WATCH_HISTORY, true)
     suspend fun setRecordWatchHistory(v: Boolean) = set(RECORD_WATCH_HISTORY, v)
@@ -103,6 +101,18 @@ class Prefs(private val context: Context) {
      *  next release banners again. */
     val dismissedUpdateVersion: Flow<String> = flow(DISMISSED_UPDATE_VERSION, "")
     suspend fun setDismissedUpdateVersion(v: String) = set(DISMISSED_UPDATE_VERSION, v)
+
+    // What a headset/Bluetooth play press resumes after the player was torn down. Canonical page
+    // URL + title only -- the media URL is re-resolved, never stored.
+    val lastPlayed: Flow<Pair<String, String>?> = data.map { stored ->
+        stored[LAST_PLAYED_PAGE_URL]?.let { pageUrl -> pageUrl to (stored[LAST_PLAYED_TITLE] ?: "") }
+    }
+    suspend fun setLastPlayed(pageUrl: String, title: String) {
+        context.settingsStore.edit {
+            it[LAST_PLAYED_PAGE_URL] = pageUrl
+            it[LAST_PLAYED_TITLE] = title
+        }
+    }
 
     // SAF tree URI finished downloads get COPIED into; unset means app-private storage only, so
     // this has no default and bypasses the flow()/set() helpers, which require a non-null T.

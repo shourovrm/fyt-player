@@ -185,15 +185,16 @@ internal fun ShortsPager(
 
     // Start (or resync) the shared session on this feed. A returning composition -- nav back from
     // Detail with nothing else having taken the player -- finds the same queue already loaded and
-    // is a no-op; a fresh page loaded by paging is appended, never re-played from the top.
+    // is a no-op; clips the feed gained since are appended (matched by page URL: the feed
+    // re-interleaves as channels land, so "the tail" is not the new part), never re-played from the top.
     LaunchedEffect(items) {
         if (items.isEmpty()) return@LaunchedEffect
         val sessionQueue = PlaybackSession.state.value.queue
-        val sameFeed = sessionQueue.isNotEmpty() && sessionQueue.first().pageUrl == items.first().pageUrl
-        when {
-            !sameFeed -> PlaybackSession.play(items, page.coerceIn(items.indices))
-            sessionQueue.size < items.size -> items.drop(sessionQueue.size).forEach { PlaybackSession.enqueue(it) }
+        if (!sessionHoldsFeed(sessionQueue, items)) {
+            PlaybackSession.play(items, page.coerceIn(items.indices))
+            return@LaunchedEffect
         }
+        feedItemsMissingFromSession(sessionQueue, items).forEach { PlaybackSession.enqueue(it) }
     }
 
     // Swipe -> playback. The pager is what the user's finger drives; skipNext/skipPrevious reuse
@@ -204,11 +205,15 @@ internal fun ShortsPager(
             // Near the tail: ask for more. The pageCount lambda above reads items.size live, so
             // appended clips extend the pager in place; LaunchedEffect(items) enqueues them.
             if (page >= items.size - 3) onLoadMore()
-            if (page !in items.indices) return@collect
-            when (shortsNavAction(page, PlaybackSession.state.value.index)) {
+            // The session index of THIS page's clip, by page URL -- page N is not always session
+            // index N (see sessionIndexForPage). A clip the session does not hold yet is skipped;
+            // this flow restarts when `items` grows, after the sync effect above enqueued it.
+            val live = PlaybackSession.state.value
+            val target = sessionIndexForPage(live.queue, items, page) ?: return@collect
+            when (shortsNavAction(target, live.index)) {
                 ShortsNavAction.NEXT -> PlaybackSession.skipNext()
                 ShortsNavAction.PREVIOUS -> PlaybackSession.skipPrevious()
-                ShortsNavAction.JUMP -> PlaybackSession.playAt(page)
+                ShortsNavAction.JUMP -> PlaybackSession.playAt(target)
                 ShortsNavAction.NONE -> {}
             }
         }
@@ -222,12 +227,12 @@ internal fun ShortsPager(
     // first composition that snapshot still holds the previous queue's index (Detail's 0, or a
     // prior pager's last page) while play()/playAt() above already moved the session to the
     // tapped page -- following the stale value scrolled the pager to the wrong short, whose
-    // settle then JUMPed playback there too. Queue check: never follow a queue that isn't this feed.
+    // settle then JUMPed playback there too. The page is found by the current clip's page URL, so
+    // a queue that isn't this feed (or a clip the feed doesn't hold) maps to null and is not followed.
     LaunchedEffect(playerState.index) {
         val live = PlaybackSession.state.value
-        if (live.queue.firstOrNull()?.pageUrl != items.firstOrNull()?.pageUrl) return@LaunchedEffect
-        val idx = live.index
-        if (idx in items.indices && pagerState.currentPage != idx) pagerState.animateScrollToPage(idx)
+        val followPage = pageForSessionIndex(live.queue, live.index, items) ?: return@LaunchedEffect
+        if (pagerState.currentPage != followPage) pagerState.animateScrollToPage(followPage)
     }
 
     // FullscreenChrome.active (set above) is what makes AppScaffold stop consuming system-bar
@@ -251,7 +256,7 @@ internal fun ShortsPager(
             // never lag a frame behind the session or the wrong clip's title flashes.
             ShortsPage(
                 ref = ref,
-                isActive = page == playerState.index,
+                isActive = playerState.current?.pageUrl == ref.pageUrl,
                 playerState = playerState,
                 onOpenDetail = { RefCache.put(ref); onOpenDetail(ref.pageUrl) },
                 onOpenChannel = ref.uploaderUrl?.let { url ->

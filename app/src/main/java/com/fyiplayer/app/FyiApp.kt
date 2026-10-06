@@ -21,6 +21,7 @@ import com.fyiplayer.app.update.UpdateCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -47,11 +48,7 @@ class FyiApp : Application() {
      *  read-only headless capture last. */
     val resolver: ChainResolver by lazy {
         ChainResolver(
-            // Cookies reach the engine for youtube.com pages only -- same isolation rule as
-            // NewPipeDownloader's header injection.
-            EngineResolver(cookieFor = { url ->
-                if (isYoutubeHost(url)) YoutubeAuth.cookieHeader() else null
-            }),
+            EngineResolver(),
             WebViewResolver(this), NewPipeResolver(newPipeHttpClient),
         )
     }
@@ -124,11 +121,18 @@ class FyiApp : Application() {
             this, resolver, maxHeight = ::currentMaxHeight,
             sponsorBlockEnabled = { sponsorBlockEnabled }, autoplayNext = ::autoplayNextFor,
             loadPosition = ::loadPositionFor, savePosition = ::savePositionFor,
+            saveLastPlayed = prefs::setLastPlayed, loadLastPlayed = ::lastPlayedRef,
         )
 
         // Native init takes seconds on a cold install; resolves await EngineGate rather than
         // blocking startup on it.
         appScope.launch { EngineGate.init(this@FyiApp) }
+    }
+
+    private suspend fun lastPlayedRef(): VideoRef? {
+        val (pageUrl, title) = prefs.lastPlayed.first() ?: return null
+        val sourceId = SourceRegistry.forUrl(pageUrl)?.id ?: ""
+        return VideoRef(sourceId = sourceId, pageUrl = pageUrl, remoteId = pageUrl, title = title)
     }
 
     /** Metered is the question that matters, not the radio: a metered hotspot must not burn data. */
@@ -189,9 +193,3 @@ internal fun isAutoplayCandidate(candidate: VideoRef, current: VideoRef): Boolea
     candidate.pageUrl != current.pageUrl &&
         candidate.pageUrl.contains("watch") &&
         !candidate.isShort && !candidate.isLive && !candidate.isUpcoming
-
-/** Same host rule as NewPipeDownloader's header injection: youtube.com only, never CDNs. */
-private fun isYoutubeHost(url: String): Boolean {
-    val host = android.net.Uri.parse(url).host ?: return false
-    return host == "youtube.com" || host.endsWith(".youtube.com")
-}

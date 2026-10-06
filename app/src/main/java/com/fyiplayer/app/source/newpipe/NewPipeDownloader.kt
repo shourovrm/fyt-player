@@ -23,7 +23,15 @@ private const val USER_AGENT =
  * (see [YoutubeAuth]) only to youtube.com hosts -- never to googlevideo.com, googleapis.com or
  * any other service (cookie isolation is per-service, a project rule).
  */
-class NewPipeDownloader(private val client: OkHttpClient) : Downloader() {
+class NewPipeDownloader(baseClient: OkHttpClient) : Downloader() {
+
+    // OkHttp 4.12 strips only Authorization when a redirect changes host (RetryAndFollowUpInterceptor
+    // .buildRedirectRequest); the hand-set Cookie and X-Origin would follow it. A network interceptor
+    // runs on every hop, so the session headers are dropped the moment a hop leaves youtube.com.
+    // newBuilder shares the caller's connection pool and dispatcher.
+    private val client: OkHttpClient = baseClient.newBuilder()
+        .addNetworkInterceptor { chain -> chain.proceed(withoutSessionHeadersOffYoutube(chain.request())) }
+        .build()
 
     @Throws(IOException::class, ReCaptchaException::class)
     override fun execute(request: Request): Response {
@@ -51,15 +59,12 @@ class NewPipeDownloader(private val client: OkHttpClient) : Downloader() {
 
             override fun onResponse(call: Call, response: okhttp3.Response) {
                 try {
-                    response.use {
-                        if (it.code == 429) {
-                            callback.onError(ReCaptchaException("reCaptcha challenge", request.url()))
-                        } else {
-                            callback.onSuccess(it.toNewPipeResponse())
+                    deliverOnce(callback) {
+                        response.use {
+                            if (it.code == 429) throw ReCaptchaException("reCaptcha challenge", request.url())
+                            it.toNewPipeResponse()
                         }
                     }
-                } catch (e: Exception) {
-                    callback.onError(e)
                 } finally {
                     cancellable.setFinished()
                 }
@@ -84,18 +89,55 @@ class NewPipeDownloader(private val client: OkHttpClient) : Downloader() {
         // First-party session, YouTube host only -- cookie isolation is per-service (project rule).
         // Skipped when the extractor already set its own Cookie header (e.g. consent cookie).
         val host = request.url().toHttpUrlOrNull()?.host
-        val isYoutubeHost = host != null && (host == "youtube.com" || host.endsWith(".youtube.com"))
         val hasCookieHeader = request.headers().keys.any { it.equals("Cookie", ignoreCase = true) }
-        if (isYoutubeHost && !hasCookieHeader) {
+        if (host != null && isYoutubeHost(host) && !hasCookieHeader) {
             val cookie = YoutubeAuth.cookieHeader()
             val authorization = YoutubeAuth.authorizationHeader()
             if (cookie != null && authorization != null) {
                 builder.header("Cookie", cookie)
                 builder.header("X-Origin", "https://www.youtube.com")
                 builder.header("Authorization", authorization)
+                // Marks the request so the network interceptor only strips what this code added;
+                // redirect follow-ups are built from the request and keep its tags.
+                builder.tag(SessionHeadersInjected::class.java, SessionHeadersInjected)
             }
         }
         return builder.build()
+    }
+}
+
+/** Tag on requests that carry the session headers added by [NewPipeDownloader.buildOkRequest]. */
+internal object SessionHeadersInjected
+
+internal fun isYoutubeHost(host: String): Boolean = host == "youtube.com" || host.endsWith(".youtube.com")
+
+/** Drops the session headers from a tagged request whose target is not a youtube.com host. */
+internal fun withoutSessionHeadersOffYoutube(request: OkRequest): OkRequest {
+    if (request.tag(SessionHeadersInjected::class.java) == null) return request
+    if (isYoutubeHost(request.url.host)) return request
+    return request.newBuilder()
+        .removeHeader("Cookie")
+        .removeHeader("Authorization")
+        .removeHeader("X-Origin")
+        .build()
+}
+
+/**
+ * Delivers exactly one terminal callback. A throw from [Downloader.AsyncCallback.onSuccess] is
+ * swallowed: calling onError afterwards would be a second terminal callback, and rethrowing would
+ * crash OkHttp's dispatcher thread.
+ */
+internal fun deliverOnce(callback: Downloader.AsyncCallback, produceResponse: () -> Response) {
+    val response = try {
+        produceResponse()
+    } catch (e: Exception) {
+        callback.onError(e)
+        return
+    }
+    try {
+        callback.onSuccess(response)
+    } catch (ignored: Exception) {
+        // Nothing left to report to: the consumer already received its one callback.
     }
 }
 

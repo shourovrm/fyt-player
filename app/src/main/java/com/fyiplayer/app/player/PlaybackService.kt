@@ -3,6 +3,8 @@ package com.fyiplayer.app.player
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -87,6 +89,26 @@ class PlaybackService : MediaSessionService() {
                 )
                 .setMediaButtonPreferences(listOf(closeButton))
                 .build()
+        }
+
+        /**
+         * A media-button play press that finds the player empty (process or service was killed).
+         * The player is never fed MediaItems of ours -- every source is resolved on demand, URLs
+         * being short-lived -- so the answer is a deliberate failure: media3 treats
+         * UnsupportedOperationException as "no items to restore", logs a warning, and only presses
+         * play on the player, while [PlaybackSession.resumeLastPlayed] loads and starts the last
+         * item through the normal resolver path. Signature checked against media3-session 1.9.4
+         * (the 2-arg overload is deprecated; this one adds isForPlayback).
+         */
+        @OptIn(UnstableApi::class)
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            // Not for playback = a UI asking what could resume; nothing to start for that.
+            if (isForPlayback) PlaybackSession.resumeLastPlayed()
+            return Futures.immediateFailedFuture(UnsupportedOperationException("resolved on demand"))
         }
 
         override fun onCustomCommand(

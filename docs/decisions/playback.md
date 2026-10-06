@@ -2,6 +2,18 @@
 
 ## Current state
 
+2026-10-06 wave 2 (425 tests green, device-UNverified): skipNext/skipPrevious publish
+index/current synchronously (`switchToItem`), like playAt. startAt reads the resume position
+in parallel with the resolve and starts the source AT it (`setMediaSource(source, ms)`).
+`loadedRef` = what the player really holds; position is persisted before every clear and no
+longer on a rebuffer (`shouldPersistOnStop`). `startPlaybackService()` swallows a refused
+start (background autoplay on Android 12+). Any resume (toggle, replay, retry) restarts
+PlaybackService: DEVICE FINDING 2026-10-06 -- after 25 min paused the process was alive but the
+service and media session were gone, so resume played with no notification / lockscreen /
+headset control. ChunkedRangeDataSource reads through `WindowChain` (one empty reopen, then
+IOException -- was unbounded recursion). Sponsor skip guard clears when position goes back
+before the segment (Loop). videoWidth/Height reset on a new item.
+
 2026-10-06 review wave (370 tests green, device-UNverified until noted): autoplay-next lookup is
 a stored job (`autoplayJob`), cancelled by startAt/clear and re-checked against the ended item
 before play() -- it used to replace whatever the user picked meanwhile. removeAt/move always
@@ -131,6 +143,15 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
 
 ## Open items
 
+- Headset/lockscreen play after the service died: `onPlaybackResumption` + last-played prefs
+  are wired (`Prefs.lastPlayed`, page URL + title only) but DORMANT -- the manifest has no
+  `androidx.media3.session.MediaButtonReceiver`. Not added on purpose: it starts the service as
+  a foreground service, and a 2-5 s resolve before promotion is exactly the
+  ForegroundServiceDidNotStartInTimeException in Gotchas. Needs a device session to try.
+- Everything in the two 2026-10-06 waves is device-unverified (phone was in use by another
+  session). Verify: fresh install, search-play-download, queue remove-above-current, shorts fast
+  swipes, pause quality switch, paused seek, long-pause resume + notification, cancel during
+  resolve, 1080p-cancel-then-720p download.
 - "New video often slow then error" + "resume after long pause slow" (user, 2026-10-06, says
   PipePipe on the same VPN is fine): NOT reproduced -- 14 starts on the A059 (v0.2.23, WiFi+VPN)
   resolved in 1.5-2 s, no wall, no retry, incl. one after 4 min idle. Next occurrence: read
