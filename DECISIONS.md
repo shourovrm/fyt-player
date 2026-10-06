@@ -12,7 +12,12 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, PO token suspected. Shipped = v5.2.5 + 2 patches. See extraction.md.
+- Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
+  (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
+- Slow start / slow long-pause resume (user report) not reproduced; read Settings > Playback
+  log on the next occurrence. See playback.md Open items.
+- 2026-10-06 review backlog not yet done: download bugs (part files not keyed by format, no
+  size check, pause/cancel lost during resolve), dead "File format" setting, missing confirms.
 - Shorts age/CAPTCHA wall not reproduced; on the next report read the `wall:` log line first. See shorts.md.
 - Shorts in Similar wait on a signed-in watch-next. See shorts.md.
 - Device-unverified backlog (v0.2.2 / v0.2.3 items, shorts "all caught up" footer, SponsorBlock skip): build.md, shorts.md, playback.md "Open items".

@@ -1,5 +1,6 @@
 package com.fyiplayer.app.player
 
+import com.fyiplayer.app.DiagLog
 import java.util.concurrent.atomic.AtomicLong
 import okhttp3.OkHttpClient
 
@@ -65,14 +66,14 @@ internal fun mediaHttpClient(): OkHttpClient = OkHttpClient.Builder()
         }
         if (shaped.url.encodedPath.startsWith("/videoplayback")) {
             // client name + booleans only -- the URL itself is signed and must never be logged
-            android.util.Log.d(
-                "MediaHttp",
-                "videoplayback c=${shaped.url.queryParameter("c")} " +
-                    "ua=${shaped.header("User-Agent")?.substringBefore('/')} " +
-                    "range=${shaped.url.queryParameter("range") != null} " +
-                    "rangeHeader=${shaped.header("Range") != null} " +
-                    "rn=${shaped.url.queryParameter("rn") != null} code=${response.code}",
-            )
+            val summary = "videoplayback c=${shaped.url.queryParameter("c")} " +
+                "ua=${shaped.header("User-Agent")?.substringBefore('/')} " +
+                "range=${shaped.url.queryParameter("range") != null} " +
+                "rangeHeader=${shaped.header("Range") != null} " +
+                "rn=${shaped.url.queryParameter("rn") != null} code=${response.code}"
+            android.util.Log.d("MediaHttp", summary)
+            // Only refusals go to the persistent log: successes would flood its 64KB cap.
+            if (!response.isSuccessful) DiagLog.log("MediaHttp", summary)
         }
         response
     }

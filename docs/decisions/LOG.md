@@ -222,3 +222,7 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-09-27 | resume after long pause just plays; dead URL recovers via onPlayerError | proactive 50-min re-resolve slowed resume (user-reported); PipePipe v5.4.0 keeps the source prepared, re-extracts only on error
 - 2026-10-06 | DECISIONS.md = index; knowledge split into docs/decisions/ topic files | whole file was ~15k tokens read at every session start
 - 2026-10-06 | waves.md folded into topic files; closed Open items moved to Current state, 4 resolved ones dropped | a topic file must be complete on its own; stale open items mislead
+- 2026-10-06 | signed-in retry only for age/login walls; yt-dlp 429/403 = hard stop | retrying a rate-limit or bot wall with the account cookie breaks the no-bypass rule and doubled time-to-error
+- 2026-10-06 | persistent playback trace (DiagLog) in Settings | user-reported slow start + error not reproducible in 14 device starts; logcat holds ~20 min
+- 2026-10-06 | retry budget re-arms after 30 s healthy playback | a second blip late in a long video went straight to the error screen
+- 2026-10-06 | PO-token theory for v5.3.1 403s dropped | upstream reads the resolver only in the mweb/SABR path

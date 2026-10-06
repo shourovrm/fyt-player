@@ -2,6 +2,7 @@ package com.fyiplayer.app.player
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -21,6 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.text.TextRenderer
 import androidx.media3.exoplayer.text.TextOutput
+import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
@@ -28,6 +30,8 @@ import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.StreamResolver
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.prefs.Prefs
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -157,8 +161,21 @@ object PlaybackSession {
     private var loadJob: Job? = null
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
-    private var retriedIndex: Int? = null // one re-resolve attempt per item on an expired URL
+    // One re-resolve attempt per item after an expired URL or a transport failure. Re-armed on item
+    // change, on a play press, and after HEALTHY_TICKS_TO_REARM_RETRY ticks of continuous playing.
+    private var retriedIndex: Int? = null
     private var autoplayFired = false // guards STATE_ENDED's possible re-emission from double-firing autoplay
+    // The pending "what plays after the queue ends" lookup. Kept so a user's own pick can cancel it.
+    private var autoplayJob: Job? = null
+
+    // Diagnostic timestamps (SystemClock.elapsedRealtime, ms); 0 = not set. See DiagLog.
+    private var loadBeganAtMs = 0L
+    private var awaitingReadyLog = false
+    private var awaitingFirstFrameLog = false
+    private var pausedAtMs = 0L // when playWhenReady last went false
+    private var resumePressedAtMs = 0L // set by a plain resume, cleared when audio is actually playing
+
+    private const val HEALTHY_TICKS_TO_REARM_RETRY = 60 // 60 x 500ms = 30s of continuous playing
 
     private class PreparedItem(
         val queueIndex: Int,
@@ -185,7 +202,12 @@ object PlaybackSession {
         this.savePosition = savePosition
         appContext = context.applicationContext
         MediaItemFactory.init(appContext)
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        // Backstop for any launch without its own catch: log the class and carry on rather than
+        // letting an uncaught exception from a SupervisorJob child kill the process.
+        val uncaughtHandler = CoroutineExceptionHandler { _, throwable ->
+            diag("uncaught in session scope error=${throwable.javaClass.simpleName}")
+        }
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + uncaughtHandler)
         // Sideloaded captions ride SingleSampleMediaSource, which hands the renderer RAW subtitle
         // samples — media3's "legacy decoding" path, disabled by default since 1.4. Without this
         // opt-in, selecting any caption kills playback with IllegalStateException ("can't handle
@@ -244,6 +266,9 @@ object PlaybackSession {
                 /* handleAudioFocus = */ true,
             )
             setHandleAudioBecomingNoisy(true)
+            // Screen-off streaming: without a held CPU + WiFi lock, background playback stalls
+            // once the device dozes. Needs WAKE_LOCK (declared in the manifest).
+            setWakeMode(C.WAKE_MODE_NETWORK)
             addListener(playerListener)
             // Captions off by default (project requirement): a subtitle track carries no
             // selection/default flag (MediaItemFactory), but text tracks with no flag can still be
@@ -269,6 +294,36 @@ object PlaybackSession {
     }
 
     private fun ensureInit() = check(::player.isInitialized) { "PlaybackSession.init() was not called" }
+
+    private fun diag(line: String) = DiagLog.log("Playback", line)
+
+    private fun msSince(startedAtMs: Long): Long = SystemClock.elapsedRealtime() - startedAtMs
+
+    /** Looks up what plays after [endedIndex] finished, and starts it unless the user moved on
+     *  meanwhile. startAt/clear cancel [autoplayJob]; the re-check covers a replay or a seek that
+     *  left the same item un-ended without going through them. */
+    private fun startAutoplay(endedRef: VideoRef, endedIndex: Int) {
+        autoplayJob?.cancel()
+        autoplayJob = scope.launch {
+            val lookedUp: VideoRef? = try {
+                autoplayNext(endedRef)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                diag("autoplay lookup failed error=${e.javaClass.simpleName}")
+                null
+            }
+            val next = lookedUp ?: return@launch
+            val stillOnEndedItem = index == endedIndex &&
+                queue.getOrNull(index)?.pageUrl == endedRef.pageUrl &&
+                player.playbackState == Player.STATE_ENDED
+            if (!stillOnEndedItem) return@launch
+            // play() -> startAt() cancels autoplayJob; this coroutine is it, so detach first.
+            autoplayJob = null
+            play(listOf(next), 0)
+            _state.update { it.copy(autoAdvances = it.autoAdvances + 1) }
+        }
+    }
 
     fun play(refs: List<VideoRef>, startIndex: Int) {
         ensureInit()
@@ -404,38 +459,54 @@ object PlaybackSession {
     }
 
     /** Reorders the queue: moves the item at [from] to [to]. Keeps [index] pointing at the same
-     *  item it did before the move, and drops the prefetch window when the move could have
-     *  touched it. */
+     *  item it did before the move. The prefetch slot is always rebuilt: under shuffle the
+     *  prefetched item can sit anywhere in the queue, so "both ends before the index" is no proof
+     *  it was untouched. */
     fun move(from: Int, to: Int) {
         ensureInit()
         if (from !in queue.indices || to !in queue.indices || from == to) return
-        val affectsWindow = from >= index || to >= index
         val item = queue[from]
         queue = queue.toMutableList().apply { removeAt(from); add(to, item) }
         order = order?.let { QueueMath.moveOrder(it, from, to) }
-        index = when {
-            from == index -> to
-            from < index && to >= index -> index - 1
-            from > index && to <= index -> index + 1
-            else -> index
-        }
-        if (affectsWindow) dropPrefetchedWindowSlot()
+        dropAndRemapWindow { QueueMath.indexAfterMove(it, from, to) }
+        index = QueueMath.indexAfterMove(index, from, to)
         publishQueueState()
-        if (affectsWindow) prefetchNext()
+        continueAfterQueueEdit()
+    }
+
+    /** After an edit that renumbered the queue: an in-flight load still carries the OLD index, so
+     *  it is restarted under the new one; otherwise just refill the prefetch slot. */
+    private fun continueAfterQueueEdit() {
+        if (loadJob?.isActive == true) startAt(index) else prefetchNext()
+    }
+
+    /** Drops the loaded prefetch slot, then re-points the surviving window entry (the current
+     *  item) through [remap] after a queue edit shifted positions. Without the remap `window` keeps
+     *  the old numbering, onMediaItemTransition then finds no ready item and prefetchNext's
+     *  `window[0] != index` guard bails forever. */
+    private fun dropAndRemapWindow(remap: (Int) -> Int) {
+        dropPrefetchedWindowSlot()
+        window = window.map(remap)
     }
 
     fun seekTo(positionMs: Long) {
         ensureInit()
         player.seekTo(positionMs)
+        // The ticker only runs while playing; without this a seek while paused leaves the
+        // scrubber on the old position until playback resumes.
+        _progress.update { it.copy(positionMs = positionMs.coerceAtLeast(0)) }
     }
 
     fun togglePlayPause() {
         ensureInit()
         val ref = queue.getOrNull(index)
+        val pausedForMs = if (pausedAtMs == 0L) -1L else msSince(pausedAtMs)
         // Error state, or a source the player itself gave up on (e.g. a killed surface/source
         // after sitting backgrounded a couple of minutes -- flipping playWhenReady on a dead
         // source does nothing visible): recover instead of toggling a player with nothing to play.
         if (ref != null && (_state.value.error != null || player.playbackState == Player.STATE_IDLE)) {
+            val reason = if (_state.value.error != null) "error" else "idle"
+            diag("toggle branch=retryCurrent reason=$reason pausedMs=$pausedForMs")
             retryCurrent()
             return
         }
@@ -446,11 +517,20 @@ object PlaybackSession {
         // earlier blip on this item can't leave a long-paused resume with no recovery left.
         if (!player.playWhenReady) retriedIndex = null
         if (player.playbackState == Player.STATE_ENDED) {
+            diag("toggle branch=replayFromEnded pausedMs=$pausedForMs")
+            // Replaying: a still-pending related-video lookup must not hijack it, and the next
+            // end of this video may autoplay again.
+            autoplayJob?.cancel()
+            autoplayJob = null
+            autoplayFired = false
             player.seekTo(0)
             player.playWhenReady = true
             return
         }
-        player.playWhenReady = !player.playWhenReady
+        val resuming = !player.playWhenReady
+        diag("toggle branch=${if (resuming) "plainResume" else "pause"} pausedMs=$pausedForMs")
+        if (resuming) resumePressedAtMs = SystemClock.elapsedRealtime()
+        player.playWhenReady = resuming
     }
 
     /** Loop the current video on/off. */
@@ -462,7 +542,7 @@ object PlaybackSession {
      *  expired-URL path above and [onPlayerError]'s auto re-resolve, just triggered manually --
      *  the Retry action on an error state, or [togglePlayPause] finding the player dead. Position
      *  is read from [progress] rather than the player: a failed resolve already cleared the
-     *  player's own source (see [resolveItem]'s catch blocks), so the player's own
+     *  player's own source (see [failItem]), so the player's own
      *  [ExoPlayer.getCurrentPosition] can no longer be trusted for where playback actually was --
      *  [tickPosition] stops writing [progress] the moment the error path cancels [tickerJob], so
      *  its last value is exactly the frozen resume point. */
@@ -470,6 +550,7 @@ object PlaybackSession {
         ensureInit()
         val ref = queue.getOrNull(index) ?: return
         val resumeAt = _progress.value.positionMs
+        diag("retryCurrent index=$index resumeAtMs=$resumeAt")
         resolver.invalidate(ref.pageUrl) // resolver may have cached the dead/stale result
         _state.update { it.copy(error = null) }
         startAt(index, resumeAtMs = resumeAt)
@@ -490,12 +571,14 @@ object PlaybackSession {
         val result = FormatSelector.select(currentFormats, height ?: maxHeight())
         val selection = result.selection ?: return
         val resumeAt = player.currentPosition
+        // A quality change must not start playback the user had paused.
+        val wasPlayWhenReady = player.playWhenReady
         prepared = null
         window = listOf(index)
         player.setMediaSource(MediaItemFactory.create(selection, queue.getOrNull(index), currentCaptions))
         player.prepare()
         player.seekTo(resumeAt)
-        player.playWhenReady = true
+        player.playWhenReady = wasPlayWhenReady
         val newHeight = when (selection) {
             is FormatSelection.Single -> selection.format.height
             is FormatSelection.Paired -> selection.video.height
@@ -550,17 +633,21 @@ object PlaybackSession {
         ensureInit()
         if (i !in queue.indices) return
         val wasCurrent = i == index
-        val affectsWindow = i >= index // current or anything after it can desync the prefetch slot
         queue = queue.toMutableList().apply { removeAt(i) }
         if (queue.isEmpty()) { clear(); return }
         order = order?.let { QueueMath.removeOrder(it, i) }
-        if (affectsWindow) dropPrefetchedWindowSlot()
-        when {
-            i < index -> index -= 1
-            wasCurrent -> { startAt(QueueMath.clamp(index, queue.size)); return }
+        if (wasCurrent) {
+            dropPrefetchedWindowSlot()
+            // clamp, not just startAt(clamp): removing the last item leaves `index` past the end,
+            // and resolveItem only reports a failure for the item that equals `index`.
+            index = QueueMath.clamp(index, queue.size)
+            startAt(index)
+            return
         }
+        dropAndRemapWindow { QueueMath.indexAfterRemove(it, removed = i) }
+        index = QueueMath.indexAfterRemove(index, removed = i)
         publishQueueState()
-        if (affectsWindow) prefetchNext()
+        continueAfterQueueEdit()
     }
 
     /** Drops every queue entry except the one currently playing -- the queue bar's ×/"Clear".
@@ -598,6 +685,7 @@ object PlaybackSession {
     fun clear() {
         ensureInit()
         loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
+        autoplayJob?.cancel(); autoplayJob = null
         queue = emptyList(); order = null; index = -1
         window = emptyList(); prepared = null; retriedIndex = null
         currentFormats = emptyList()
@@ -613,6 +701,7 @@ object PlaybackSession {
 
     fun release() {
         loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel(); sponsorFetchJob?.cancel()
+        autoplayJob?.cancel(); autoplayJob = null
         if (::player.isInitialized) player.release()
     }
 
@@ -634,20 +723,30 @@ object PlaybackSession {
 
     /** Resolve [i] and load it as the only window item, then prefetch the one after it.
      *  [resumeAtMs], when given, seeks back to it after the fresh source is prepared -- used by
-     *  the expiry re-resolve path (onPlayerError) where this
-     *  is the same item continuing, not a genuinely new one starting at 0. */
+     *  the expiry re-resolve path (onPlayerError) where this is the same item continuing, not a
+     *  genuinely new one starting at 0. */
     private fun startAt(i: Int, resumeAtMs: Long? = null) {
         loadJob?.cancel()
         prefetchJob?.cancel()
+        // Whatever the user picks here supersedes a pending "play a related video" lookup.
+        autoplayJob?.cancel()
+        autoplayJob = null
         val ref = queue.getOrNull(i) ?: return
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         window = emptyList()
         clearSponsorSegments() // item is changing -- the old item's segments must not carry over
+        loadBeganAtMs = SystemClock.elapsedRealtime()
+        awaitingReadyLog = false
+        awaitingFirstFrameLog = false
+        diag("load start index=$i resumeGiven=${resumeAtMs != null}")
         warmNext(i)
         loadJob = scope.launch {
             val item = resolveItem(i, ref) ?: return@launch
             player.setMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
             player.prepare()
+            awaitingReadyLog = true
+            awaitingFirstFrameLog = true
+            diag("sourceSet afterLoadStartMs=${msSince(loadBeganAtMs)}")
             // resumeAtMs given = the SAME item continuing (expiry re-resolve, retry). A genuinely
             // new start may pick up its saved resume point instead. Shorts never resume -- a
             // swipe-through clip restarting mid-way would just be confusing.
@@ -657,7 +756,8 @@ object PlaybackSession {
             // retriedIndex is deliberately NOT cleared here. This runs on the re-resolve that a
             // failed item triggered, so clearing it would re-arm the retry for the same item and
             // a host that rejects every fresh URL (403) would loop forever. It is cleared only
-            // when the user genuinely moves to another item.
+            // when the user moves to another item or presses play, or once the item has played
+            // for HEALTHY_TICKS_TO_REARM_RETRY ticks (a URL that works that long is not looping).
             window = listOf(i)
             currentFormats = item.resolved.formats
             currentCaptions = item.resolved.captions
@@ -681,30 +781,24 @@ object PlaybackSession {
      *  still the item actually being loaded — a fast skip during resolve must not clobber a newer
      *  error (or success) with a stale one. */
     private suspend fun resolveItem(i: Int, ref: VideoRef): PreparedItem? {
+        val resolveBeganAtMs = SystemClock.elapsedRealtime()
         val resolved = try {
             resolver.resolve(ref)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: ExtractionError) {
-            if (i == index) {
-                // the previous item must not keep playing (or auto-advance) under the error guardrail.
-                // Kill the ticker NOW: its cancel via onIsPlayingChanged is a posted event, and one
-                // stray tick after clearMediaItems() would overwrite positionMs with 0, losing the
-                // resume point retryCurrent() reads back.
-                tickerJob?.cancel()
-                player.stop()
-                player.clearMediaItems()
-                prepared = null
-                currentFormats = emptyList()
-                currentCaptions = emptyList()
-                clearSponsorSegments()
-                _state.update {
-                    it.copy(
-                        current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
-                        error = e, availableHeights = emptyList(), availableCaptions = emptyList(),
-                    )
-                }
-            }
+            diag("resolve failed index=$i error=${e.javaClass.simpleName} ms=${msSince(resolveBeganAtMs)}")
+            failItem(i, ref, e)
+            return null
+        } catch (e: Exception) {
+            // A resolver tier bug (parser crash, bad JSON) must become an error screen: nothing
+            // above this launches with a handler, so an escape here would kill the process.
+            // Class name only -- the message can embed a URL.
+            diag("resolve failed index=$i error=${e.javaClass.simpleName} ms=${msSince(resolveBeganAtMs)}")
+            failItem(i, ref, ExtractionError.Unsupported("resolver failed: ${e.javaClass.simpleName}"))
             return null
         }
+        diag("resolve ok index=$i ms=${msSince(resolveBeganAtMs)}")
         val result = FormatSelector.select(resolved.formats, maxHeight())
         val selection = result.selection
         if (selection == null) {
@@ -716,26 +810,8 @@ object PlaybackSession {
                     "${f.protocol}/${f.container}/${f.videoCodec}+${f.audioCodec}/${f.height}"
                 },
             )
-            if (i == index) {
-                // the previous item must not keep playing (or auto-advance) under the error guardrail.
-                // Kill the ticker NOW: its cancel via onIsPlayingChanged is a posted event, and one
-                // stray tick after clearMediaItems() would overwrite positionMs with 0, losing the
-                // resume point retryCurrent() reads back.
-                tickerJob?.cancel()
-                player.stop()
-                player.clearMediaItems()
-                prepared = null
-                currentFormats = emptyList()
-                currentCaptions = emptyList()
-                clearSponsorSegments()
-                _state.update {
-                    it.copy(
-                        current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
-                        error = ExtractionError.Unsupported(result.reason ?: "no playable format"),
-                        availableHeights = emptyList(), availableCaptions = emptyList(),
-                    )
-                }
-            }
+            diag("resolve failed index=$i error=NoPlayableFormat")
+            failItem(i, ref, ExtractionError.Unsupported(result.reason ?: "no playable format"))
             return null
         }
         val height = when (selection) {
@@ -743,6 +819,28 @@ object PlaybackSession {
             is FormatSelection.Paired -> selection.video.height
         }
         return PreparedItem(i, resolved, selection, height)
+    }
+
+    /** Puts [error] on screen for [i], but only if [i] is still the item being loaded. */
+    private fun failItem(i: Int, ref: VideoRef, error: ExtractionError) {
+        if (i != index) return
+        // the previous item must not keep playing (or auto-advance) under the error guardrail.
+        // Kill the ticker NOW: its cancel via onIsPlayingChanged is a posted event, and one
+        // stray tick after clearMediaItems() would overwrite positionMs with 0, losing the
+        // resume point retryCurrent() reads back.
+        tickerJob?.cancel()
+        player.stop()
+        player.clearMediaItems()
+        prepared = null
+        currentFormats = emptyList()
+        currentCaptions = emptyList()
+        clearSponsorSegments()
+        _state.update {
+            it.copy(
+                current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
+                error = error, availableHeights = emptyList(), availableCaptions = emptyList(),
+            )
+        }
     }
 
     private var warmJob: Job? = null
@@ -762,8 +860,11 @@ object PlaybackSession {
      *  see the class doc. Silent on failure: the real advance re-resolves for real. */
     private fun prefetchNext() {
         prefetchJob?.cancel()
-        val n = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order) ?: return
-        if (n == index) return
+        val n = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order)
+        // Every queue edit ends here, so this is the one place that catches a slot already loaded
+        // for an item that is no longer next (e.g. an append under repeat-all changed what follows).
+        if (window.size > 1 && window[1] != n) dropPrefetchedWindowSlot()
+        if (n == null || n == index) return
         val ref = queue.getOrNull(n) ?: return
         val startedAt = index
         prefetchJob = scope.launch {
@@ -777,8 +878,9 @@ object PlaybackSession {
     }
 
     /** Swaps state onto an item whose format is already resolved — an auto-advance or a fast skip
-     *  — so the UI gets height/queue info immediately instead of a blank beat. */
-    /** [resetFirstFrame]: false on ExoPlayer's own auto-advance -- there the next period's
+     *  — so the UI gets height/queue info immediately instead of a blank beat.
+     *
+     *  [resetFirstFrame]: false on ExoPlayer's own auto-advance -- there the next period's
      *  onRenderedFirstFrame can be delivered BEFORE onMediaItemTransition (seen live: shorts
      *  page stuck on its thumbnail), so a reset here would never be cleared. The gap is ~0 on
      *  auto-advance anyway (next window already buffered). Manual skips seek AFTER this, so
@@ -834,10 +936,18 @@ object PlaybackSession {
         }
         tickerJob = scope.launch {
             var ticks = 0
+            var healthyPlayingTicks = 0
             while (isActive) {
                 val position = player.currentPosition.coerceAtLeast(0)
                 _progress.value = PlaybackProgress(position, player.duration.coerceAtLeast(0))
-                if (player.isPlaying) checkSponsorSkip(position)
+                if (player.isPlaying) {
+                    checkSponsorSkip(position)
+                    // A long video can blip more than once; after a sustained healthy stretch the
+                    // one-retry budget is spent on a NEW failure, not the one already recovered from.
+                    if (++healthyPlayingTicks == HEALTHY_TICKS_TO_REARM_RETRY) retriedIndex = null
+                } else {
+                    healthyPlayingTicks = 0
+                }
                 if (++ticks % 10 == 0) persistPosition() // every ~5s while playing
                 delay(500)
             }
@@ -888,12 +998,28 @@ object PlaybackSession {
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying && resumePressedAtMs != 0L) {
+                diag("resumeAudible afterPressMs=${msSince(resumePressedAtMs)}")
+                resumePressedAtMs = 0L
+            }
             _state.update { it.copy(isPlaying = isPlaying) }
             tickPosition(isPlaying)
         }
 
         override fun onRenderedFirstFrame() {
             _state.update { it.copy(firstFrameRendered = true) }
+            if (awaitingFirstFrameLog) {
+                awaitingFirstFrameLog = false
+                diag("firstFrame afterLoadStartMs=${msSince(loadBeganAtMs)}")
+            }
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (playWhenReady) {
+                pausedAtMs = 0L
+            } else if (pausedAtMs == 0L) {
+                pausedAtMs = SystemClock.elapsedRealtime()
+            }
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -901,6 +1027,10 @@ object PlaybackSession {
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_READY && awaitingReadyLog) {
+                awaitingReadyLog = false
+                diag("ready afterLoadStartMs=${msSince(loadBeganAtMs)}")
+            }
             _state.update {
                 it.copy(
                     isBuffering = playbackState == Player.STATE_BUFFERING,
@@ -921,13 +1051,7 @@ object PlaybackSession {
                     // lookup below returns, so the latch is set synchronously, not after it lands.
                     autoplayFired = true
                     val ref = queue.getOrNull(index)
-                    if (ref != null) scope.launch {
-                        val next = autoplayNext(ref)
-                        if (next != null) {
-                            play(listOf(next), 0)
-                            _state.update { it.copy(autoAdvances = it.autoAdvances + 1) }
-                        }
-                    }
+                    if (ref != null) startAutoplay(ref, endedIndex = index)
                 }
             }
         }
@@ -950,7 +1074,14 @@ object PlaybackSession {
          *  was; a second failure on the same item stops instead of looping. */
         override fun onPlayerError(error: PlaybackException) {
             val expired = isExpiredHttpError(error)
-            if ((expired || isNetworkCause(error)) && retriedIndex != index) {
+            val network = isNetworkCause(error)
+            val willReResolve = (expired || network) && retriedIndex != index
+            diag(
+                "playerError code=${error.errorCode} name=${error.errorCodeName} " +
+                    "http=${httpResponseCodeOf(error)} expired=$expired network=$network " +
+                    "index=$index action=${if (willReResolve) "re-resolve" else "surface-error"}",
+            )
+            if (willReResolve) {
                 retriedIndex = index
                 val ref = queue.getOrNull(index)
                 // Only a dead URL invalidates the resolver: after a transport blip the cached
@@ -961,7 +1092,7 @@ object PlaybackSession {
                 // ids/codes only, never the exception's message — it can embed the dead signed URL.
                 // Only genuine transport trouble may claim "no connection": a googlevideo 403 on a
                 // fresh URL (seen live) is the platform refusing this client, not the user's network.
-                val mapped = if (isNetworkCause(error)) {
+                val mapped = if (network) {
                     ExtractionError.Network("playback error ${error.errorCode}")
                 } else {
                     ExtractionError.Unsupported("playback error ${error.errorCode}")
@@ -977,9 +1108,6 @@ object PlaybackSession {
  *  internal, not private: MediaItemFactory's no-retry LoadErrorHandlingPolicy checks the same set. */
 internal val EXPIRED_HTTP_CODES = setOf(401, 403, 410)
 
-/** Walks the cause chain for the HTTP codes that mean "this signed URL is dead", per Contracts's
- *  [com.fyiplayer.app.core.ExtractionError.Expired]. Never logs the message: it can carry the dead
- *  URL. Shared by PlaybackSession's onPlayerError and MediaItemFactory's fail-fast retry policy. */
 /** True only for transport-level causes (no route, DNS, timeout) — the cases where "check your
  *  network" is honest advice. An HTTP status is proof the network worked. */
 internal fun isNetworkCause(error: Throwable?): Boolean {
@@ -997,15 +1125,22 @@ internal fun isNetworkCause(error: Throwable?): Boolean {
     return false
 }
 
-internal fun isExpiredHttpError(error: Throwable?): Boolean {
+/** Walks the cause chain for the HTTP codes that mean "this signed URL is dead", per Contracts's
+ *  [com.fyiplayer.app.core.ExtractionError.Expired]. Never logs the message: it can carry the dead
+ *  URL. Shared by PlaybackSession's onPlayerError and MediaItemFactory's fail-fast retry policy. */
+internal fun isExpiredHttpError(error: Throwable?): Boolean =
+    httpResponseCodeOf(error) in EXPIRED_HTTP_CODES
+
+/** The HTTP status carried by the first [HttpDataSource.InvalidResponseCodeException] in the cause
+ *  chain, or null when the failure was not an HTTP status. A code only, never the message. */
+internal fun httpResponseCodeOf(error: Throwable?): Int? {
     var cause: Throwable? = error
-    while (cause != null) {
-        if (cause is HttpDataSource.InvalidResponseCodeException &&
-            cause.responseCode in EXPIRED_HTTP_CODES
-        ) return true
-        cause = cause.cause
+    var depth = 0
+    while (cause != null && depth++ < 8) {
+        if (cause is HttpDataSource.InvalidResponseCodeException) return cause.responseCode
+        cause = cause.cause.takeIf { it !== cause }
     }
-    return false
+    return null
 }
 
 /** What a caption pick becomes across a MediaSource rebuild: kept for [isSameItem] (same video,
