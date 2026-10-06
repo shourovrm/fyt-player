@@ -97,7 +97,13 @@ fun HomeScreen(
     LaunchedEffect(tabIds) { vm.selectedTab = resolveSelectedTab(vm.selectedTab, tabIds) }
     // Channels land one by one, each sorted above the last; LazyColumn keeps its position by key,
     // so without this the viewport rides the first channel's rows down as newer ones stack on top.
-    LaunchedEffect(vm.feed.items) { if (vm.feed.loading) listState.requestScrollToItem(0) }
+    // That list state is shared with search results and topic lists, so the pin applies only while
+    // the feed is what is on screen -- otherwise a subscription landing mid-refresh would snap
+    // whatever else is showing back to row 0.
+    val feedShowing = !isSearching && vm.selectedTopic == null
+    LaunchedEffect(vm.feed.items, feedShowing) {
+        if (shouldPinFeedToTop(feedShowing, vm.feed.loading)) listState.requestScrollToItem(0)
+    }
     // Home's feed builds from watch history, not a per-source fetch -- load it once, the first
     // time a blank query is on screen.
     LaunchedEffect(browseSources, isSearching) {
@@ -138,6 +144,12 @@ fun HomeScreen(
         }
     }
 
+    // Drop focus on submit so the keyboard does not stay over the results it just produced.
+    fun submitSearch(query: String) {
+        focusManager.clearFocus()
+        vm.runSearch(query, browseSources)
+    }
+
     fun openResult(ref: VideoRef) {
         // A YouTube search can return channel rows shaped as a VideoRef (NewPipeYoutubeSource's
         // toChannelRef): no duration, pageUrl is the channel page, not a watch URL. detail() has
@@ -173,7 +185,7 @@ fun HomeScreen(
                 onQueryChange = { vm.query = it },
                 onFocusChanged = { searchFieldFocused = it },
                 onClear = { vm.clearSearch() },
-                onSearch = { vm.runSearch(vm.query, browseSources) },
+                onSearch = { submitSearch(vm.query) },
                 modifier = Modifier.weight(1f),
             )
             if (!isSearching) {
@@ -191,7 +203,7 @@ fun HomeScreen(
             vm.query.isBlank() && searchFieldFocused && searchHistory.isNotEmpty() -> {
                 SearchHistorySuggestions(
                     entries = searchHistory.map { it.query },
-                    onPick = { vm.runSearch(it, browseSources) },
+                    onPick = { submitSearch(it) },
                     onDelete = { vm.deleteSearchHistoryEntry(it) },
                     onClearAll = { vm.clearSearchHistory() },
                 )
@@ -199,7 +211,7 @@ fun HomeScreen(
             // Typed but not yet submitted: searchResults is still the empty map runSearch hasn't
             // populated yet, so show live suggestions here instead of a "No results" flash.
             searchFieldFocused && vm.query.isNotBlank() && vm.searchResults.isEmpty() -> {
-                SearchSuggestionsDropdown(suggestions = vm.suggestions, onPick = { vm.runSearch(it, browseSources) })
+                SearchSuggestionsDropdown(suggestions = vm.suggestions, onPick = { submitSearch(it) })
             }
             isSearching -> {
                 // tabIds always carries a synthetic "All" entry on top of browseSources, so
@@ -428,6 +440,10 @@ private fun SearchSuggestionsDropdown(suggestions: List<String>, onPick: (String
         }
     }
 }
+
+/** Whether the shared Home list state is held at row 0: only while the feed itself is on screen
+ *  and still refreshing (search results and topic lists must keep their own scroll position). */
+internal fun shouldPinFeedToTop(feedShowing: Boolean, feedLoading: Boolean): Boolean = feedShowing && feedLoading
 
 /** True only for a URL shape YouTube actually uses for a channel page (/channel/UC…, /@handle,
  *  /c/Name, /user/Name). Conservative on purpose: anything else -- including a parse failure --

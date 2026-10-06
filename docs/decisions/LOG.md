@@ -226,3 +226,7 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-10-06 | persistent playback trace (DiagLog) in Settings | user-reported slow start + error not reproducible in 14 device starts; logcat holds ~20 min
 - 2026-10-06 | retry budget re-arms after 30 s healthy playback | a second blip late in a long video went straight to the error screen
 - 2026-10-06 | PO-token theory for v5.3.1 403s dropped | upstream reads the resolver only in the mweb/SABR path
+- 2026-10-06 | resume restarts PlaybackService | device: 25 min paused left no service or media session, process alive
+- 2026-10-06 | MediaButtonReceiver NOT added | would start the service as FGS before a multi-second resolve; known FGS-timeout crash
+- 2026-10-06 | backup import accepts any https video URL, not only registered sources | owner-only rule dropped saved Facebook/TikTok/X videos
+- 2026-10-06 | account cookie no longer sent to yt-dlp | header applied to every request of an extraction; engine ignored it for auth

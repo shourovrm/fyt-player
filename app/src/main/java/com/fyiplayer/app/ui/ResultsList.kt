@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -86,6 +88,9 @@ internal fun ResultsListColumn(
      *  error row's Retry tries again -- and the error renders under the rows, where the user
      *  stopped, instead of above them. */
     loadMoreFailed: Boolean = false,
+    /** Page URLs picked in selection mode; non-empty means the list is in selection mode, so rows
+     *  highlight and report selected/unselected to accessibility. A set lookup per row, no I/O. */
+    selection: Set<String> = emptySet(),
 ) {
     // Endless scroll: fire onLoadMore a few rows before the true bottom so scrolling never stalls.
     val shouldLoadMore by remember(listState) {
@@ -99,6 +104,7 @@ internal fun ResultsListColumn(
         if (shouldAutoLoadMore(shouldLoadMore, hasMore, isLoadingMore, loadMoreFailed)) onLoadMore()
     }
     val errorsAtTail = loadMoreFailed && items.isNotEmpty()
+    val selecting = selection.isNotEmpty()
 
     LazyColumn(state = listState, modifier = modifier, contentPadding = PaddingValues(bottom = 24.dp)) {
         topContent?.let { item(key = "topContent") { it() } }
@@ -111,7 +117,13 @@ internal fun ResultsListColumn(
         // LazyColumn's `key` throws on a duplicate.
         val deduped = items.distinctBy { it.pageUrl }
         items(deduped, key = { it.pageUrl }) { ref ->
-            ResultRow(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
+            ResultRow(
+                ref,
+                onClick = { onClick(ref) },
+                onLongPress = { onLongPress(ref) },
+                selected = ref.pageUrl in selection,
+                selecting = selecting,
+            )
         }
         if (errorsAtTail) errors.forEach { row -> item { ErrorRowView(row) } }
         if (isLoadingMore) {
@@ -177,13 +189,23 @@ private fun compactCount(count: Long): String {
 private val ROW_THUMB = DpSize(120.dp, 67.5.dp)
 
 /** The one result row the whole app renders (Home, Listing, Detail's related). TAP opens the
- *  video, LONG-PRESS opens the shared action sheet. */
+ *  video, LONG-PRESS opens the shared action sheet. [selecting] is whether the surrounding list is
+ *  in selection mode: only then does the row announce a selected state, so ordinary browsing is not
+ *  read out as "not selected" on every row. */
 @Composable
-internal fun ResultRow(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit) {
+internal fun ResultRow(
+    ref: VideoRef,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    selected: Boolean = false,
+    selecting: Boolean = false,
+) {
     Row(
         Modifier
             .fillMaxWidth()
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .semantics { if (selecting) this.selected = selected }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

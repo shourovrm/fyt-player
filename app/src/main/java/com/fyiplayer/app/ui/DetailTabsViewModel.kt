@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
 import kotlinx.coroutines.CancellationException
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 enum class DetailTab { SIMILAR, DESCRIPTION, COMMENTS }
 
 /**
- * Similar-videos and comments state for one video's detail screen. A plain [AndroidViewModel],
+ * Video detail, similar-videos and comments state for one video's detail screen. A plain [AndroidViewModel],
  * same shape as [ListingViewModel]: `detail/{pageUrl}` gives every video its own nav back-stack
  * entry, so a bare `viewModel()` call in [DetailScreen] already scopes one instance per video
  * with no manual key -- and it survives both the fullscreen toggle (a bool flip inside the same
@@ -28,9 +29,46 @@ enum class DetailTab { SIMILAR, DESCRIPTION, COMMENTS }
  * Each tab fetches at most once per video: [similarLoadedFor]/[commentsLoadedFor] gate a refetch
  * the same idempotent way [ListingViewModel.ensureLoaded] does, and are cleared on error so a
  * user-initiated retry actually retries instead of silently no-op'ing.
+ *
+ * The resolved [detail] and the "history recorded" latch live here too, not in the screen's
+ * `remember`: returning from a deeper Similar hop recomposes the screen from scratch, and holding
+ * them there refetched the detail and recorded the same watch again.
  */
 class DetailTabsViewModel(application: Application) : AndroidViewModel(application) {
     var selectedTab: DetailTab by mutableStateOf(DetailTab.SIMILAR)
+
+    /** Null until the first resolve ends; then the real detail, or a bare placeholder if it failed. */
+    var detail: VideoDetail? by mutableStateOf(null)
+        private set
+
+    /** Gates the Similar fetch: it reads detail.related, meaningless before this is true (success
+     *  or fallback placeholder alike). */
+    var detailLoaded: Boolean by mutableStateOf(false)
+        private set
+    private var detailJob: Job? = null
+    private var historyRecorded = false
+
+    /** Resolves the video's detail once; a later call (back-navigation, recomposition) is a no-op. */
+    fun ensureDetailLoaded(source: VideoSource?, ref: VideoRef) {
+        if (detailLoaded || detailJob?.isActive == true) return
+        detailJob = viewModelScope.launch {
+            detail = try {
+                source?.detail(ref) ?: VideoDetail(ref)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                VideoDetail(ref)
+            }
+            detailLoaded = true
+        }
+    }
+
+    /** True exactly once per video: the caller that gets it records the watch. */
+    fun claimHistoryRecord(): Boolean {
+        if (historyRecorded) return false
+        historyRecorded = true
+        return true
+    }
 
     var similarItems: List<VideoRef> by mutableStateOf(emptyList())
         private set

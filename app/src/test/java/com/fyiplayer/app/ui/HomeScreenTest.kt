@@ -26,4 +26,11 @@ class HomeScreenTest {
         assertFalse(isChannelPageUrl("not a url"))
         assertFalse(isChannelPageUrl(""))
     }
+
+    @Test fun `feed pin applies only while the feed is showing and loading`() {
+        assertTrue(shouldPinFeedToTop(feedShowing = true, feedLoading = true))
+        // A subscription landing mid-refresh must not snap search results or a topic list to row 0.
+        assertFalse(shouldPinFeedToTop(feedShowing = false, feedLoading = true))
+        assertFalse(shouldPinFeedToTop(feedShowing = true, feedLoading = false))
+    }
 }

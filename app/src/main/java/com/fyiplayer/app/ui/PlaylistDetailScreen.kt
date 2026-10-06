@@ -1,7 +1,6 @@
 package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,7 +37,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,10 +49,11 @@ import kotlinx.coroutines.launch
  * One playlist opened from the Playlists tab: header (count · play all · shuffle all · select),
  * per-row up/down reorder, and multi-select for a bulk remove. [id] is the decoded playlist id
  * from the `playlist/{id}` route -- Room's id is a Long, the route only carries strings.
+ * [onDeleted] runs after a confirmed delete: the playlist is gone, so the caller pops this screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
+fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: () -> Unit = {}) {
     val playlistId = remember(id) { id.toLongOrNull() }
     if (playlistId == null) {
         LibraryEmptyState("Playlist not found", "No playlist id $id.")
@@ -77,6 +76,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
     val selecting = selection.isNotEmpty()
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     BackHandler(enabled = selecting) { selection = emptySet() }
 
     Scaffold(
@@ -118,7 +118,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Delete playlist") },
-                                    onClick = { menuOpen = false; scope.launch { playlists.delete(playlistId) } },
+                                    onClick = { menuOpen = false; confirmingDelete = true },
                                 )
                             }
                         }
@@ -162,11 +162,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
                 else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) 88.dp else 0.dp)) {
                     itemsIndexed(videos, key = { _, ref -> ref.pageUrl }) { index, ref ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier
-                                    .weight(1f)
-                                    .background(if (ref.pageUrl in selection) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
-                            ) {
+                            Box(Modifier.weight(1f)) {
                                 ResultRow(
                                     ref,
                                     onClick = {
@@ -174,6 +170,8 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
                                         else { RefCache.put(ref); onOpenDetail(ref.pageUrl) }
                                     },
                                     onLongPress = { selection = selection.toggled(ref.pageUrl) },
+                                    selected = ref.pageUrl in selection,
+                                    selecting = selecting,
                                 )
                             }
                             if (!selecting) {
@@ -200,10 +198,28 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit) {
             title = "Rename playlist",
             initial = name.orEmpty(),
             onConfirm = { newName ->
-                scope.launch { runCatching { playlists.rename(playlistId, newName) }.onSuccess { name = newName } }
+                scope.launch {
+                    runCatching { playlists.rename(playlistId, newName) }
+                        .onSuccess { name = newName }
+                        .onFailure { showToast(context, "Couldn't rename -- that name may already be used") }
+                }
                 renaming = false
             },
             onDismiss = { renaming = false },
+        )
+    }
+    if (confirmingDelete) {
+        ConfirmDialog(
+            title = "Delete playlist \"${name ?: "Playlist"}\"?",
+            confirmLabel = "Delete",
+            onConfirm = {
+                confirmingDelete = false
+                scope.launch {
+                    playlists.delete(playlistId)
+                    onDeleted()
+                }
+            },
+            onDismiss = { confirmingDelete = false },
         )
     }
 }

@@ -16,8 +16,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
 - Slow start / slow long-pause resume (user report) not reproduced; read Settings > Playback
   log on the next occurrence. See playback.md Open items.
-- 2026-10-06 review backlog not yet done: download bugs (part files not keyed by format, no
-  size check, pause/cancel lost during resolve), dead "File format" setting, missing confirms.
+- Two 2026-10-06 review waves are committed but DEVICE-UNVERIFIED; checklist in playback.md
+  Open items. Remaining review items: ui.md Open items.
 - Shorts age/CAPTCHA wall not reproduced; on the next report read the `wall:` log line first. See shorts.md.
 - Shorts in Similar wait on a signed-in watch-next. See shorts.md.
 - Device-unverified backlog (v0.2.2 / v0.2.3 items, shorts "all caught up" footer, SponsorBlock skip): build.md, shorts.md, playback.md "Open items".

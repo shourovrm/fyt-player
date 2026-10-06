@@ -239,7 +239,11 @@ fun AppShell(navController: NavHostController) {
             arguments = listOf(navArgument("id") { type = NavType.StringType }),
         ) { entry ->
             val id = entry.arguments?.getString("id")?.let(Uri::decode).orEmpty()
-            PlaylistDetailScreen(id = id, onOpenDetail = { navController.openDetail(it) })
+            PlaylistDetailScreen(
+                id = id,
+                onOpenDetail = { navController.openDetail(it) },
+                onDeleted = { navController.popBackStack() },
+            )
         }
     }
     }

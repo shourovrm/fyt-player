@@ -94,6 +94,9 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        } else if (vm.items.isEmpty() && vm.error == null) {
+            // Loaded fine, nothing in it: say so instead of a blank screen.
+            Box(Modifier.fillMaxSize().padding(padding)) { EmptyStateScreen("No videos", "This playlist has no videos.") }
         } else {
             val errors = vm.error?.let {
                 listOf(ErrorRow(listing.title, it, onRetry = if (vm.blocked) null else { { vm.retry(listing) } }))
@@ -104,7 +107,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                 hasMore = vm.nextPage != null,
                 isLoadingMore = vm.loading && vm.items.isNotEmpty(),
                 onLoadMore = { vm.loadMore(listing) },
-                selecting = selecting,
+                selection = selection,
                 // Row tap opens Detail only -- Detail autoplays the single video (PipePipe queue
                 // model, CLAUDE.md). "Play all" above is the one explicit whole-list play.
                 onTap = onOpenDetail,
