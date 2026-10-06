@@ -68,11 +68,35 @@ data class MediaFormat(
     val bitrate: Long? = null,
     val filesizeBytes: Long? = null,
     val headers: Map<String, String> = emptyMap(),
+    /** Null when the platform did not publish usable byte ranges: the format then plays as a
+     *  plain progressive stream. The ranges describe the file behind this exact [url]. */
+    val segmentIndex: SegmentIndexInfo? = null,
 ) {
     val isVideoOnly: Boolean get() = videoCodec != null && audioCodec == null
     val isAudioOnly: Boolean get() = audioCodec != null && videoCodec == null
     val isMuxed: Boolean get() = videoCodec != null && audioCodec != null
 }
+
+/**
+ * What a DASH `SegmentBase` representation needs beyond [MediaFormat]'s own fields: the byte
+ * ranges of a progressive file's init header and segment index (all inclusive offsets, as in
+ * the platform's player response), plus the stream properties the manifest declares. Unknown
+ * optional values are null (never -1) so the manifest builder can simply omit the attribute.
+ */
+data class SegmentIndexInfo(
+    val initStart: Long,
+    val initEnd: Long,
+    val indexStart: Long,
+    val indexEnd: Long,
+    /** Full codec string such as "avc1.640028", "vp09.00.40.08", "mp4a.40.2" or "opus". */
+    val codecs: String,
+    val bitrate: Long,
+    val durationMs: Long,
+    val width: Int? = null,
+    val frameRate: Int? = null,
+    val audioSampleRate: Int? = null,
+    val audioChannels: Int? = null,
+)
 
 enum class Protocol { PROGRESSIVE, HLS, DASH }
 

@@ -14,8 +14,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 ## Next
 - Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
-- Slow resumed start is MEASURED (playback.md Open items): HTTP/1.1-only CDN, aborted probe
-  window, exact seek. Fix options listed there, none chosen.
+- v0.2.24 = DASH segment playback for YouTube pairs, built but NEVER run on a device. Verify
+  it before anything else (checklist: playback.md Open items, SLOW START entry).
 - Three 2026-10-06 waves (review x2 + PipePipe port) are committed but DEVICE-UNVERIFIED; checklist in playback.md
   Open items. Remaining review items: ui.md Open items.
 - Shorts age/CAPTCHA wall not reproduced; on the next report read the `wall:` log line first. See shorts.md.

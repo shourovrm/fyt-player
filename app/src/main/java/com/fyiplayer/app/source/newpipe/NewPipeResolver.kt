@@ -6,6 +6,7 @@ import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
 import com.fyiplayer.app.core.Resolved
+import com.fyiplayer.app.core.SegmentIndexInfo
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.engine.UrlScopedResolver
 import java.net.URI
@@ -14,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.MediaFormat as NpMediaFormat
+import org.schabi.newpipe.extractor.services.youtube.ItagItem
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -109,8 +111,9 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
         originalAudioOnly(info.audioStreams.orEmpty())
             .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
             .forEach { add(audioOnlyFormat(it)) }
-        // DASH and torrent are deliberately skipped: media3-exoplayer-dash isn't a dependency and
-        // Protocol.DASH throws downstream (see MediaItemFactory), and nothing here plays torrent.
+        // The extractor's own DASH/torrent delivery methods are skipped: the progressive streams
+        // above carry the init/index byte ranges, and MediaItemFactory builds its own one-stream
+        // DASH manifests from those. Nothing here plays torrent.
         val hls = info.hlsUrl
         if (!hls.isNullOrBlank()) add(hlsFormat(hls))
     }
@@ -154,6 +157,9 @@ private fun videoOnlyFormat(s: VideoStream) = MediaFormat(
     height = resolutionToHeight(s.resolution),
     videoCodec = genericCodec(s.codec, "avc1"),
     audioCodec = null,
+    bitrate = s.itagItem?.bitrate?.takeIf { it > 0 }?.toLong(),
+    filesizeBytes = s.itagItem?.contentLength?.takeIf { it > 0 },
+    segmentIndex = segmentIndexOf(s.itagItem, s.codec, isAudio = false),
 )
 
 private fun muxedFormat(s: VideoStream) = MediaFormat(
@@ -176,7 +182,39 @@ private fun audioOnlyFormat(s: AudioStream) = MediaFormat(
     videoCodec = null,
     audioCodec = genericCodec(s.codec, "mp4a"),
     bitrate = s.averageBitrate.takeIf { it > 0 }?.toLong(),
+    filesizeBytes = s.itagItem?.contentLength?.takeIf { it > 0 },
+    segmentIndex = segmentIndexOf(s.itagItem, s.codec, isAudio = true),
 )
+
+/** The init/index ranges and stream properties a one-stream DASH manifest needs, or null when
+ *  the player response did not carry sane ones (the extractor stores -1 for a missing range, and
+ *  0/0 for a stream built without an itag) -- the caller then plays the stream progressively. */
+internal fun segmentIndexOf(itag: ItagItem?, codec: String?, isAudio: Boolean): SegmentIndexInfo? {
+    if (itag == null || codec.isNullOrBlank()) return null
+    val initStart = itag.initStart.toLong()
+    val initEnd = itag.initEnd.toLong()
+    val indexStart = itag.indexStart.toLong()
+    val indexEnd = itag.indexEnd.toLong()
+    // The index normally starts right after the init header; overlapping ranges mean a bad parse.
+    val rangesAreSane = initStart >= 0 && initEnd > initStart && indexStart > initEnd && indexEnd > indexStart
+    if (!rangesAreSane) return null
+    // Not averageBitrate: the itag table keeps that in kbit/s, the manifest wants bit/s.
+    val bandwidth = itag.bitrate.takeIf { it > 0 }?.toLong() ?: return null
+    val durationMs = itag.approxDurationMs.takeIf { it > 0 } ?: return null
+    return SegmentIndexInfo(
+        initStart = initStart,
+        initEnd = initEnd,
+        indexStart = indexStart,
+        indexEnd = indexEnd,
+        codecs = codec,
+        bitrate = bandwidth,
+        durationMs = durationMs,
+        width = if (isAudio) null else itag.width.takeIf { it > 0 },
+        frameRate = if (isAudio) null else itag.fps.takeIf { it > 0 },
+        audioSampleRate = if (isAudio) itag.sampleRate.takeIf { it > 0 } else null,
+        audioChannels = if (isAudio) itag.audioChannels.takeIf { it > 0 } else null,
+    )
+}
 
 private fun hlsFormat(url: String) = MediaFormat(
     formatId = "hls",

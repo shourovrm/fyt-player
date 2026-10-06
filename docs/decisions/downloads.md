@@ -49,6 +49,8 @@ lambda.
 
 ## Gotchas
 
+- Since v0.2.24 the resolver fills `MediaFormat.filesizeBytes` for YouTube adaptive formats
+  (itag contentLength), so the quality sheet and StreamDownloader skip their HEAD for those.
 - `processNext` picks from the `rows` StateFlow snapshot, which trails Room. A row that is no
   longer QUEUED in the DB makes `runRow` wait (<=2 s) for the snapshot instead of returning at
   once, or the service loop spins on the stale row.

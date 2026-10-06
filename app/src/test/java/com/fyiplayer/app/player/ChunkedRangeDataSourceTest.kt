@@ -61,6 +61,32 @@ class ChunkedRangeDataSourceTest {
         assertEquals(1500L, explicitTotal(1000L, 500L, "999999"))
     }
 
+    @Test fun `bounded DASH segment read -- total is the segment end and open reports the segment length`() {
+        // DataSpec(position=5_000_000, length=800_000) as DefaultDashChunkSource sends it; clen is
+        // the whole file and must lose. open() returns total - position, i.e. exactly the length.
+        val position = 5_000_000L
+        val length = 800_000L
+        val total = explicitTotal(position, length, "90000000")
+        assertEquals(5_800_000L, total)
+        assertEquals(length, total - position)
+    }
+
+    @Test fun `bounded read under one window ends without reopening`() {
+        // A 800 KB segment is one range= window: the single END_OF_INPUT arrives at position ==
+        // endExclusive, so no second request is made.
+        val windows = ScriptedWindows(ArrayDeque(listOf(500_000, 300_000, C.RESULT_END_OF_INPUT)))
+        val chain = WindowChain(
+            startPosition = 5_000_000, endExclusive = 5_800_000,
+            readWindow = windows::read,
+            openNextWindow = { windows.reopenCount++ },
+        )
+        val buffer = ByteArray(1_000_000)
+        assertEquals(500_000, chain.read(buffer, 0, buffer.size))
+        assertEquals(300_000, chain.read(buffer, 0, buffer.size))
+        assertEquals(C.RESULT_END_OF_INPUT, chain.read(buffer, 0, buffer.size))
+        assertEquals(0, windows.reopenCount)
+    }
+
     @Test fun `explicitTotal unknown when neither length nor clen is present`() {
         assertEquals(C.LENGTH_UNSET.toLong(), explicitTotal(0L, C.LENGTH_UNSET.toLong(), null))
     }
