@@ -2,6 +2,23 @@
 
 ## Current state
 
+2026-10-07 DEVICE RUN of v0.2.24 (Nothing A059, WiFi + VPN, install -r over user data):
+- DASH path live: every YouTube pair logs `source=dash`, plays, all `range=` chunks answer 200.
+  visionos responses DO carry initRange/indexRange. Request shape as designed: init+index per
+  stream (`range=0-578` audio, `range=0-1204` video), then bounded segments on a REUSED
+  connection (ttfb ~133 ms vs ~790 ms on a new one that night).
+- A/B on the same resumed videos, same session, disk cache bypassed (throwaway build):
+  sourceSet->firstFrame dash 2.1 / 3.2 / 1.8 / 2.4 s vs progressive 5.0 / 3.2 / 2.8 / 2.7 s; one
+  contended pair went the other way (6.6 vs 5.2 s). n is small and the link was noisy
+  (~1 MB/s): DASH is not worse and looks ~1 s better; NOT a proven number.
+- Verified: paused seek holds (1:34 -> 3:05, stays paused); quality switch while paused stays
+  paused and keeps position; Loop icon toggles ("Loop this video" / "Stop looping"); "Skips on"
+  switch on the channel line; Shorts fast up-up-down lands on the swiped-back clip (load
+  index=2 then index=1, final = 1).
+- NOT verified on device: queue remove-above-current, autoplay hijack, long-pause service
+  restart + notification, error-policy branches, sponsor markers/skip button, chapters,
+  captions over DASH, expiry re-resolve, headset resumption (still dormant).
+
 2026-10-06 (v0.2.24, tests green, NOT YET RUN ON A DEVICE -- phone was disconnected): YouTube
 video+audio pairs play as ONE `DashMediaSource` built from a local SegmentBase manifest
 (`player/DashManifestBuilder.kt`, init/index byte ranges from the extractor's ItagItem via
