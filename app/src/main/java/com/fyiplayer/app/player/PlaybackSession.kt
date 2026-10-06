@@ -50,6 +50,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.runInterruptible
 
 /**
  * Immutable snapshot for the UI. Deliberately carries no media URL — Contracts.kt's rule.
@@ -202,6 +204,10 @@ object PlaybackSession {
     private var pausedAtMs = 0L // when playWhenReady last went false
     private var resumePressedAtMs = 0L // set by a plain resume, cleared when audio is actually playing
 
+    // The index is ~1-2 KB on a connection the player needs anyway; past this, an exact resume
+    // (slower first frame) beats holding the start any longer.
+    private const val SEGMENT_INDEX_TIMEOUT_MS = 2_500L
+    private const val MAX_RESUME_REWIND_MS = 15_000L
     private const val HEALTHY_TICKS_TO_REARM_RETRY = 60 // 60 x 500ms = 30s of continuous playing
 
     private class PreparedItem(
@@ -832,7 +838,7 @@ object PlaybackSession {
             val source = MediaItemFactory.create(item.selection, ref, item.resolved.captions)
             // The source starts AT the resume point. Seeking after prepare() let playback begin
             // from 0 first (audible blip, wasted first segment fetch) before jumping.
-            val resume = resumeAtMs ?: savedPositionLookup?.await()
+            val resume = (resumeAtMs ?: savedPositionLookup?.await())?.let { segmentStartFor(item.selection, it) }
             if (resume != null) player.setMediaSource(source, resume) else player.setMediaSource(source)
             player.prepare()
             loadedRef = ref
@@ -889,6 +895,28 @@ object PlaybackSession {
             diag("resumption from last played")
             play(listOf(last), 0)
         }
+    }
+
+    /** The position to actually start at for a resume at [positionMs]: the start of the video
+     *  segment that contains it when the index can be read in time, else [positionMs] itself.
+     *  See [MediaItemFactory.segmentStartMs] for why. A position near the very start is left
+     *  alone (nothing to gain), and so is a segment that would replay more than
+     *  [MAX_RESUME_REWIND_MS] -- that would read as "it lost my place". */
+    private suspend fun segmentStartFor(selection: FormatSelection, positionMs: Long): Long {
+        if (positionMs <= 0) return positionMs
+        val lookupBeganAtMs = SystemClock.elapsedRealtime()
+        val segmentStartMs = withTimeoutOrNull(SEGMENT_INDEX_TIMEOUT_MS) {
+            runInterruptible(Dispatchers.IO) { MediaItemFactory.segmentStartMs(selection, positionMs) }
+        }
+        val lookupMs = msSince(lookupBeganAtMs)
+        if (segmentStartMs == null) {
+            diag("resume snap used=false reason=noIndex lookupMs=$lookupMs")
+            return positionMs
+        }
+        val rewindMs = positionMs - segmentStartMs
+        val usable = rewindMs in 0..MAX_RESUME_REWIND_MS
+        diag("resume snap used=$usable rewindMs=$rewindMs lookupMs=$lookupMs")
+        return if (usable) segmentStartMs else positionMs
     }
 
     /** One item's resolve + format pick. On failure, writes the error to state only if [i] is

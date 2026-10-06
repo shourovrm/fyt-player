@@ -9,6 +9,8 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.dash.DashUtil
+import androidx.media3.exoplayer.dash.manifest.DashManifest
 import androidx.media3.exoplayer.dash.manifest.DashManifestParser
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
@@ -125,18 +127,52 @@ object MediaItemFactory {
      *  -- the same cache + ChunkedRangeDataSource + OkHttp stack the progressive path uses. */
     private fun dashSourceFor(video: MediaFormat, audio: MediaFormat, metadata: MediaMetadata): Pair<MediaSource?, String?> {
         val manifestText = buildDashManifest(video, audio) ?: return null to "manifestRejected"
-        val manifest = try {
-            DashManifestParser().parse(manifestBaseUri, manifestText.byteInputStream())
-        } catch (_: Exception) {
-            // Any parser failure, not just IOException: this runs outside resolveItem's catch, and
-            // the progressive path below still plays the same pair.
-            return null to "manifestParseFailed"
-        }
+        val manifest = parseManifest(manifestText) ?: return null to "manifestParseFailed"
         val mediaItem = MediaItem.Builder().setMediaMetadata(metadata).build()
         val source = DashMediaSource.Factory(dataSourceFactory(video.headers))
             .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
             .createMediaSource(manifest, mediaItem)
         return source to null
+    }
+
+    private fun parseManifest(manifestText: String): DashManifest? = try {
+        DashManifestParser().parse(manifestBaseUri, manifestText.byteInputStream())
+    } catch (_: Exception) {
+        // Any parser failure, not just IOException: this runs outside resolveItem's catch, and
+        // the progressive path still plays the same pair.
+        null
+    }
+
+    /**
+     * Where the video segment containing [positionMs] starts, or null when that cannot be told
+     * (not a DASH pair, index unreadable, request failed). BLOCKING network read -- call off the
+     * main thread.
+     *
+     * Why: a resume at the exact saved position makes the player download and decode everything
+     * from the segment's first frame up to that position before it can show a picture (measured:
+     * 1.4-2.5 s at 1080p on a ~1 MB/s link). Starting AT the segment start shows the first frame
+     * as soon as the first bytes arrive, at the price of replaying a few seconds. Media3 offers no
+     * setter for this: SeekParameters apply to seeks, not to a source's initial position.
+     *
+     * Costs no extra request: this reads the same init + index range the player asks for next,
+     * and that second read is served by the disk cache.
+     */
+    fun segmentStartMs(selection: FormatSelection, positionMs: Long): Long? {
+        if (selection !is FormatSelection.Paired) return null
+        if (dashFallbackReason(selection.video, selection.audio) != null) return null
+        return try {
+            val manifestText = buildDashManifest(selection.video, selection.audio) ?: return null
+            val manifest = parseManifest(manifestText) ?: return null
+            val videoRepresentation = manifest.getPeriod(0).adaptationSets
+                .firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
+                ?.representations?.firstOrNull() ?: return null
+            val dataSource = dataSourceFactory(selection.video.headers).createDataSource()
+            val chunkIndex = DashUtil.loadChunkIndex(dataSource, C.TRACK_TYPE_VIDEO, videoRepresentation) ?: return null
+            segmentStartAtOrBefore(chunkIndex.timesUs, positionMs * 1000)?.let { it / 1000 }
+        } catch (_: Exception) {
+            // Class of failure does not matter here: the caller resumes at the exact position.
+            null
+        }
     }
 
     /** A video+audio pair: DASH with SegmentBase when both sides carry byte ranges (bounded range
@@ -201,4 +237,15 @@ object MediaItemFactory {
         val subtitleSources = captions.map(::subtitleSourceFor).toTypedArray()
         return MergingMediaSource(true, true, base, *subtitleSources)
     }
+}
+
+/** The latest segment start that is not after [positionUs], or null when the index is empty or
+ *  the position lies before its first segment. [segmentStartTimesUs] must be ascending, as a
+ *  segment index always is. */
+internal fun segmentStartAtOrBefore(segmentStartTimesUs: LongArray, positionUs: Long): Long? {
+    val found = java.util.Arrays.binarySearch(segmentStartTimesUs, positionUs)
+    // binarySearch returns -(insertionPoint) - 1 on a miss; the segment before the insertion
+    // point is the one that contains the position.
+    val segmentIndex = if (found >= 0) found else -found - 2
+    return segmentStartTimesUs.getOrNull(segmentIndex)
 }

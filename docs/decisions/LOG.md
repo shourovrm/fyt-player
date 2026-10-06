@@ -234,3 +234,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-10-06 | slow resumed start measured: HTTP/1.1-only CDN + aborted 10 MB probe window + exact seek at 1080p | user-reported slowness; extraction and age wall ruled out by ~45 timed starts
 - 2026-10-06 | SponsorBlock whitelist in DataStore, not Room | avoids a schema migration
 - 2026-10-06 | YouTube pairs play as local-manifest DASH (v0.2.24) | bounded requests complete and reuse the HTTP/1.1 connection; user chose it over Cronet/HTTP3
+- 2026-10-07 | resume snaps to the containing video segment's start (v0.2.25) | exact resume downloads+decodes keyframe->position first; Media3 SeekParameters do not apply to the initial position
