@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -239,11 +241,12 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     }
 }
 
-/** One destructive yes/no prompt, shared by Unsubscribe and Remove-followed: the destructive
+/** One destructive yes/no prompt, shared by Unsubscribe, Remove-followed, playlist delete and the
+ *  history clears: the destructive
  *  choice is error-tinted text, not the filled/primary button, so it never reads as the default
  *  -- same non-default-destructive convention as DownloadsScreen's `RemoveConfirmDialog`. */
 @Composable
-private fun ConfirmDialog(title: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+internal fun ConfirmDialog(title: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -269,14 +272,17 @@ private fun LikesTab(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) 88.dp else 0.dp)) {
         items(videos, key = { it.pageUrl }) { ref ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .background(if (ref.pageUrl in selection) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
-                ) {
+                Box(Modifier.weight(1f)) {
                     // Resume bar now draws inside ResultRow itself (LocalPlaybackPositions,
-                    // provided once in AppShell) -- every list gets it, not just Likes.
-                    ResultRow(ref, onClick = { if (selecting) onToggle(ref) else onOpen(ref) }, onLongPress = { onToggle(ref) })
+                    // provided once in AppShell) -- every list gets it, not just Likes. The
+                    // selection highlight is ResultRow's too, shared with Channel/Listing.
+                    ResultRow(
+                        ref,
+                        onClick = { if (selecting) onToggle(ref) else onOpen(ref) },
+                        onLongPress = { onToggle(ref) },
+                        selected = ref.pageUrl in selection,
+                        selecting = selecting,
+                    )
                 }
                 // Single-row unlike yields while selecting -- the top bar owns bulk remove.
                 if (!selecting) {
@@ -413,6 +419,7 @@ private fun PlaylistRowItem(
 private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit, onShare: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     PlaylistRowItem(
         thumbnailUrl = card.coverThumbnailUrl,
         title = card.name,
@@ -426,11 +433,19 @@ private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: 
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; onShare() })
                     DropdownMenuItem(text = { Text("Rename") }, onClick = { menuOpen = false; renaming = true })
-                    DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onDelete() })
+                    DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; confirmingDelete = true })
                 }
             }
         },
     )
+    if (confirmingDelete) {
+        ConfirmDialog(
+            title = "Delete playlist \"${card.name}\"?",
+            confirmLabel = "Delete",
+            onConfirm = { confirmingDelete = false; onDelete() },
+            onDismiss = { confirmingDelete = false },
+        )
+    }
     if (renaming) {
         NamePromptDialog(title = "Rename playlist", initial = card.name, onConfirm = { onRename(it); renaming = false }, onDismiss = { renaming = false })
     }
@@ -513,7 +528,13 @@ private fun ChannelsTab(
                 }
                 // The glyph itself stays full-opacity even when the row dims -- it's the tap target
                 // that un-hides the channel, so it needs to read clearly either way.
-                IconButton(onClick = { onToggleShowInFeed(row) }) {
+                val feedToggleDescription =
+                    if (row.showInFeed) "Hide ${channel.title.ifBlank { "channel" }} from feed"
+                    else "Show ${channel.title.ifBlank { "channel" }} in feed"
+                IconButton(
+                    onClick = { onToggleShowInFeed(row) },
+                    modifier = Modifier.semantics { contentDescription = feedToggleDescription },
+                ) {
                     EyeGlyph(slashed = !row.showInFeed, tint = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -567,6 +588,8 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
     val scope = rememberCoroutineScope()
     val recording by vm.prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
     val entries by vm.history.observe().collectAsStateWithLifecycle(initialValue = null)
+    var confirmingClear by remember { mutableStateOf(false) }
+    var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         if (!recording) {
@@ -586,14 +609,24 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
             )
             else -> {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { scope.launch { vm.history.clear() } }) { Text("Clear history") }
+                    TextButton(onClick = { confirmingClear = true }) { Text("Clear history") }
                 }
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(list, key = { it.pageUrl }) { ref -> ResultRow(ref, onClick = { onOpen(ref) }, onLongPress = {}) }
+                    items(list, key = { it.pageUrl }) { ref -> ResultRow(ref, onClick = { onOpen(ref) }, onLongPress = { actionSheetRef = ref }) }
                 }
             }
         }
     }
+
+    if (confirmingClear) {
+        ConfirmDialog(
+            title = "Clear watch history?",
+            confirmLabel = "Clear",
+            onConfirm = { confirmingClear = false; scope.launch { vm.history.clear() } },
+            onDismiss = { confirmingClear = false },
+        )
+    }
+    actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
 }
 
 @Composable

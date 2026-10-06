@@ -50,7 +50,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        PendingSharedUrl.value = sharedUrlFrom(intent)
+        // A recreated activity (process death, theme/locale change) gets the ORIGINAL launch
+        // intent back from the system; reading it again would re-open a video the user already
+        // left. Only a genuine fresh launch carries a share to consume.
+        if (savedInstanceState == null) {
+            PendingSharedUrl.value = sharedUrlFrom(intent)
+        }
         // Feeds SystemBarInsetsState from every REAL inset dispatch. Compose's own inset cache
         // (and any keyed re-read of the root view's cached copy) goes stale across the
         // fullscreen hide/show + in-process rotation on this OEM; a listener at the decor can't

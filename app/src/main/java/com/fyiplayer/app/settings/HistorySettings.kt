@@ -9,8 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -18,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.data.prefs.Prefs
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.SearchHistoryRepository
+import com.fyiplayer.app.ui.ConfirmDialog
 import com.fyiplayer.app.ui.rememberFyiApp
 import kotlinx.coroutines.launch
 
@@ -32,6 +35,8 @@ fun HistorySettings(prefs: Prefs) {
     val recordWatch by prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
     val recordSearch by prefs.recordSearchHistory.collectAsStateWithLifecycle(initialValue = true)
     val savePosition by prefs.savePlayPosition.collectAsStateWithLifecycle(initialValue = true)
+
+    var confirmingClear by remember { mutableStateOf(false) }
 
     SettingsSection("History") {
         SettingsSwitchRow(
@@ -50,10 +55,22 @@ fun HistorySettings(prefs: Prefs) {
             onCheckedChange = { scope.launch { prefs.setSavePlayPosition(it) } },
         )
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            TextButton(onClick = { scope.launch { history.clear(); searchHistory.clear() } }) {
-                Text("Clear history")
+            TextButton(onClick = { confirmingClear = true }) {
+                Text("Clear watch and search history")
             }
         }
+    }
+
+    if (confirmingClear) {
+        ConfirmDialog(
+            title = "Clear watch history and search history?",
+            confirmLabel = "Clear",
+            onConfirm = {
+                confirmingClear = false
+                scope.launch { history.clear(); searchHistory.clear() }
+            },
+            onDismiss = { confirmingClear = false },
+        )
     }
 }
 

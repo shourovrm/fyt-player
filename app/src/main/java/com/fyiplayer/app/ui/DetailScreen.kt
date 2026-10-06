@@ -97,13 +97,14 @@ fun DetailScreen(
     val source = remember(pageUrl) { SourceRegistry.bySourceId(ref.sourceId) }
     val tabsVm: DetailTabsViewModel = viewModel()
     val showCommentsTab = source?.providesComments == true
-    var detail by remember(pageUrl) { mutableStateOf(VideoDetail(ref)) }
+    // Held by tabsVm, not remember(pageUrl): this composable restarts on every back-return from a
+    // deeper Similar hop, which refetched the detail and recorded history again.
+    val detail = remember(tabsVm.detail, ref) { tabsVm.detail ?: VideoDetail(ref) }
     // Gates the SIMILAR fetch below: Similar reads detail.related, which is only meaningful once
     // this resolves (success or fallback placeholder) -- firing earlier would search on an empty
     // related list and latch (similarLoadedFor), so the real related list would never load.
-    var detailLoaded by remember(pageUrl) { mutableStateOf(false) }
+    val detailLoaded = tabsVm.detailLoaded
     var actionSheetRef by remember(pageUrl) { mutableStateOf<VideoRef?>(null) }
-    var historyRecorded by remember(pageUrl) { mutableStateOf(false) }
     // NOT keyed on pageUrl: this screen's own lifetime is the right scope for it, not a per-video
     // reset. Toggled by the player slot's own fullscreen button, or by the BackHandler below.
     var fullscreen by remember { mutableStateOf(false) }
@@ -146,22 +147,12 @@ fun DetailScreen(
         }
     }
 
-    LaunchedEffect(pageUrl) {
-        detail = try {
-            source?.detail(ref) ?: VideoDetail(ref)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            VideoDetail(ref)
-        }
-        detailLoaded = true
-    }
+    LaunchedEffect(pageUrl) { tabsVm.ensureDetailLoaded(source, ref) }
 
     // Recorded once the enriched ref has a real title, and only when the setting is on -- the
     // setting must actually do something, or it's a lying row in Settings.
     LaunchedEffect(detail) {
-        if (!historyRecorded && detail.ref.title.isNotBlank() && app.prefs.recordWatchHistory.first()) {
-            historyRecorded = true
+        if (detail.ref.title.isNotBlank() && app.prefs.recordWatchHistory.first() && tabsVm.claimHistoryRecord()) {
             HistoryRepository(app.database.watchHistoryDao()).record(detail.ref)
         }
     }

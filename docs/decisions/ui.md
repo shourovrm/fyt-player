@@ -2,6 +2,21 @@
 
 ## Current state
 
+2026-10-06 review wave 2 (425 tests green, device-UNverified): dead "File format" setting and
+`Prefs.preferredContainer` removed (nothing read it). Confirm dialogs on delete playlist (both
+screens; PlaylistDetail pops after delete via `onDeleted`), Library "Clear history", Settings
+"Clear watch and search history" (label now says both). Empty states: "No videos" on listing /
+channel tabs, `No results for "..."` in channel search; container-tab first-page error has
+Retry. Selection highlight + `semantics.selected` on the shared `ResultRow` (channel, listing,
+channel search, likes, playlist). Shared-link intent read only when `savedInstanceState ==
+null`. Home feed pin-to-top only while the feed itself shows (`shouldPinFeedToTop`). Search
+submit clears focus. Detail's `detail` / history-recorded flag live in `DetailTabsViewModel`
+(no refetch on back). Channel keeps one list state per tab. History long-press opens
+`VideoActionSheet`. Backup import: liked order preserved (`likedAtForImport`), same-name
+playlists merge (`planImportWrites`), URLs sanitized (`sanitizeBackupDocument`: https + host
+for videos, unowned video keeps empty sourceId like a shared FB/TikTok link, unowned channel
+dropped), dropped count shown in the dialog.
+
 2026-10-06 review wave (tests green, device-UNverified): endless scroll no longer re-requests a
 failed page (`shouldAutoLoadMore`, `loadMoreFailed` on `ResultsListColumn`; channel tabs,
 in-channel search and playlists kept `nextPage` on error, so the effect refired back to back).
@@ -138,6 +153,10 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
 
 ## Open items
 
+- Not done from the 2026-10-06 review: strings to resources (app is not localisable, ~93
+  literals), tablet/landscape layout (Detail header is width*9/16 with no height cap), single
+  followed-playlist unfollow has no confirm, Loop control is still a text button (user wants an
+  icon button).
 - Old Library rows persisted before v0.2.20 keep "Untitled" (no backfill); shared-in playlist
   listing shows "Listing" as title (URL-only ref); followed playlist row has no thumbnail (no
   stored data, no per-row fetch). All cosmetic.

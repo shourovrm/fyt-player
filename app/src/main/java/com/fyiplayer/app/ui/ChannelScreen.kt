@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,6 +81,13 @@ fun ChannelScreen(
     // A fresh selection never survives a tab switch -- it was made against a different list.
     LaunchedEffect(vm.selected) { selection = emptySet() }
     BackHandler(enabled = selecting) { selection = emptySet() }
+
+    // One list state per tab, created up front: a state made inside each tab's body is dropped when
+    // the tab leaves composition, so Videos -> Shorts -> Videos used to restart at the top.
+    // rememberLazyListState is saveable, so these also survive a trip to Detail and back.
+    val listStateByTab: Map<ChannelUiTab, LazyListState> =
+        (ChannelTab.entries.map { ChannelUiTab.Content(it) } + ChannelUiTab.Search)
+            .associateWith { tab -> key(tab) { rememberLazyListState() } }
 
     val currentVideos: List<VideoRef> = when (val sel = vm.selected) {
         is ChannelUiTab.Content -> if (sel.tab in CONTAINER_TABS) emptyList() else vm.videoTab(sel.tab).items
@@ -142,18 +151,19 @@ fun ChannelScreen(
             when (val sel = vm.selected) {
                 is ChannelUiTab.Content -> if (sel.tab in CONTAINER_TABS) {
                     ContainerTabBody(
-                        vm.containerTab(sel.tab), onOpen = onOpenListing,
+                        vm.containerTab(sel.tab), listState = listStateByTab.getValue(sel), onOpen = onOpenListing,
                         onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
                     )
                 } else {
                     VideoTabBody(
-                        state = vm.videoTab(sel.tab), selecting = selecting,
+                        state = vm.videoTab(sel.tab), selection = selection, listState = listStateByTab.getValue(sel),
                         onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
                         onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
                     )
                 }
                 ChannelUiTab.Search -> ChannelSearchBody(
-                    listing = listing, vm = vm, state = vm.searchState, selecting = selecting,
+                    listing = listing, vm = vm, state = vm.searchState, selection = selection,
+                    listState = listStateByTab.getValue(ChannelUiTab.Search),
                     onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
                 )
             }
@@ -210,9 +220,8 @@ private fun ChannelTabRow(available: List<ChannelTab>, selected: ChannelUiTab, o
 }
 
 /** Shared by [ChannelScreen] and [ListingScreen]: routes a row tap to selection-toggle or
- *  play-from-here depending on [selecting], long-press always enters selection (same convention
- *  as Likes/Playlist detail). No per-row selected highlight -- that needs a hook [ResultsListColumn]
- *  doesn't expose; add one there if this ever needs it. */
+ *  play-from-here depending on whether [selection] is non-empty, long-press always enters selection
+ *  (same convention as Likes/Playlist detail). Selected rows are highlighted by [ResultRow]. */
 @Composable
 internal fun SelectableVideoList(
     items: List<VideoRef>,
@@ -220,13 +229,14 @@ internal fun SelectableVideoList(
     hasMore: Boolean,
     isLoadingMore: Boolean,
     onLoadMore: () -> Unit,
-    selecting: Boolean,
+    selection: Set<String>,
     onTap: (VideoRef) -> Unit,
     onToggle: (VideoRef) -> Unit,
     modifier: Modifier = Modifier,
     topContent: (@Composable () -> Unit)? = null,
+    listState: LazyListState = rememberLazyListState(),
 ) {
-    val listState = rememberLazyListState()
+    val selecting = selection.isNotEmpty()
     ResultsListColumn(
         items = items,
         topContent = topContent,
@@ -240,13 +250,15 @@ internal fun SelectableVideoList(
         isLoadingMore = isLoadingMore,
         // Every caller's errors belong to this one list, so any error means its last load failed.
         loadMoreFailed = errors.isNotEmpty(),
+        selection = selection,
     )
 }
 
 @Composable
 private fun VideoTabBody(
     state: VideoTabState,
-    selecting: Boolean,
+    selection: Set<String>,
+    listState: LazyListState,
     onTap: (VideoRef) -> Unit,
     onToggle: (VideoRef) -> Unit,
     onLoadMore: () -> Unit,
@@ -258,17 +270,23 @@ private fun VideoTabBody(
         }
         return
     }
+    // A finished load with nothing in it and no error is a real empty tab, not a blank screen.
+    if (state.loaded && state.items.isEmpty() && state.error == null) {
+        EmptyStateScreen("No videos", "This channel has no videos here.")
+        return
+    }
     val errors = state.error?.let { listOf(ErrorRow("Channel", it, onRetry = if (state.blocked) null else onRetry)) } ?: emptyList()
     SelectableVideoList(
         items = state.items, errors = errors, hasMore = state.nextPage != null, isLoadingMore = state.loading && state.items.isNotEmpty(),
-        onLoadMore = onLoadMore, selecting = selecting, onTap = onTap, onToggle = onToggle,
-        modifier = Modifier.fillMaxSize(),
+        onLoadMore = onLoadMore, selection = selection, onTap = onTap, onToggle = onToggle,
+        modifier = Modifier.fillMaxSize(), listState = listState,
     )
 }
 
 @Composable
 private fun ContainerTabBody(
     state: ContainerTabState,
+    listState: LazyListState,
     onOpen: (Listing) -> Unit,
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
@@ -277,13 +295,15 @@ private fun ContainerTabBody(
         state.items.isEmpty() && state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
+        // A failed first page: same error row (with Retry, unless an access wall stopped it) as
+        // every other list, instead of bare text with no way forward.
         state.error != null && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(state.error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(24.dp))
+            ErrorRowView(ErrorRow("Channel", state.error, onRetry = if (state.blocked) null else onRetry))
         }
         state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Nothing here yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        else -> LazyColumn(Modifier.fillMaxSize()) {
+        else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
             items(state.items, key = { it.key }) { item ->
                 Row(
                     Modifier.fillMaxWidth().clickable { onOpen(item) }.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -323,7 +343,8 @@ private fun ChannelSearchBody(
     listing: Listing,
     vm: ChannelViewModel,
     state: VideoTabState,
-    selecting: Boolean,
+    selection: Set<String>,
+    listState: LazyListState,
     onTap: (VideoRef) -> Unit,
     onToggle: (VideoRef) -> Unit,
 ) {
@@ -345,6 +366,10 @@ private fun ChannelSearchBody(
             !state.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Search this channel's videos", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            state.items.isEmpty() && state.error == null -> EmptyStateScreen(
+                "No results for \"${vm.searchQuery}\"",
+                "Nothing in this channel matches that search.",
+            )
             else -> {
                 val errors = state.error?.let {
                     listOf(ErrorRow("Search", it, onRetry = if (state.blocked) null else { { vm.retrySearch(listing) } }))
@@ -354,7 +379,8 @@ private fun ChannelSearchBody(
                 SelectableVideoList(
                     items = longformItems, errors = errors, hasMore = state.nextPage != null,
                     isLoadingMore = state.loading && state.items.isNotEmpty(), onLoadMore = { vm.loadMoreSearch(listing) },
-                    selecting = selecting, onTap = onTap, onToggle = onToggle, modifier = Modifier.fillMaxSize(),
+                    selection = selection, onTap = onTap, onToggle = onToggle, modifier = Modifier.fillMaxSize(),
+                    listState = listState,
                     topContent = if (shortsItems.isEmpty()) null else { { ShortsShelf(shortsItems, onClick = onTap) } },
                 )
             }

@@ -308,7 +308,9 @@ private fun DownloadRow(
 private fun GlyphButton(glyph: String, label: String, onClick: () -> Unit) {
     // Text glyphs, not Icon: material-icons-core has no Pause/SkipNext-shaped glyph for these
     // actions (DECISIONS.md gotcha) -- semantics carries the real label for screen readers.
-    IconButton(onClick = onClick, modifier = Modifier.width(40.dp).semantics { contentDescription = label }) {
+    // IconButton's own 48dp minimum touch target is kept: narrowing it put Pause and Cancel
+    // within a thumb's width of each other.
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
         Text(glyph, style = MaterialTheme.typography.titleMedium)
     }
 }
