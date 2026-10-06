@@ -2,6 +2,17 @@
 
 ## Current state
 
+2026-10-06 (v0.2.24, tests green, NOT YET RUN ON A DEVICE -- phone was disconnected): YouTube
+video+audio pairs play as ONE `DashMediaSource` built from a local SegmentBase manifest
+(`player/DashManifestBuilder.kt`, init/index byte ranges from the extractor's ItagItem via
+`MediaFormat.segmentIndex`, `media3-exoplayer-dash` added). Every request is a bounded
+`range=` window read to completion, so the HTTP/1.1 connection is reused -- the fix chosen for
+the measured slow resumed start (see Open items). Same data stack as before (cache ->
+ChunkedRangeDataSource -> OkHttp); a DataSpec(P, L) becomes `range=P-(P+L-1)`, no Range header.
+Fallback to the old two-progressive merge with a logged reason (`source=progressive
+reason=noSegmentIndex|headersDiffer|notGooglevideo|manifestRejected|manifestParseFailed`);
+Single/HLS/non-YouTube unchanged. Playback log prints `source=dash` when it is used.
+
 2026-10-06 PipePipe-port wave (465 tests green, device-UNverified except a play smoke):
 `player/PlayerErrorPolicy.kt` -- pure `classifyPlayerError(facts, budget)` -> action, executed
 by onPlayerError. BEHIND_LIVE_WINDOW = seekToDefaultPosition + prepare (max 3/item); decoder
@@ -176,9 +187,13 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   (3) exact seek: after the seek request, 1.4-2.5 s to download keyframe->position at 1080p on a
   ~1.3 MB/s link. Media3 1.9.4 applies SeekParameters only in seekToInternal, NOT to the initial
   position, so a keyframe-snapped resume is not available by a setter.
-  Options, none done: small head window when a resume is pending (keeps the connection, ~0.3 s);
-  Cronet/HTTP3 data source (removes connect cost, big dependency); PipePipe-style DASH manifest
-  from init/index ranges (bounded segment requests that complete).
+  CHOSEN + BUILT in v0.2.24, device-UNVERIFIED: PipePipe-style DASH manifest from init/index
+  ranges. Verify first on reconnect: Playback log says `source=dash`; plays, seeks, A/V in sync;
+  resumed start sourceSet->firstFrame vs the numbers above; range= chunks answer 200; captions;
+  quality switch; whether visionos responses really carry initRange/indexRange (else every
+  video logs reason=noSegmentIndex and nothing changed). Cause (3), the exact-seek download, is
+  NOT addressed: next step would be resuming at the containing segment's start once the index
+  is known. Not chosen: small head window; Cronet/HTTP3 (UDP often blocked on VPN, big dep).
   The user's "shows an error msg" was never reproduced -- read Settings > Playback log first.
 - SponsorBlock: enabled-off pref, k-anonymity segment fetch (sha256 4-char prefix, never the
   full video id), auto-skip in the session ticker. Device playback verified but an actual
@@ -196,8 +211,8 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   used by the fullscreen player; a future full-bleed screen (shorts pager) reuses the same seam.
 - Storyboard tile interval is derived as `duration / tileCount`, not published by the engine. Scrub
   previews may drift on very long videos until measured on a device.
-- `Protocol.DASH` throws in `MediaItemFactory`: `media3-exoplayer-dash` is not a dependency and
-  nothing emits DASH yet. Adding a DASH path means adding that artifact first.
+- `Protocol.DASH` formats (yt-dlp tier) still throw in `MediaItemFactory`: the dash dependency
+  exists now, but the DASH path is built only from PROGRESSIVE YouTube pairs.
 - There is exactly ONE shared video surface. `AppScaffold` therefore hides the mini player and
   queue bar on the detail route — mounting both would have the mini bar steal the surface from the
   full player mid-playback.

@@ -8,6 +8,8 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.dash.manifest.DashManifestParser
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
@@ -15,6 +17,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.SingleSampleMediaSource
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
@@ -89,10 +92,72 @@ object MediaItemFactory {
             Protocol.PROGRESSIVE -> ProgressiveMediaSource.Factory(dsFactory)
                 .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
                 .createMediaSource(item)
-            // ponytail: media3-exoplayer-dash isn't on this app's classpath and no source emits
-            // Protocol.DASH yet either; add the dependency + a DashMediaSource branch if one does.
+            // The dash dependency is now present, but no resolver emits a Protocol.DASH format
+            // (the DASH path below is built from PROGRESSIVE pairs), so this stays unsupported.
             Protocol.DASH -> throw UnsupportedOperationException("DASH playback not wired up yet")
         }
+    }
+
+    // Absolute BaseURLs in our manifest override this; the parser only wants some base to resolve
+    // relative references against, and there are none.
+    private val manifestBaseUri = Uri.parse("https://www.youtube.com/")
+
+    /** Why this pair cannot play as DASH, or null when it can. Reasons are fixed words (they go
+     *  to the playback log, which never holds URLs). */
+    private fun dashFallbackReason(video: MediaFormat, audio: MediaFormat): String? = when {
+        video.protocol != Protocol.PROGRESSIVE || audio.protocol != Protocol.PROGRESSIVE -> "notProgressive"
+        video.segmentIndex == null || audio.segmentIndex == null -> "noSegmentIndex"
+        // One DataSource.Factory serves both streams, so request headers must agree.
+        video.headers != audio.headers -> "headersDiffer"
+        !isGooglevideoProgressive(video.url) || !isGooglevideoProgressive(audio.url) -> "notGooglevideo"
+        else -> null
+    }
+
+    // Same discriminator ChunkedRangeDataSource uses: only query-style /videoplayback URLs accept
+    // the `range=` parameter that every DASH chunk request is turned into.
+    private fun isGooglevideoProgressive(url: String): Boolean {
+        val uri = Uri.parse(url)
+        return isChunkable(uri.encodedPath, uri.query)
+    }
+
+    /** One video + one audio stream as a [DashMediaSource], or null (with the reason) when the
+     *  manifest cannot be built or parsed. Every chunk request goes out through [dataSourceFactory]
+     *  -- the same cache + ChunkedRangeDataSource + OkHttp stack the progressive path uses. */
+    private fun dashSourceFor(video: MediaFormat, audio: MediaFormat, metadata: MediaMetadata): Pair<MediaSource?, String?> {
+        val manifestText = buildDashManifest(video, audio) ?: return null to "manifestRejected"
+        val manifest = try {
+            DashManifestParser().parse(manifestBaseUri, manifestText.byteInputStream())
+        } catch (_: Exception) {
+            // Any parser failure, not just IOException: this runs outside resolveItem's catch, and
+            // the progressive path below still plays the same pair.
+            return null to "manifestParseFailed"
+        }
+        val mediaItem = MediaItem.Builder().setMediaMetadata(metadata).build()
+        val source = DashMediaSource.Factory(dataSourceFactory(video.headers))
+            .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
+            .createMediaSource(manifest, mediaItem)
+        return source to null
+    }
+
+    /** A video+audio pair: DASH with SegmentBase when both sides carry byte ranges (bounded range
+     *  requests that finish, so the HTTP/1.1 connection is reused), else two progressive sources. */
+    private fun pairedSource(video: MediaFormat, audio: MediaFormat, metadata: MediaMetadata): MediaSource {
+        var fallbackReason = dashFallbackReason(video, audio)
+        if (fallbackReason == null) {
+            val (dashSource, parseFailure) = dashSourceFor(video, audio, metadata)
+            if (dashSource != null) {
+                DiagLog.log("Playback", "source=dash")
+                return dashSource
+            }
+            fallbackReason = parseFailure
+        }
+        DiagLog.log("Playback", "source=progressive reason=$fallbackReason")
+        return MergingMediaSource(
+            /* adjustPeriodTimeOffsets = */ true,
+            /* clipDurations = */ true,
+            sourceFor(video, metadata),
+            sourceFor(audio, metadata),
+        )
     }
 
     // No headers: a caption URL's own signature/query carries what it needs, same as the video
@@ -115,7 +180,7 @@ object MediaItemFactory {
             .createMediaSource(config, C.TIME_UNSET)
     }
 
-    /** [FormatSelection.Paired] becomes one [MergingMediaSource] so both play as a single item;
+    /** [FormatSelection.Paired] becomes one item (a [DashMediaSource] or a [MergingMediaSource]);
      *  [captions] (if any) are merged in the same way -- leaf factories like
      *  [ProgressiveMediaSource.Factory]/[HlsMediaSource.Factory] do NOT read
      *  `MediaItem.subtitleConfigurations` themselves (only `DefaultMediaSourceFactory` does, and
@@ -126,13 +191,11 @@ object MediaItemFactory {
     fun create(selection: FormatSelection, ref: VideoRef? = null, captions: List<CaptionTrack> = emptyList()): MediaSource {
         val metadata = metadataOf(ref)
         val base = when (selection) {
-            is FormatSelection.Single -> sourceFor(selection.format, metadata)
-            is FormatSelection.Paired -> MergingMediaSource(
-                /* adjustPeriodTimeOffsets = */ true,
-                /* clipDurations = */ true,
-                sourceFor(selection.video, metadata),
-                sourceFor(selection.audio, metadata),
-            )
+            is FormatSelection.Single -> {
+                DiagLog.log("Playback", "source=${if (selection.format.protocol == Protocol.HLS) "hls" else "progressive"}")
+                sourceFor(selection.format, metadata)
+            }
+            is FormatSelection.Paired -> pairedSource(selection.video, selection.audio, metadata)
         }
         if (captions.isEmpty()) return base
         val subtitleSources = captions.map(::subtitleSourceFor).toTypedArray()

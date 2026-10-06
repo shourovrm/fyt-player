@@ -23,8 +23,8 @@ android {
         applicationId = "com.fyiplayer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "0.2.23"
+        versionCode = 26
+        versionName = "0.2.24"
         // single sideload APK: arm64-v8a only, keeps the python/ffmpeg payload from tripling size
         ndk { abiFilters += "arm64-v8a" }
     }
@@ -91,6 +91,7 @@ dependencies {
     implementation("com.github.TeamNewPipe:nanojson:1d9e1aea9049fc9f85e68b43ba39fe7be1c1f751")
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.ui)
     implementation(libs.media3.session)
     implementation(libs.media3.datasource.okhttp)
