@@ -1,5 +1,6 @@
 package com.fyiplayer.app.source.newpipe
 
+import com.fyiplayer.app.core.AccessChallengeReason
 import com.fyiplayer.app.core.ExtractionError
 import java.io.IOException
 import okhttp3.OkHttpClient
@@ -58,6 +59,27 @@ class NewPipeResolverTest {
         assertTrue(mapNewPipeError(PaidContentException("wall")) is ExtractionError.AccessChallenge)
         assertTrue(mapNewPipeError(GeographicRestrictionException("wall")) is ExtractionError.AccessChallenge)
         assertTrue(mapNewPipeError(AntiBotException("bot check")) is ExtractionError.AccessChallenge)
+    }
+
+    @Test
+    fun wallReasonFollowsExceptionType() {
+        fun reasonOf(e: Exception) = (mapNewPipeError(e) as ExtractionError.AccessChallenge).reason
+        assertEquals(AccessChallengeReason.RATE_LIMIT, reasonOf(ReCaptchaException("429", "u")))
+        assertEquals(AccessChallengeReason.AGE_RESTRICTION, reasonOf(AgeRestrictedContentException("wall")))
+        assertEquals(AccessChallengeReason.PAID, reasonOf(PaidContentException("wall")))
+        assertEquals(AccessChallengeReason.GEO_BLOCK, reasonOf(GeographicRestrictionException("wall")))
+        assertEquals(AccessChallengeReason.BOT_CHECK, reasonOf(AntiBotException("bot check")))
+    }
+
+    @Test
+    fun signedInRetryOnlyForAgeAndLogin() {
+        assertTrue(AccessChallengeReason.AGE_RESTRICTION.signedInRetryMayHelp())
+        assertTrue(AccessChallengeReason.LOGIN_REQUIRED.signedInRetryMayHelp())
+        assertFalse(AccessChallengeReason.BOT_CHECK.signedInRetryMayHelp())
+        assertFalse(AccessChallengeReason.RATE_LIMIT.signedInRetryMayHelp())
+        assertFalse(AccessChallengeReason.GEO_BLOCK.signedInRetryMayHelp())
+        assertFalse(AccessChallengeReason.PAID.signedInRetryMayHelp())
+        assertFalse(AccessChallengeReason.UNKNOWN.signedInRetryMayHelp())
     }
 
     @Test

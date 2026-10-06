@@ -1,6 +1,6 @@
 package com.fyiplayer.app.engine
 
-import android.util.Log
+import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.StreamResolver
@@ -34,10 +34,12 @@ interface UrlScopedResolver : StreamResolver {
  * WebView (tier2) serve only URLs tier0 does not handle. The old tier0->tier1 fallback was
  * removed deliberately: yt-dlp is anonymous and 3-15s slower, its formats hit the same walls,
  * and the signed-in-AccessChallenge retry was confirmed insufficient (the engine ignores a bare
- * cookie header) -- the fork's own token login in tier0 is the real signed-in path.
+ * cookie header) -- the fork's own token login in tier0 is the real signed-in path. (tier0 itself
+ * retries once on its signed-in player client, but only for age/login walls, never rate limits.)
  *
  * tier1 -> tier2: only [ExtractionError.AccessChallenge] is a hard stop there (a WebView load
- * would face the exact same wall); every other tier1 [ExtractionError] -- including
+ * would face the exact same wall, and engine rate-limit / HTTP 403 failures are mapped to it);
+ * every other tier1 [ExtractionError] -- including
  * [ExtractionError.ContentUnavailable] -- falls through to tier2.
  */
 class ChainResolver(
@@ -73,10 +75,22 @@ class ChainResolver(
     }
 
     override suspend fun resolve(ref: VideoRef): Resolved {
+        val startedAt = System.currentTimeMillis()
         cacheGet(ref.pageUrl)?.let { entry ->
-            if (isCacheFresh(entry.insertedAtMillis, System.currentTimeMillis())) return entry.resolved
+            if (isCacheFresh(entry.insertedAtMillis, startedAt)) {
+                DiagLog.log(TAG, "resolve served from cache in ${System.currentTimeMillis() - startedAt}ms")
+                return entry.resolved
+            }
         }
-        return resolveLive(ref).also { cachePut(ref.pageUrl, CacheEntry(it, System.currentTimeMillis())) }
+        val resolved = try {
+            resolveLive(ref)
+        } catch (e: ExtractionError) {
+            DiagLog.log(TAG, "resolve failed after ${System.currentTimeMillis() - startedAt}ms: ${e::class.simpleName}")
+            throw e
+        }
+        cachePut(ref.pageUrl, CacheEntry(resolved, System.currentTimeMillis()))
+        DiagLog.log(TAG, "resolve fetched (cache miss) in ${System.currentTimeMillis() - startedAt}ms")
+        return resolved
     }
 
     // Unchanged tier0 -> tier1 -> tier2 chain, just renamed so resolve() can wrap it with the cache.
@@ -106,29 +120,17 @@ class ChainResolver(
     }
 }
 
-// Tag and tier name only -- never the message, which can echo the page URL. Swallow logging
-// failures: android.util.Log is unmocked under plain JUnit (no Robolectric here).
+// Tier name and exception class only -- never the message, which can echo the page URL.
 private fun logTier(tier: String) {
-    try {
-        Log.d(TAG, "resolved by $tier")
-    } catch (logError: Throwable) {
-        // no-op
-    }
+    DiagLog.log(TAG, "resolved by $tier")
 }
 
 private fun logFallthrough(tier: String, e: ExtractionError, next: String) {
-    try {
-        Log.d(TAG, "$tier failed (${e::class.simpleName}), $next")
-    } catch (logError: Throwable) {
-        // no-op
-    }
+    DiagLog.log(TAG, "$tier failed (${e::class.simpleName}), $next")
 }
 
 // Hard stops rethrow silently otherwise -- invisible in logcat, which makes them brutal to debug.
 private fun logHardStop(tier: String, e: ExtractionError) {
-    try {
-        Log.d(TAG, "$tier hard stop (${e::class.simpleName})")
-    } catch (logError: Throwable) {
-        // no-op
-    }
+    val reasonSuffix = (e as? ExtractionError.AccessChallenge)?.let { " reason=${it.reason}" }.orEmpty()
+    DiagLog.log(TAG, "$tier hard stop (${e::class.simpleName}$reasonSuffix)")
 }

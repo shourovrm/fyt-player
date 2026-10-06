@@ -2,6 +2,17 @@
 
 ## Current state
 
+2026-10-06 review wave (tests green, device-UNverified): `ExtractionError.AccessChallenge` carries
+an `AccessChallengeReason` (AGE_RESTRICTION, LOGIN_REQUIRED, BOT_CHECK, RATE_LIMIT, GEO_BLOCK,
+PAID, UNKNOWN). The signed-in TVHTML5 retry in NewPipeResolver runs ONLY for age/login -- it
+used to fire on every wall, i.e. a cookie-bearing second request straight through a 429 or bot
+check. yt-dlp `HTTP Error 429` / too many requests / rate limit and `HTTP Error 403` now map to
+AccessChallenge (hard stop) instead of Unsupported, which fell through to the WebView tier and
+re-hit the walled page. Statuses match the "http error NNN" shape only (bare digits hit video
+ids). Resolver logs go through `DiagLog` (see playback.md).
+Upstream reference clone: `~/repos/pipepipe` (PipePipe v5.4.0, 2026-09-26, client + extractor
+c68e10e) -- read-only, NOT the build checkout (`~/repos/PipePipe/PipePipeExtractor`).
+
 **EXTRACTOR PATCHES (must survive every extractor bump):** `~/repos/PipePipe/PipePipeExtractor`
 remotes: `upstream` = codeberg.org/NullPointerException/PipePipeExtractor (fetch only),
 `origin` = github.com/shourovrm/PipePipeExtractor (ours, default branch `fyt-patches`; the
@@ -99,10 +110,15 @@ Paging via PageToken (JSON-serialized NewPipe Page).
 ## Open items
 
 - Extractor v5.3.1 (`fyt-patches`): direct/progressive googlevideo URLs 403 (downloads fail,
-  quality-sheet HEAD sizes 403); HLS playback + shorts fine. Suspect: v5.3 player request wants a
-  PO token (`NewPipe.setYoutubePoTokenResolver`, new in 5.3) that PipePipe's app supplies and we
-  don't. Also needs `Comment.text` from `Description` (getCommentText type changed). Fix before
-  switching the checkout back to `fyt-patches`.
+  quality-sheet HEAD sizes 403); HLS playback + shorts fine. Cause UNKNOWN. PO token is NOT it
+  (checked 2026-10-06 against upstream c68e10e): `getYoutubePoTokenResolver` has one call site,
+  YoutubeStreamExtractor.java:2467, inside the mweb/SABR path; the visionos path never reads
+  it, in 5.2.5 or 5.4.0. Diagnose from a run on that branch (player-client + url-param-name
+  log lines). Also needs `Comment.text` from `Description` (getCommentText type changed).
+- Upgrade target is now v5.4.0: both patches pass `git apply --check` on it (subagent-run, not
+  re-verified), Downloader + YoutubeJavaScriptDecoder interfaces unchanged, android_vr client
+  removed upstream (2a9a92fb), SABR rewritten (c82d0030). mweb/SABR needs app-side PO-token
+  generation = crosses the no-bypass rule; do not adopt.
 - Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
   (playback rides HLS manifests now) — verify when a progressive-only video shows up.
 
