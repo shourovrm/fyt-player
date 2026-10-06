@@ -92,12 +92,17 @@ fun BackupSettings() {
             title = { Text("Import library") },
             text = {
                 Text(
-                    if (plan.isEmpty) {
-                        "Nothing new to add -- everything in this file is already in your library."
-                    } else {
-                        "Adds ${plan.newPlaylists} playlists, ${plan.newPlaylistItems} playlist videos, " +
-                            "${plan.newLiked} liked videos and ${plan.newChannels} channels. " +
-                            "Nothing already saved is changed or removed."
+                    buildString {
+                        if (plan.isEmpty) {
+                            append("Nothing new to add -- everything in this file is already in your library.")
+                        } else {
+                            append("Adds ${plan.newPlaylists} playlists, ${plan.newPlaylistItems} playlist videos, ")
+                            append("${plan.newLiked} liked videos and ${plan.newChannels} channels. ")
+                            append("Nothing already saved is changed or removed.")
+                        }
+                        if (plan.droppedEntries > 0) {
+                            append(" ${plan.droppedEntries} entries with an unusable link are skipped.")
+                        }
                     },
                 )
             },
