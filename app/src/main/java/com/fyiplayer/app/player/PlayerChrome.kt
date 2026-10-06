@@ -78,6 +78,7 @@ internal fun ControlBar(
     // the whole player screen; keeping it local to the seek bar means the tick recomposes just
     // this Column, not the entire player chrome tree (CLAUDE.md perf task).
     val progress by PlaybackSession.progress.collectAsState()
+    val sponsorMarkers by PlaybackSession.sponsorMarkers.collectAsState()
     var sliderWidthPx by remember { mutableStateOf(0) }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValueMs by remember { mutableStateOf(0L) }
@@ -127,6 +128,8 @@ internal fun ControlBar(
                                 .fillMaxWidth(fraction)
                                 .background(SEEK_RED),
                         )
+                        // Over the fill, so a segment stays visible on the part already played.
+                        SponsorMarkers(sponsorMarkers, durationMs, Modifier.matchParentSize())
                     }
                 },
                 thumb = {
@@ -198,7 +201,14 @@ internal fun ControlBar(
             )
             Box(modifier = Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                ChromeTextButton("Loop", onClick = onToggleLoop, color = if (looping) SEEK_RED else Color.White)
+                IconButton(
+                    onClick = onToggleLoop,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .semantics { contentDescription = if (looping) "Stop looping" else "Loop this video" },
+                ) {
+                    RepeatGlyph(tint = if (looping) SEEK_RED else Color.White, size = 18.dp)
+                }
                 ChromeTextButton(qualityLabel, onClick = onOpenQuality)
                 ChromeTextButton(speedLabel, onClick = onOpenSpeed)
                 IconButton(onClick = onOpenCaptions, enabled = captionsAvailable, modifier = Modifier.size(32.dp)) {

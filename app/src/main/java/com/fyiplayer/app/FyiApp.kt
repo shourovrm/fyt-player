@@ -13,6 +13,7 @@ import com.fyiplayer.app.engine.EngineGate
 import com.fyiplayer.app.engine.EngineResolver
 import com.fyiplayer.app.engine.WebViewResolver
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.core.SponsorPolicy
 import com.fyiplayer.app.source.newpipe.NewPipeInit
 import com.fyiplayer.app.source.newpipe.NewPipeResolver
 import com.fyiplayer.app.source.newpipe.WebViewJsDecoder
@@ -62,7 +63,7 @@ class FyiApp : Application() {
     @Volatile private var downloadTreeUri: String? = null
     // Mirrored the same way; PlaybackSession's skip check runs on the player thread and cannot
     // suspend on a DataStore read.
-    @Volatile private var sponsorBlockEnabled = false
+    @Volatile private var sponsorPolicy = SponsorPolicy()
     // Mirrored the same way; read synchronously inside autoplayNextFor before it does any work.
     @Volatile private var autoplayNextEnabled = false
     // Mirrored the same way; position load/save check it before touching the database.
@@ -78,9 +79,15 @@ class FyiApp : Application() {
         prefs.maxResolutionWifi.onEach { maxHeightWifi = it }.launchIn(appScope)
         prefs.maxResolutionMobile.onEach { maxHeightMobile = it }.launchIn(appScope)
         prefs.downloadTreeUri.onEach { downloadTreeUri = it }.launchIn(appScope)
-        prefs.sponsorBlock.onEach { sponsorBlockEnabled = it }.launchIn(appScope)
+        combine(prefs.sponsorBlock, prefs.sponsorModes, prefs.sponsorWhitelist) { enabled, modes, whitelist ->
+            SponsorPolicy(enabled = enabled, modes = modes, whitelistedChannels = whitelist)
+        }.onEach { sponsorPolicy = it }.launchIn(appScope)
         prefs.autoplayNext.onEach { autoplayNextEnabled = it }.launchIn(appScope)
         prefs.savePlayPosition.onEach { savePlayPositionEnabled = it }.launchIn(appScope)
+
+        // Latched in NewPipeInit (off until the setting says otherwise) so the extractor never
+        // contacts the dislike service on its own default.
+        prefs.showDislikeCounts.onEach { NewPipeInit.updateFetchDislike(it) }.launchIn(appScope)
 
         // Once per process; silent offline. The top banner appears if a newer release exists.
         appScope.launch { UpdateCheck.autoCheck() }
@@ -119,7 +126,7 @@ class FyiApp : Application() {
         YoutubeAuth.init(this)
         PlaybackSession.init(
             this, resolver, maxHeight = ::currentMaxHeight,
-            sponsorBlockEnabled = { sponsorBlockEnabled }, autoplayNext = ::autoplayNextFor,
+            sponsorPolicy = { sponsorPolicy }, autoplayNext = ::autoplayNextFor,
             loadPosition = ::loadPositionFor, savePosition = ::savePositionFor,
             saveLastPlayed = prefs::setLastPlayed, loadLastPlayed = ::lastPlayedRef,
         )

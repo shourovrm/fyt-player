@@ -2,6 +2,19 @@
 
 ## Current state
 
+2026-10-06 PipePipe-port wave (465 tests green, device-UNverified except a play smoke):
+`player/PlayerErrorPolicy.kt` -- pure `classifyPlayerError(facts, budget)` -> action, executed
+by onPlayerError. BEHIND_LIVE_WINDOW = seekToDefaultPosition + prepare (max 3/item); decoder
+init failure with a released surface (IllegalArgumentException mentioning "surface", PipePipe's
+test) = prepare() in place, 10 s cooldown; other decoder errors = ONE fallback to the next
+lower rendition via selectQuality; expired URL / transport = one re-resolve; a 403 on the fresh
+URL is shown, never retried. SponsorBlock: 8 categories x Off / Skip automatically / Show skip
+button (`core/SponsorPolicy.kt`, per-category DataStore keys, default sponsor=auto so old
+installs behave the same), seekbar markers, "Skip <category>" overlay, per-channel whitelist
+(DataStore string set, toggle on Detail). Still the sha256 4-char prefix fetch. Session takes a
+`sponsorPolicy` lambda (was `sponsorBlockEnabled`). Loop control = icon button
+(`player/RepeatGlyph.kt`, red when on).
+
 2026-10-06 wave 2 (425 tests green, device-UNverified): skipNext/skipPrevious publish
 index/current synchronously (`switchToItem`), like playAt. startAt reads the resume position
 in parallel with the resolve and starts the source AT it (`setMediaSource(source, ms)`).

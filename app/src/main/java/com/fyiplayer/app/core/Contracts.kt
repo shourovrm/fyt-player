@@ -201,8 +201,16 @@ data class VideoDetail(
     val descriptionIsHtml: Boolean = false,
     val uploadDate: String? = null,
     val likeCount: Long? = null,
+    /** Only ever set when the user opted in to dislike counts (a third-party lookup). */
+    val dislikeCount: Long? = null,
     val viewCount: Long? = null,
+    /** The uploader's own chapter markers, in start order. Empty when the video has none. */
+    val chapters: List<Chapter> = emptyList(),
 )
+
+/** A chapter marker from the platform: a title and where it starts. No preview image -- the
+ *  extractor's chapter thumbnails are not guaranteed to be plain canonical URLs. */
+data class Chapter(val title: String, val startSeconds: Int)
 
 /**
  * One comment or reply on a video. Display-only: author and text are never written to the
@@ -251,6 +259,14 @@ interface VideoSource {
      *  ([providesShorts]) degrades to an explained skip, never a silent empty. */
     suspend fun shorts(page: String? = null): SearchPage =
         throw ExtractionError.Unsupported("$displayName has no shorts feed")
+
+    /** True when [search] honours a [SearchFilter] (type and sort), so the UI shows the control
+     *  only for sources where it does something. */
+    val providesSearchFilters: Boolean get() = false
+
+    /** [search] restricted by [filter]. Default ignores the filter: a source that has not opted
+     *  in ([providesSearchFilters]) keeps returning its plain results. */
+    suspend fun search(query: String, page: String?, filter: SearchFilter): SearchPage = search(query, page)
 
     /** Related videos, uploader and description from a video's own page. */
     suspend fun detail(ref: VideoRef): VideoDetail = VideoDetail(ref)

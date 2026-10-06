@@ -4,6 +4,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
 
@@ -20,6 +21,10 @@ internal object NewPipeInit {
     // overwrite the user's choice with the defaults.
     @Volatile private var language = "en"
     @Volatile private var country = "US"
+    // The fork's own default is ON: it asks returnyoutubedislikeapi.com about every video opened.
+    // Latched OFF until the user's setting says otherwise, applied at init for the same reason as
+    // language/country above.
+    @Volatile private var fetchDislike = false
 
     fun ensure(client: OkHttpClient) {
         if (initialized) return
@@ -27,6 +32,7 @@ internal object NewPipeInit {
             if (initialized) return
             NewPipe.init(NewPipeDownloader(client), Localization(language), ContentCountry(country))
             applyAuthState()
+            ServiceList.YouTube.setFetchDislike(fetchDislike)
             initialized = true
         }
     }
@@ -36,6 +42,13 @@ internal object NewPipeInit {
         this.language = language
         this.country = country
         if (initialized) NewPipe.setupLocalization(Localization(language), ContentCountry(country))
+    }
+
+    /** Whether opening a video also asks returnyoutubedislike.com for its dislike count. Applies
+     *  to videos fetched from now on; a StreamInfo already cached keeps what it was fetched with. */
+    fun updateFetchDislike(enabled: Boolean) {
+        fetchDislike = enabled
+        if (initialized) ServiceList.YouTube.setFetchDislike(enabled)
     }
 
     /** The extractor reads the session from `ServiceList.YouTube.setTokens` (its
@@ -51,7 +64,7 @@ internal object NewPipeInit {
     }
 
     private fun applyAuthState() {
-        org.schabi.newpipe.extractor.ServiceList.YouTube.setTokens(YoutubeAuth.cookieHeader())
+        ServiceList.YouTube.setTokens(YoutubeAuth.cookieHeader())
         NewPipe.setYoutubePlayerClient("visionos")
     }
 

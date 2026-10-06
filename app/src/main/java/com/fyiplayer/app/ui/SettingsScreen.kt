@@ -17,7 +17,9 @@ import com.fyiplayer.app.settings.EngineSettings
 import com.fyiplayer.app.settings.GestureSettings
 import com.fyiplayer.app.settings.HistorySettings
 import com.fyiplayer.app.settings.PlaybackSettings
+import com.fyiplayer.app.settings.SponsorBlockSettings
 import com.fyiplayer.app.settings.SourcesSettings
+import com.fyiplayer.app.settings.VideoPageSettings
 
 /** Sections (mockup-v2.png), top to bottom: sources, language & region, account, playback
  *  (resolution merged in), gestures, downloads (file format merged in), history, app, video
@@ -30,6 +32,8 @@ fun SettingsScreen() {
         item { ContentSettings(app.prefs) }
         item { AccountSettings() }
         item { PlaybackSettings(app.prefs) }
+        item { SponsorBlockSettings(app.prefs) }
+        item { VideoPageSettings(app.prefs) }
         item { GestureSettings(app.prefs) }
         item { DownloadSettings(app.prefs) }
         item { HistorySettings(app.prefs) }

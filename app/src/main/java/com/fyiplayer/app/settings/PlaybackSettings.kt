@@ -20,25 +20,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.data.prefs.Prefs
 import kotlinx.coroutines.launch
 
-/** Playback behavior plus the resolution ceiling (DESIGN.md §6): background audio, SponsorBlock,
+/** Playback behavior plus the resolution ceiling (DESIGN.md §6): background audio
  *  and per-connection-type resolution live together since they all shape what plays and how --
  *  see FyiApp.currentMaxHeight for why wifi/mobile are separate prefs. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaybackSettings(prefs: Prefs) {
     val scope = rememberCoroutineScope()
-    val sponsorBlock by prefs.sponsorBlock.collectAsStateWithLifecycle(initialValue = false)
     val background by prefs.backgroundPlayback.collectAsStateWithLifecycle(initialValue = true)
     val autoplayNext by prefs.autoplayNext.collectAsStateWithLifecycle(initialValue = false)
     val wifi by prefs.maxResolutionWifi.collectAsStateWithLifecycle(initialValue = 1080)
     val mobile by prefs.maxResolutionMobile.collectAsStateWithLifecycle(initialValue = 720)
 
     SettingsSection("Playback") {
-        SettingsSwitchRow(
-            label = "Skip sponsored segments",
-            checked = sponsorBlock,
-            onCheckedChange = { scope.launch { prefs.setSponsorBlock(it) } },
-        )
         SettingsSwitchRow(
             label = "Background playback",
             checked = background,
