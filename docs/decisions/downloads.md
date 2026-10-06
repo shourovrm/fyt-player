@@ -2,6 +2,18 @@
 
 ## Current state
 
+2026-10-06 review wave (425 tests green, device-UNverified): part files are keyed by format
+(`<base>.<role>.<formatTag>.part`, `partFileName`); other-format and legacy-named parts are
+deleted before a fetch (`stalePartFileNames`) -- cancelling 1080p then downloading 720p used to
+resume one stream into the other and mark the corrupt mux COMPLETED. Completion is size-checked
+when the total is known (`completionCheck`; short = failed, part kept for resume; oversize =
+deleted). `windowStep` replaces the old EOF test: a body shorter than its Content-Length is an
+error, not EOF. `ActiveRun` exists from the moment a row becomes active, so pause/cancel during
+the resolve seconds work, and every row write goes through the `rowWrites` mutex with a
+`removed` flag -- a cancelled row can no longer be re-created by a late progress/COMPLETED
+upsert. processNext catches everything (FAILED row, class name to DiagLog) and always resets in
+`finally`. File names are capped by UTF-8 bytes (`truncateToUtf8Bytes`, 208-byte title).
+
 2026-09-24 (v0.2.21) DEVICE-VERIFIED (Nothing A059): Long-press sheet scrolls (landscape clipped
 Download). Stream downloads HEAD for the total when a format has no clen (row sat at 0% until
 done) + ProgressMeter speed/ETA; device-verified 80% -> 95% -> done with MB/s + ETA.
@@ -31,6 +43,9 @@ lambda.
 
 ## Gotchas
 
+- `processNext` picks from the `rows` StateFlow snapshot, which trails Room. A row that is no
+  longer QUEUED in the DB makes `runRow` wait (<=2 s) for the snapshot instead of returning at
+  once, or the service loop spins on the stale row.
 - A YouTube "1080p" download option can map to the HLS master (manifest wins FormatSelector);
   StreamDownloader saving it produces a .m3u8 file as the "video". Downloads must select from
   progressive formats only (engine path keeps manifests — yt-dlp fetches segments itself).

@@ -55,6 +55,38 @@ class DownloadFileNamingTest {
         assertEquals(safeBaseName(r), safeBaseName(r))
     }
 
+    @Test fun `a long CJK title stays inside the filename byte limit with the longest suffix`() {
+        val r = ref("https://example.invalid/watch?v=cjk", title = "漢".repeat(120))
+        val longestName = partFileName(safeBaseName(r), "video", "x".repeat(100))
+
+        assertTrue(longestName.toByteArray(Charsets.UTF_8).size <= 255)
+    }
+
+    @Test fun `byte truncation never splits a multi-byte character`() {
+        // "é" is 2 bytes: a 5-byte budget fits two of them (4 bytes), never 2.5.
+        assertEquals("éé", truncateToUtf8Bytes("ééé", 5))
+        // A surrogate pair (4 bytes) is dropped whole, not cut into a lone surrogate.
+        assertEquals("a", truncateToUtf8Bytes("a🎬b", 4))
+    }
+
+    @Test fun `byte truncation leaves a short title untouched`() {
+        assertEquals("short", truncateToUtf8Bytes("short", 200))
+    }
+
+    @Test fun `an ASCII title within the old character limit keeps its base name`() {
+        val title = "a".repeat(120)
+        val r = ref("https://example.invalid/watch?v=ascii", title = title)
+
+        assertTrue(safeBaseName(r).startsWith("$title-"))
+    }
+
+    @Test fun `part files of the new naming still match the row for deletion`() {
+        val r = ref("https://example.invalid/watch?v=parts")
+
+        assertTrue(matchesDownloadFile(partFileName(safeBaseName(r), "video", "137"), r))
+        assertTrue(matchesDownloadFile(partFileName(safeBaseName(r), "dl", "18"), r))
+    }
+
     @Test fun `blank title falls back to a non-empty base name`() {
         val r = ref("https://example.invalid/watch?v=blank", title = "   ")
         assertTrue(safeBaseName(r).isNotBlank())

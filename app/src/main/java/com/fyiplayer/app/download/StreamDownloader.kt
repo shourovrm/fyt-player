@@ -106,10 +106,12 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         signal: CancelSignal,
         onProgress: (DownloadProgress) -> Unit,
     ): Outcome {
-        val part = File(dir, "$baseName.dl.part")
+        val part = File(dir, partFileName(baseName, "dl", format.formatId))
+        deleteStaleParts(dir, baseName, keep = setOf(part.name))
         val totalBytes = format.filesizeBytes ?: headContentLength(client, format)
         val meter = ProgressMeter(totalBytes)
-        fetch(format, totalBytes, part, signal) { done -> onProgress(meter.progress(done)) }
+        val confirmedTotal = fetch(format, totalBytes, part, signal) { done -> onProgress(meter.progress(done)) }
+        incompleteFailure(part, confirmedTotal)?.let { return it }
         val out = File(dir, "$baseName.${extensionOf(format)}")
         if (!part.renameTo(out)) return Outcome.Failed("could not write the finished file")
         return Outcome.Done(out)
@@ -123,8 +125,9 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         signal: CancelSignal,
         onProgress: (DownloadProgress) -> Unit,
     ): Outcome {
-        val videoPart = File(dir, "$baseName.video.part")
-        val audioPart = File(dir, "$baseName.audio.part")
+        val videoPart = File(dir, partFileName(baseName, "video", video.formatId))
+        val audioPart = File(dir, partFileName(baseName, "audio", audio.formatId))
+        deleteStaleParts(dir, baseName, keep = setOf(videoPart.name, audioPart.name))
         // visionos URLs often carry no clen, and range= windows answer 200 with no Content-Range,
         // so without this probe the total stayed unknown and the row sat at 0% until done.
         val videoBytes = video.filesizeBytes ?: headContentLength(client, video)
@@ -132,9 +135,11 @@ internal class StreamDownloader(private val client: OkHttpClient) {
         val grandTotal = if (videoBytes != null && audioBytes != null) videoBytes + audioBytes else null
         val meter = ProgressMeter(grandTotal)
 
-        fetch(video, videoBytes, videoPart, signal) { done -> onProgress(meter.progress(done)) }
+        val confirmedVideoBytes = fetch(video, videoBytes, videoPart, signal) { done -> onProgress(meter.progress(done)) }
+        incompleteFailure(videoPart, confirmedVideoBytes)?.let { return it }
         val videoDone = videoPart.length()
-        fetch(audio, audioBytes, audioPart, signal) { done -> onProgress(meter.progress(videoDone + done)) }
+        val confirmedAudioBytes = fetch(audio, audioBytes, audioPart, signal) { done -> onProgress(meter.progress(videoDone + done)) }
+        incompleteFailure(audioPart, confirmedAudioBytes)?.let { return it }
 
         val webm = isWebmFamily(video)
         val out = File(dir, "$baseName.${if (webm) "webm" else "mp4"}")
@@ -147,16 +152,19 @@ internal class StreamDownloader(private val client: OkHttpClient) {
     /** Ranged, resumable fetch in 10 MB windows. googlevideo paces one long open request down to
      *  roughly realtime; the web player (and yt-dlp, via http_chunk_size) reads bounded ranges
      *  instead, and each window rides the client's rn/UA shaping (MediaHttp.kt). A server that
-     *  ignores Range (HTTP 200) just streams the whole body through the first window. */
+     *  ignores Range (HTTP 200) just streams the whole body through the first window.
+     *  Returns the total size if it is known (given or learned from Content-Range), so the caller
+     *  can compare it with the part: this function returns on EOF-like signals (416, empty window)
+     *  and does not itself prove the part is complete. */
     private fun fetch(
         format: MediaFormat,
         expected: Long?,
         part: File,
         signal: CancelSignal,
         onProgress: (Long) -> Unit,
-    ) {
+    ): Long? {
         var offset = part.length()
-        if (expected != null && offset >= expected && offset > 0) return // already finished
+        if (expected != null && offset >= expected && offset > 0) return expected // already finished
         var knownTotal = expected
         var lastTick = 0L
 
@@ -182,11 +190,12 @@ internal class StreamDownloader(private val client: OkHttpClient) {
 
             val call = client.newCall(builder.build())
             signal.activeCall = call
-            val windowStart = offset
+            var windowStart = offset
+            var declaredLength = -1L
             try {
                 call.execute().use { resp ->
                     if (signal.cancelled) throw CancelledDownload()
-                    if (resp.code == 416 && offset > 0) return // ranged past EOF: part is complete
+                    if (resp.code == 416 && offset > 0) return knownTotal // ranged past EOF
                     if (!resp.isSuccessful) throw IOException("http ${resp.code}")
                     // range= param windows answer 200, not 206 -- still bounded windows
                     val ranged = resp.code == 206 || googleRanged
@@ -194,6 +203,7 @@ internal class StreamDownloader(private val client: OkHttpClient) {
                         // server ignored Range: the full body follows, start the part over
                         part.delete()
                         offset = 0
+                        windowStart = 0
                     }
                     if (ranged && knownTotal == null) {
                         // Content-Range: bytes X-Y/TOTAL
@@ -201,6 +211,7 @@ internal class StreamDownloader(private val client: OkHttpClient) {
                             ?.substringAfter('/')?.toLongOrNull()?.takeIf { it > 0 }
                     }
                     val body = resp.body ?: throw IOException("empty body")
+                    declaredLength = body.contentLength()
                     java.io.FileOutputStream(part, offset > 0).buffered().use { sink ->
                         val source = body.byteStream()
                         val buf = ByteArray(256 * 1024)
@@ -220,20 +231,49 @@ internal class StreamDownloader(private val client: OkHttpClient) {
                     }
                     if (!ranged) {
                         onProgress(offset)
-                        return // whole body already streamed
+                        // whole body already streamed -- unless the connection cut it short
+                        if (declaredLength >= 0 && offset - windowStart < declaredLength) {
+                            throw IOException("connection closed before the body ended")
+                        }
+                        return knownTotal
                     }
                 }
             } finally {
                 signal.activeCall = null
             }
             onProgress(offset)
-            val total = knownTotal
-            if (total != null && offset >= total) return
-            if (total == null && offset <= end) return // short read with unknown size: EOF
-            // range= param past EOF answers 200 with an empty body, never 416 -- an empty window
-            // with no known total is the end, not a reason to loop forever
-            if (offset == windowStart) return
+            val step = windowStep(
+                knownTotal = knownTotal,
+                offset = offset,
+                windowStart = windowStart,
+                windowSize = CHUNK_BYTES,
+                declaredLength = declaredLength,
+                bytesRead = offset - windowStart,
+            )
+            when (step) {
+                // bytes already on disk stay: a retry resumes from them
+                WindowStep.TRUNCATED -> throw IOException("connection closed before the window ended")
+                WindowStep.FINISHED -> return knownTotal
+                WindowStep.CONTINUE -> Unit
+            }
         }
+    }
+
+    /** Failure for a part that does not match the known total, or null when it is complete. A short
+     *  part is kept so the next attempt resumes it; an oversize one cannot be resumed, so it goes. */
+    private fun incompleteFailure(part: File, total: Long?): Outcome.Failed? =
+        when (completionCheck(part.length(), total)) {
+            CompletionCheck.COMPLETE -> null
+            CompletionCheck.SHORT -> Outcome.Failed("download incomplete — retry to resume")
+            CompletionCheck.OVERSIZE -> {
+                part.delete()
+                Outcome.Failed("download size mismatch — retry to start over")
+            }
+        }
+
+    private fun deleteStaleParts(dir: File, baseName: String, keep: Set<String>) {
+        val fileNames = dir.list()?.toList() ?: return
+        stalePartFileNames(fileNames, baseName, keep).forEach { File(dir, it).delete() }
     }
 
     /** Compressed-sample copy of two single-track inputs into one container. No re-encode. */
@@ -281,6 +321,56 @@ internal class StreamDownloader(private val client: OkHttpClient) {
 }
 
 private const val CHUNK_BYTES = 10L * 1024 * 1024
+
+/** Longest format-id text kept in a part name; [safeBaseName] reserves room for exactly this. */
+internal const val MAX_FORMAT_TAG_CHARS = 24
+
+private val UNSAFE_FORMAT_TAG_CHARS = Regex("[^A-Za-z0-9_-]")
+
+/** Part names carry the format id because `part.length()` is the resume offset: bytes of a 1080p
+ *  stream resumed against a 720p URL mux into a corrupt file. [role] is "dl", "video" or "audio". */
+internal fun partFileName(baseName: String, role: String, formatId: String): String {
+    val formatTag = formatId.replace(UNSAFE_FORMAT_TAG_CHARS, "_").take(MAX_FORMAT_TAG_CHARS)
+    return "$baseName.$role.$formatTag.part"
+}
+
+/** Part files of [baseName] that the current run will not use: other formats of the same video,
+ *  and the format-less names older versions wrote. Everything else (finished files, subtitles,
+ *  other rows -- note the dot after [baseName]) is left alone. */
+internal fun stalePartFileNames(fileNames: List<String>, baseName: String, keep: Set<String>): List<String> =
+    fileNames.filter { it.startsWith("$baseName.") && it.endsWith(".part") && it !in keep }
+
+internal enum class CompletionCheck { COMPLETE, SHORT, OVERSIZE }
+
+/** [expectedBytes] null means the server never told us the size; then only an empty part is wrong. */
+internal fun completionCheck(actualBytes: Long, expectedBytes: Long?): CompletionCheck = when {
+    expectedBytes == null -> if (actualBytes > 0) CompletionCheck.COMPLETE else CompletionCheck.SHORT
+    actualBytes < expectedBytes -> CompletionCheck.SHORT
+    actualBytes > expectedBytes -> CompletionCheck.OVERSIZE
+    else -> CompletionCheck.COMPLETE
+}
+
+internal enum class WindowStep { CONTINUE, FINISHED, TRUNCATED }
+
+/** What one finished request window means. [declaredLength] is the response Content-Length, -1 when
+ *  absent. A body shorter than its declared length is a dropped connection, never an EOF. Without a
+ *  known total, a short window only counts as the end when the server declared its length (so the
+ *  short body is what it meant to send); otherwise the next, empty window confirms EOF. */
+internal fun windowStep(
+    knownTotal: Long?,
+    offset: Long,
+    windowStart: Long,
+    windowSize: Long,
+    declaredLength: Long,
+    bytesRead: Long,
+): WindowStep = when {
+    declaredLength >= 0 && bytesRead < declaredLength -> WindowStep.TRUNCATED
+    knownTotal != null && offset >= knownTotal -> WindowStep.FINISHED
+    // range= past EOF answers 200 with an empty body, never 416
+    offset == windowStart -> WindowStep.FINISHED
+    knownTotal == null && declaredLength >= 0 && bytesRead < windowSize -> WindowStep.FINISHED
+    else -> WindowStep.CONTINUE
+}
 
 /** Percent, speed and ETA for one download. Speed is averaged over bytes fetched since the first
  *  report, so a resumed download's existing part file doesn't count as instant speed. */
