@@ -120,6 +120,17 @@ data class SpriteSheet(
     val count: Int,
 )
 
+/** Which kind of wall an [ExtractionError.AccessChallenge] is. */
+enum class AccessChallengeReason {
+    AGE_RESTRICTION,
+    LOGIN_REQUIRED,
+    BOT_CHECK,
+    RATE_LIMIT,
+    GEO_BLOCK,
+    PAID,
+    UNKNOWN,
+}
+
 /**
  * Typed failure. Every layer maps its own errors into one of these; the UI renders a message per
  * case and never a stack trace. [AccessChallenge] is a hard stop, never something to work around.
@@ -131,8 +142,15 @@ sealed class ExtractionError(message: String, cause: Throwable? = null) : Except
     /** Reachable, but the content is gone, private, or never existed. */
     class ContentUnavailable(message: String) : ExtractionError(message)
 
-    /** Login wall, CAPTCHA, age verification, paywall, region block, DRM, rate limit. We stop. */
-    class AccessChallenge(message: String) : ExtractionError(message)
+    /**
+     * Login wall, CAPTCHA, age verification, paywall, region block, DRM, rate limit. We stop.
+     * [reason] says which wall, so a caller can tell the few walls a signed-in session may
+     * legitimately clear (age, login) from the ones no retry can help (rate limit, bot check).
+     */
+    class AccessChallenge(
+        message: String,
+        val reason: AccessChallengeReason = AccessChallengeReason.UNKNOWN,
+    ) : ExtractionError(message)
 
     /** A signed URL aged out. The caller re-resolves; it never retries the dead URL. */
     class Expired(message: String) : ExtractionError(message)

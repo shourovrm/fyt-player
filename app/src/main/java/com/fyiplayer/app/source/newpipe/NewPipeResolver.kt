@@ -1,5 +1,6 @@
 package com.fyiplayer.app.source.newpipe
 
+import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
@@ -19,6 +20,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.SubtitlesStream
 import org.schabi.newpipe.extractor.stream.VideoStream
 
+private const val TAG = "NewPipeResolver"
 private val HOSTS = setOf("youtube.com", "m.youtube.com", "www.youtube.com", "music.youtube.com", "youtu.be")
 
 /**
@@ -41,16 +43,29 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
 
     override suspend fun resolve(ref: VideoRef): Resolved = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
+        val fetchStartedAt = System.currentTimeMillis()
         val info = try {
-            StreamInfoCache.get(ref.pageUrl)
+            StreamInfoCache.get(ref.pageUrl).also {
+                DiagLog.log(TAG, "stream info ok in ${System.currentTimeMillis() - fetchStartedAt}ms")
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             val mapped = mapNewPipeError(e)
-            // Age wall + signed in: retry once on the TVHTML5 client, whose player responses
-            // honour the account's age verification. Everything else resolves on visionos --
-            // TVHTML5 URLs are ciphered and googlevideo 403s them for popular videos.
-            if (mapped is ExtractionError.AccessChallenge && YoutubeAuth.cookieHeader() != null) {
+            val wallReason = (mapped as? ExtractionError.AccessChallenge)?.reason
+            DiagLog.log(
+                TAG,
+                "stream info failed in ${System.currentTimeMillis() - fetchStartedAt}ms: " +
+                    "${e::class.simpleName} -> ${mapped::class.simpleName} reason=$wallReason",
+            )
+            // Age/login wall + signed in: retry once on the TVHTML5 client, whose player responses
+            // honour the account's age verification. Any other wall (rate limit, bot check, geo,
+            // paid) is not about the account, and a second request with the cookie attached would
+            // be a retry through it. Everything else resolves on visionos -- TVHTML5 URLs are
+            // ciphered and googlevideo 403s them for popular videos.
+            val retryAllowed = wallReason?.signedInRetryMayHelp() == true
+            if (retryAllowed && YoutubeAuth.cookieHeader() != null) {
+                val retryStartedAt = System.currentTimeMillis()
                 try {
                     // force=true: the cached entry (if any) is the anonymous fetch that just hit
                     // the wall -- refetch and replace it so detail()/seekThumbnails() see the
@@ -58,13 +73,19 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
                     val retried = NewPipeInit.withSignedInPlayerClient {
                         StreamInfoCache.get(ref.pageUrl, force = true)
                     }
+                    DiagLog.log(TAG, "signed-in retry ok in ${System.currentTimeMillis() - retryStartedAt}ms")
                     return@withContext toResolved(ref, retried)
                 } catch (e2: CancellationException) {
                     throw e2
                 } catch (e2: Exception) {
+                    DiagLog.log(
+                        TAG,
+                        "signed-in retry failed in ${System.currentTimeMillis() - retryStartedAt}ms: ${e2::class.simpleName}",
+                    )
                     throw mapped // the wall is the honest reason, not the retry's failure
                 }
             }
+            if (wallReason != null) DiagLog.log(TAG, "signed-in retry skipped: allowed=$retryAllowed")
             throw mapped
         }
         toResolved(ref, info)

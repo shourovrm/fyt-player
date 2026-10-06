@@ -1,5 +1,7 @@
 package com.fyiplayer.app.source.newpipe
 
+import com.fyiplayer.app.DiagLog
+import com.fyiplayer.app.core.AccessChallengeReason
 import com.fyiplayer.app.core.ExtractionError
 import java.io.IOException
 import java.net.ConnectException
@@ -24,14 +26,14 @@ import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
  * of [NewPipeResolver] once a second caller needed it.
  */
 internal fun mapNewPipeError(e: Exception): ExtractionError = when (e) {
-    is ReCaptchaException,
+    // Logged: "shorts say age/CAPTCHA but PipePipe plays them" needs the exact wall class.
+    is AntiBotException, // the fork's name for the sign-in-to-confirm bot wall
+    is ReCaptchaException, // NewPipeDownloader also throws this for HTTP 429
     is AgeRestrictedContentException,
     is PaidContentException,
     is GeographicRestrictionException,
-    is AntiBotException, // the fork's name for the sign-in-to-confirm bot wall
     is NeedLoginException,
-    // Logged: "shorts say age/CAPTCHA but PipePipe plays them" needs the exact wall class.
-    -> ExtractionError.AccessChallenge("access challenge").also { logged(e, "wall") }
+    -> ExtractionError.AccessChallenge("access challenge", wallReason(e)).also { logged(e, "wall") }
 
     is PrivateContentException,
     is ContentNotAvailableException,
@@ -51,6 +53,23 @@ internal fun mapNewPipeError(e: Exception): ExtractionError = when (e) {
     else -> ExtractionError.Unsupported("unknown newpipe failure", logged(e))
 }
 
+// Reason is read from the exception class, not its message. AntiBotException is tested before
+// ReCaptchaException in case the fork derives one from the other.
+private fun wallReason(e: Exception): AccessChallengeReason = when (e) {
+    is AntiBotException -> AccessChallengeReason.BOT_CHECK
+    is ReCaptchaException -> AccessChallengeReason.RATE_LIMIT
+    is AgeRestrictedContentException -> AccessChallengeReason.AGE_RESTRICTION
+    is NeedLoginException -> AccessChallengeReason.LOGIN_REQUIRED
+    is GeographicRestrictionException -> AccessChallengeReason.GEO_BLOCK
+    is PaidContentException -> AccessChallengeReason.PAID
+    else -> AccessChallengeReason.UNKNOWN
+}
+
+/** Only these two walls are about the account; a signed-in session can clear them. Retrying
+ *  through a rate limit or a bot check would be a retry through the wall, which is forbidden. */
+internal fun AccessChallengeReason.signedInRetryMayHelp(): Boolean =
+    this == AccessChallengeReason.AGE_RESTRICTION || this == AccessChallengeReason.LOGIN_REQUIRED
+
 /** Bounded cause-chain walk (8 deep, same spirit as [logged]'s 6-frame cap) so a cyclic or very
  *  deep chain can't hang this check. */
 private fun isTransportFailure(e: Throwable): Boolean =
@@ -61,12 +80,8 @@ private fun isTransportFailure(e: Throwable): Boolean =
 // Class name only -- messages can echo page URLs. Same lesson as ChainResolver's logHardStop:
 // a silent Unsupported mapping cost a debugging session.
 private fun logged(e: Exception, kind: String = "unsupported"): Exception {
-    try {
-        // Frames only, never the message -- messages can echo page URLs.
-        val frames = e.stackTrace.take(6).joinToString(" | ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
-        android.util.Log.d("NewPipeErrors", "$kind: ${e::class.simpleName} @ $frames")
-    } catch (logError: Throwable) {
-        // unmocked android.util.Log under plain JUnit
-    }
+    // Frames only, never the message -- messages can echo page URLs.
+    val frames = e.stackTrace.take(6).joinToString(" | ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+    DiagLog.log("NewPipeErrors", "$kind: ${e::class.simpleName} @ $frames")
     return e
 }
