@@ -493,6 +493,16 @@ class DownloadQueue private constructor(
             baseName = baseName,
             signal = signal,
             onProgress = onProgress,
+            reResolve = {
+                // The signed URLs expired mid-file: drop the cached resolve so this is a real
+                // fetch, and report a failed one as "no recovery" rather than throwing.
+                resolver.invalidate(item.ref.pageUrl)
+                try {
+                    resolver.resolve(item.ref).formats
+                } catch (e: ExtractionError) {
+                    null
+                }
+            },
         )) {
             is StreamDownloader.Outcome.Done -> EngineOutcome.Done
             StreamDownloader.Outcome.Cancelled -> EngineOutcome.Cancelled
