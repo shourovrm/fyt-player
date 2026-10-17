@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Detail page, Library, Downloads and playlist screens. Rules: docs/copy.md. -->
+<resources>
+    <!-- detail: tabs and meta -->
+    <string name="detail_tab_similar">Similar</string>
+    <string name="detail_tab_description">Description</string>
+    <string name="detail_tab_comments">Comments</string>
+    <string name="detail_tab_comments_count">Comments (%1$d)</string>
+    <plurals name="detail_meta_views">
+        <item quantity="one">%1$s view</item>
+        <item quantity="other">%1$s views</item>
+    </plurals>
+    <plurals name="detail_meta_likes">
+        <item quantity="one">%1$s like</item>
+        <item quantity="other">%1$s likes</item>
+    </plurals>
+    <plurals name="detail_meta_dislikes">
+        <item quantity="one">%1$s dislike</item>
+        <item quantity="other">%1$s dislikes</item>
+    </plurals>
+    <string name="detail_no_description">No description</string>
+    <string name="detail_no_similar">No similar videos found.</string>
+    <string name="detail_chapters">Chapters</string>
+
+    <!-- detail: comments -->
+    <string name="detail_no_comments">No comments yet.</string>
+    <string name="detail_replies_hide">Hide replies</string>
+    <plurals name="detail_replies_show">
+        <item quantity="one">%1$d reply</item>
+        <item quantity="other">%1$d replies</item>
+    </plurals>
+    <string name="detail_comment_channel_badge">Channel</string>
+    <plurals name="detail_comment_likes">
+        <item quantity="one">%1$d like</item>
+        <item quantity="other">%1$d likes</item>
+    </plurals>
+    <string name="detail_comment_liked_by_channel">Liked by the channel</string>
+
+    <!-- detail: action sheet, toasts and download picker -->
+    <string name="detail_play_next">Play next</string>
+    <string name="detail_added_to_queue">Added to queue</string>
+    <string name="detail_already_in_queue">Already in queue</string>
+    <string name="detail_download_captions">Download captions</string>
+    <string name="detail_share_chooser">Share video</string>
+    <string name="detail_download_queued">Download queued</string>
+    <string name="detail_captions_saved">Captions saved</string>
+    <string name="detail_captions_none">No captions for this video</string>
+    <string name="detail_captions_unsupported">Caption format not supported</string>
+    <string name="detail_download_checking">Checking quality options</string>
+    <string name="detail_download_quality">Download quality</string>
+    <string name="detail_download_failed_title">Cannot download this video</string>
+
+    <!-- detail: SponsorBlock exception on the channel line -->
+    <string name="detail_sponsor_on">Skips on</string>
+    <string name="detail_sponsor_off">Skips off</string>
+    <string name="detail_sponsor_stop_spoken">Stop skipping sponsored segments on this channel</string>
+    <string name="detail_sponsor_resume_spoken">Skip sponsored segments on this channel again</string>
+
+    <!-- library -->
+    <string name="library_title">Library</string>
+    <string name="library_tab_likes">Likes</string>
+    <string name="library_tab_playlists">Playlists</string>
+    <string name="library_tab_history">History</string>
+    <string name="library_tab_channels">Channels</string>
+    <string name="library_likes_empty">No likes yet</string>
+    <string name="library_playlists_empty">No playlists yet</string>
+    <string name="library_playlists_empty_hint">Create one above, or follow one from its page.</string>
+    <string name="library_channels_empty">No subscriptions yet</string>
+    <string name="library_channels_empty_hint">Subscribe from a channel page to see it here.</string>
+    <string name="library_history_empty">No history yet</string>
+    <string name="library_history_empty_hint">Videos you open appear here.</string>
+    <string name="library_history_off_hint">History is off. Turn it on in Settings.</string>
+    <string name="library_history_off_notice">History is off. New videos are not added.</string>
+    <string name="library_clear_history">Clear history</string>
+    <string name="library_clear_history_title">Clear watch history</string>
+    <string name="library_clear_history_body">Every watched video is removed from History. This cannot be undone.</string>
+    <string name="library_rename">Rename</string>
+    <string name="library_rename_title">Rename playlist</string>
+    <string name="library_rename_failed">Playlist not renamed. That name may already be used.</string>
+    <string name="library_playlist_default_title">Playlist</string>
+    <string name="library_delete_playlist_title">Delete playlist</string>
+    <string name="library_delete_playlist_body">\"%1$s\" is deleted. The videos in it are not.</string>
+    <string name="library_unfollow">Unfollow</string>
+    <string name="library_share_chooser">Share playlist</string>
+    <string name="library_channel_word">channel</string>
+    <string name="library_hide_from_feed">Hide %1$s from feed</string>
+    <string name="library_show_in_feed">Show %1$s in feed</string>
+    <string name="library_select_all">All</string>
+    <string name="library_selected_count">%1$d selected</string>
+    <string name="library_play_count">Play %1$d</string>
+    <plurals name="library_video_count">
+        <item quantity="one">%1$d video</item>
+        <item quantity="other">%1$d videos</item>
+    </plurals>
+    <plurals name="library_unsubscribe_title">
+        <item quantity="one">Unsubscribe from %1$d channel</item>
+        <item quantity="other">Unsubscribe from %1$d channels</item>
+    </plurals>
+    <plurals name="library_unsubscribe_body">
+        <item quantity="one">Videos from this channel stop appearing in your feed.</item>
+        <item quantity="other">Videos from these channels stop appearing in your feed.</item>
+    </plurals>
+    <plurals name="library_unfollow_title">
+        <item quantity="one">Unfollow %1$d playlist</item>
+        <item quantity="other">Unfollow %1$d playlists</item>
+    </plurals>
+    <plurals name="library_unfollow_body">
+        <item quantity="one">The playlist leaves your Library. Its videos are not deleted.</item>
+        <item quantity="other">The playlists leave your Library. Their videos are not deleted.</item>
+    </plurals>
+
+    <!-- playlist -->
+    <string name="playlist_new">New playlist</string>
+    <string name="playlist_create">Create</string>
+    <string name="playlist_create_failed">Playlist not created. That name may already be used.</string>
+    <string name="playlist_not_found">Playlist not found</string>
+    <string name="playlist_not_found_hint">It may have been deleted.</string>
+    <string name="playlist_remove_item">Remove from playlist</string>
+    <string name="playlist_play_all">Play all</string>
+    <string name="playlist_shuffle">Shuffle</string>
+    <string name="playlist_empty">No videos yet</string>
+    <string name="playlist_empty_hint">Add one from a video\'s menu.</string>
+    <string name="playlist_move_up">Move up</string>
+    <string name="playlist_move_down">Move down</string>
+
+    <!-- downloads -->
+    <string name="downloads_title">Downloads</string>
+    <string name="downloads_clear_completed">Clear completed</string>
+    <string name="downloads_empty_title">No downloads yet</string>
+    <string name="downloads_empty_hint">Videos you download appear here and play offline.</string>
+    <string name="downloads_remove_title">Remove download</string>
+    <string name="downloads_remove_keep_file">Remove from list</string>
+    <string name="downloads_clear_title">Clear completed downloads</string>
+    <string name="downloads_remove_frees">Delete frees %1$s.</string>
+    <string name="downloads_delete_failed">Removed from the list. The file could not be deleted.</string>
+    <string name="downloads_delete_some_failed">Removed from the list. Some files could not be deleted.</string>
+    <plurals name="downloads_remove_body">
+        <item quantity="one">Remove keeps the file on this phone. Delete erases it.</item>
+        <item quantity="other">Remove keeps the files on this phone. Delete erases them.</item>
+    </plurals>
+    <plurals name="downloads_delete_files">
+        <item quantity="one">Delete file</item>
+        <item quantity="other">Delete files</item>
+    </plurals>
+    <string name="downloads_pause">Pause</string>
+    <string name="downloads_resume">Resume</string>
+    <string name="downloads_state_queued">Queued</string>
+    <string name="downloads_state_paused">Paused</string>
+    <string name="downloads_state_completed">Downloaded</string>
+    <string name="downloads_state_failed">Failed</string>
+    <string name="downloads_progress_of">%1$s of %2$s</string>
+    <string name="downloads_speed">%1$s/s</string>
+    <string name="downloads_time_left">%1$s left</string>
+    <string name="downloads_file_missing">This file is no longer on this phone.</string>
+    <string name="downloads_no_app">No app can open this video.</string>
+    <string name="downloads_cannot_open">This file cannot be opened from here.</string>
+</resources>

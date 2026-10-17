@@ -19,14 +19,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.update.UpdateCheck
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.update.downloadAndInstall
 import kotlinx.coroutines.launch
 
-/** One-line "Update available" card above the app content. Shows only while [UpdateCheck] holds
+/** One-line update card above the app content. Shows only while [UpdateCheck] holds
  *  a newer release the user hasn't dismissed; dismissal is per version, so the next release
  *  banners again. */
 @Composable
@@ -39,16 +42,17 @@ fun UpdateBanner() {
     if (dismissed == notice.version) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val downloadingMessage = stringResource(R.string.update_downloading)
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 6.dp),
     ) {
         Row(
-            Modifier.padding(start = 16.dp, end = 4.dp).fillMaxWidth(),
+            Modifier.padding(start = Spacing.s16, end = 4.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Update available — v${notice.version}",
+                stringResource(R.string.update_available, notice.version),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
@@ -56,10 +60,10 @@ fun UpdateBanner() {
             )
             TextButton(onClick = {
                 downloadAndInstall(context, notice.apkUrl, notice.version)
-                Toast.makeText(context, "Downloading update…", Toast.LENGTH_SHORT).show()
-            }) { Text("Get") }
+                Toast.makeText(context, downloadingMessage, Toast.LENGTH_SHORT).show()
+            }) { Text(stringResource(R.string.update_install)) }
             IconButton(onClick = { scope.launch { prefs.setDismissedUpdateVersion(notice.version) } }) {
-                Icon(Icons.Filled.Close, contentDescription = "Dismiss")
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.update_dismiss))
             }
         }
     }

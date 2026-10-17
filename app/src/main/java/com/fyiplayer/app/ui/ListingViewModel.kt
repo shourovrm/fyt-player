@@ -68,7 +68,7 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
         val source = SourceRegistry.bySourceId(listing.sourceId)
         if (source == null) {
             loading = false
-            error = "This source isn't available"
+            error = "This source is not available."
             return
         }
         loadJob?.cancel()
@@ -92,7 +92,7 @@ class ListingViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: ExtractionError) {
                 error = e.userMessage()
             } catch (e: Exception) {
-                error = "Something went wrong"
+                error = "Could not load videos. Try again."
             }
             loading = false
         }

@@ -26,6 +26,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import com.fyiplayer.app.core.Comment
@@ -50,21 +56,21 @@ internal fun CommentsSection(
 ) {
     Column(modifier.fillMaxWidth()) {
         when {
-            loading && comments.isEmpty() -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            loading && comments.isEmpty() -> Box(Modifier.fillMaxWidth().padding(Spacing.s24), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(Sizes.icon), strokeWidth = 2.dp)
             }
             // Access wall -> honest unavailable state; no retry affordance (never implies a workaround).
-            error != null -> Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            error != null -> Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
                 Text(error.userMessage(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 if (retryEnabled) {
-                    TextButton(onClick = onRetry) { Text("Retry") }
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
                 }
             }
             comments.isEmpty() -> Text(
-                "No comments.",
+                stringResource(R.string.detail_no_comments),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
             )
             else -> {
                 val topLevel = comments.filter { it.parentId == null }
@@ -77,15 +83,21 @@ internal fun CommentsSection(
 
 @Composable
 private fun CommentThread(comment: Comment, replies: List<Comment>) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
         CommentRow(comment)
         if (replies.isNotEmpty()) {
             var expanded by remember(comment.id) { mutableStateOf(false) }
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(vertical = 0.dp)) {
-                Text(if (expanded) "Hide replies" else "${replies.size} replies")
+                Text(
+                    if (expanded) {
+                        stringResource(R.string.detail_replies_hide)
+                    } else {
+                        pluralStringResource(R.plurals.detail_replies_show, replies.size, replies.size)
+                    },
+                )
             }
             if (expanded) {
-                Column(Modifier.padding(start = 24.dp)) {
+                Column(Modifier.padding(start = Spacing.s24)) {
                     replies.forEach { r -> CommentRow(r) }
                 }
             }
@@ -101,14 +113,14 @@ private fun CommentRow(comment: Comment) {
             Text(comment.author, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             if (comment.isUploader) {
                 Text(
-                    "Creator",
+                    stringResource(R.string.detail_comment_channel_badge),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .padding(start = 6.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(Radius.xs))
                         .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
                 )
             }
             if (comment.timeText != null) {
@@ -130,7 +142,7 @@ private fun CommentRow(comment: Comment) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             if (comment.likeCount != null && comment.likeCount > 0) {
                 Text(
-                    "${comment.likeCount} likes",
+                    pluralStringResource(R.plurals.detail_comment_likes, comment.likeCount.toInt(), comment.likeCount),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -138,9 +150,9 @@ private fun CommentRow(comment: Comment) {
             if (comment.isHearted) {
                 Icon(
                     Icons.Filled.Favorite,
-                    contentDescription = "Liked by creator",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(start = 6.dp).size(12.dp),
+                    contentDescription = stringResource(R.string.detail_comment_liked_by_channel),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 6.dp).size(Sizes.iconSmall),
                 )
             }
         }

@@ -33,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,11 +51,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.player.PauseGlyph
 import com.fyiplayer.app.core.ExtractionError
@@ -97,6 +104,8 @@ internal fun ShortsPage(
     var showDetailsSheet by remember { mutableStateOf(false) }
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
+    val shareChooserTitle = stringResource(R.string.action_share)
+    val extras = MaterialTheme.fyiExtras
 
     // Tap toggles play/pause. The glyph shown is which way THIS tap just requested, not the
     // player's own isPlaying (onIsPlayingChanged lands a beat later) -- and it fades on its own
@@ -127,7 +136,7 @@ internal fun ShortsPage(
     // No surface here -- the one shared PlayerView sits under the pager (ShortsPager). The active
     // page is a transparent overlay (video shows through); an inactive page paints black + its
     // thumbnail so it hides the video while sliding over it.
-    BoxWithConstraints(Modifier.fillMaxSize().background(if (isActive) Color.Transparent else Color.Black)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(if (isActive) Color.Transparent else MaterialTheme.colorScheme.scrim)) {
         if (isActive) {
             // Between clips the player's shutter is black until the new first frame decodes
             // (~0.3-0.5s measured; isBuffering never flips for a prefetched slot, so it can't be
@@ -149,7 +158,7 @@ internal fun ShortsPage(
                     },
             )
             if (playerState.isBuffering) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White)
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = extras.onVideo)
             }
             AnimatedVisibility(
                 visible = pulseVisible,
@@ -163,23 +172,23 @@ internal fun ShortsPage(
                     Icon(
                         Icons.Filled.PlayArrow,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.size(64.dp),
+                        tint = extras.onVideoDim,
+                        modifier = Modifier.size(Sizes.transportButton),
                     )
                 } else {
-                    PauseGlyph(tint = Color.White.copy(alpha = 0.85f), size = 56.dp)
+                    PauseGlyph(tint = extras.onVideoDim, size = Spacing.s56)
                 }
             }
             playerState.error?.let { err ->
                 Column(
-                    Modifier.align(Alignment.Center).padding(32.dp),
+                    Modifier.align(Alignment.Center).padding(Spacing.s32),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(err.userMessage(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                    Text(err.userMessage(), color = extras.onVideo, style = MaterialTheme.typography.bodyMedium)
                     if (err is ExtractionError.AccessChallenge) {
                         WallSignInButton(
                             onSignedIn = { PlaybackSession.retryCurrent() },
-                            modifier = Modifier.padding(top = 12.dp),
+                            modifier = Modifier.padding(top = Spacing.s16),
                         )
                     }
                 }
@@ -192,18 +201,18 @@ internal fun ShortsPage(
             Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))))
-                // bottom must clear the WHOLE seekbar band (24dp padding + 40dp touch height =
-                // 64dp above the nav inset, see ShortsSeekBar below) plus a visible gap -- the
+                .background(Brush.verticalGradient(listOf(Color.Transparent, extras.videoScrim)))
+                // bottom must clear the WHOLE seekbar band (24 dp padding + 48 dp touch height =
+                // 72 dp above the nav inset, see ShortsSeekBar below) plus a visible gap -- the
                 // bar deliberately doesn't move, so this padding is what makes room instead.
-                // 48dp cleared the title but left the Details pill (last child) on the bar line.
-                .padding(start = 16.dp, end = 74.dp, top = 48.dp, bottom = 76.dp),
+                // end clears the 48 dp action rail plus its 16 dp margin.
+                .padding(start = Spacing.s16, end = Spacing.s64 + Spacing.s16, top = Spacing.s48, bottom = Spacing.s64 + Spacing.s24),
         ) {
-            Text(ref.title, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+            Text(ref.title, color = extras.onVideo, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             ref.uploader?.let {
                 Text(
                     if (onOpenChannel != null) "$it  ›" else it,
-                    color = Color.White.copy(alpha = 0.85f),
+                    color = extras.onVideoDim,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
@@ -213,13 +222,13 @@ internal fun ShortsPage(
                 )
             }
             Text(
-                "Details",
-                color = Color.White,
+                stringResource(R.string.shorts_details),
+                color = extras.onVideo,
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .padding(top = 10.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.18f))
+                    // Clickable sits outside the minimum-size wrapper so the 48 dp touch area is
+                    // the tap target while the pill is drawn at its own smaller size.
                     .clickable {
                         // Sheet over the still-mounted pager now, not a nav world-switch --
                         // onOpenDetail (curried to this ref by ShortsPager) goes unused here but
@@ -227,7 +236,10 @@ internal fun ShortsPage(
                         // running behind the sheet; nothing here touches it.
                         showDetailsSheet = true
                     }
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .minimumInteractiveComponentSize()
+                    .clip(RoundedCornerShape(Radius.l))
+                    .background(extras.onVideo.copy(alpha = 0.18f))
+                    .padding(horizontal = Spacing.s16, vertical = 6.dp),
             )
         }
 
@@ -245,7 +257,7 @@ internal fun ShortsPage(
                     putExtra(Intent.EXTRA_TEXT, ref.pageUrl)
                     putExtra(Intent.EXTRA_TITLE, ref.title)
                 }
-                context.startActivity(Intent.createChooser(send, "Share link"))
+                context.startActivity(Intent.createChooser(send, shareChooserTitle))
             },
             onSave = { showSaveSheet = true },
             // Quality/speed act on PlaybackSession's current item -- only meaningful while this
@@ -253,7 +265,7 @@ internal fun ShortsPage(
             onQuality = if (isActive) { { showQualitySheet = true } } else null,
             speed = playerState.speed,
             onSpeed = if (isActive) { { showSpeedSheet = true } } else null,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 104.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = Spacing.s16, bottom = Spacing.s64 + Spacing.s40),
         )
 
         if (isActive) {
@@ -268,14 +280,14 @@ internal fun ShortsPage(
                     .fillMaxWidth()
                     .padding(horizontal = 2.dp)
                     .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(bottom = 24.dp),
+                    .padding(bottom = Spacing.s24),
             )
         }
 
         if (isActive && scrubbing) {
-            // x follows the thumb (bar spans maxWidth minus its own 2dp*2 padding above),
+            // x follows the thumb (bar spans maxWidth minus its own 2 dp * 2 padding above),
             // clamped so the card never runs off either screen edge. y is a fixed clearance,
-            // tuned like the meta Column's own bottom=76dp above -- generous enough to clear
+            // tuned like the meta Column's own bottom padding above -- generous enough to clear
             // both the seekbar band and a 2-line title + uploader + Details pill, same
             // eyeballed-padding approach the rest of this page already uses.
             val barWidth = maxWidth - 4.dp
@@ -284,13 +296,13 @@ internal fun ShortsPage(
             // card's x-position, which only matters while the finger is already down.
             val fraction = shortsProgressFraction(scrubMs, PlaybackSession.progress.value.durationMs)
             val thumbX = 2.dp + barWidth * fraction
-            val previewX = (thumbX - ShortsSeekPreviewWidth / 2).coerceIn(0.dp, maxWidth - ShortsSeekPreviewWidth)
+            val previewX = (thumbX - Sizes.seekPreviewWidth / 2).coerceIn(0.dp, maxWidth - Sizes.seekPreviewWidth)
             SeekThumbnailPreview(
                 image = seekThumbs?.imageFor(scrubMs / 1000.0),
                 timestampText = shortsTimestamp(scrubMs),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(bottom = 220.dp)
+                    .padding(bottom = Spacing.s64 * 3 + Spacing.s24)
                     .offset(x = previewX),
             )
         }
@@ -334,31 +346,32 @@ private fun ShortsActionRail(
     onSpeed: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    val extras = MaterialTheme.fyiExtras
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.s16), horizontalAlignment = Alignment.CenterHorizontally) {
         RailButton(onClick = onLike) {
             Icon(
                 if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = if (liked) "Unlike" else "Like",
-                tint = if (liked) Color(0xFFE0245E) else Color.White,
+                contentDescription = stringResource(if (liked) R.string.action_unlike else R.string.action_like),
+                tint = if (liked) extras.likedOnVideo else extras.onVideo,
             )
         }
         RailButton(onClick = onSave) {
-            Icon(Icons.Filled.Add, contentDescription = "Add to playlist", tint = Color.White)
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add_to_playlist), tint = extras.onVideo)
         }
         RailButton(onClick = onShare) {
-            Icon(Icons.Filled.Share, contentDescription = "Share", tint = Color.White)
+            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share), tint = extras.onVideo)
         }
         // No quality glyph anywhere in this repo (PlayerScreen's own overflow menu is a text
         // DropdownMenuItem, not an icon) -- a text label matches what already exists instead of
         // inventing a new hand-drawn glyph.
         if (onQuality != null) {
             RailButton(onClick = onQuality) {
-                Text("HD", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.shorts_quality_label), color = extras.onVideo, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             }
         }
         if (onSpeed != null) {
             RailButton(onClick = onSpeed) {
-                Text("${trimSpeed(speed)}x", color = Color.White, style = MaterialTheme.typography.labelMedium)
+                Text("${trimSpeed(speed)}x", color = extras.onVideo, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -368,18 +381,17 @@ private fun ShortsActionRail(
 private fun RailButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
         Modifier
-            .size(44.dp)
+            .size(Sizes.touchTarget)
             .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.35f))
+            .background(MaterialTheme.fyiExtras.videoScrimFaint)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
 
 /**
- * A real seekbar, not decoration: 3dp track, thumb + halo drawn only while a finger is actually
- * down (mockup ui-fixes §2) so the bar reads as a thin progress line the rest of the time. The
- * modifier's own height is the touch target (>=40dp) even though the drawn track is 3dp -- same
+ * A real seekbar, not decoration: 4 dp track, thickened to 6 dp while a finger is down. The
+ * modifier's own height is the 48 dp touch target even though the drawn track is 4 dp -- same
  * "big grab area, thin visual" split [player.PlayerChrome.ControlBar] uses for the full player.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -411,40 +423,38 @@ private fun ShortsSeekBar(
             onScrub(false, scrubValueMs)
         },
         // Drag hit-testing is the Slider's own layout bounds, not the drawn track/thumb --
-        // 20dp was inside the margin above and let fingers slip off. 40dp gives a real grab
-        // area while the track/thumb art stays exactly as thin as the mockup calls for.
-        modifier = modifier.height(40.dp),
+        // A short bar was inside the margin above and let fingers slip off. 48 dp gives a real
+        // grab area while the track/thumb art stays thin.
+        modifier = modifier.height(Sizes.touchTarget),
         thumb = {
             // Always a dot (YouTube Shorts' red dot): a visible handle is what makes "grab and
-            // drag" discoverable; idle 10dp, halo + 13dp while the finger is down.
+            // drag" discoverable; idle 10 dp, halo + 16 dp while the finger is down.
+            val extras = MaterialTheme.fyiExtras
             Box(
                 Modifier
-                    .size(28.dp)
+                    .size(Sizes.iconLarge)
                     .clip(CircleShape)
-                    .background(if (isScrubbing) Color.White.copy(alpha = 0.18f) else Color.Transparent),
+                    .background(if (isScrubbing) extras.onVideo.copy(alpha = 0.18f) else Color.Transparent),
                 contentAlignment = Alignment.Center,
             ) {
-                Box(Modifier.size(if (isScrubbing) 13.dp else 10.dp).clip(CircleShape).background(Color.White))
+                Box(Modifier.size(if (isScrubbing) Sizes.iconSmall else 10.dp).clip(CircleShape).background(extras.onVideo))
             }
         },
         track = {
+            val extras = MaterialTheme.fyiExtras
             Box(
                 Modifier
                     .fillMaxWidth()
                     // Thickens under the finger so the whole bar reads as grabbed, not just the dot.
-                    .height(if (isScrubbing) 5.dp else 3.dp)
+                    .height(if (isScrubbing) 6.dp else Sizes.progressTrack)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.28f)),
+                    .background(extras.onVideo.copy(alpha = 0.28f)),
             ) {
-                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(Color.White))
+                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(extras.onVideo))
             }
         },
     )
 }
-
-// Mirrors player.SEEK_PREVIEW_WIDTH (internal to that package, so not reusable here) -- keep
-// in sync if that card's width ever changes.
-private val ShortsSeekPreviewWidth = 140.dp
 
 // player.formatPosition/mmss are internal to the player package; shorts only ever needs the
 // bare current time (no "/ duration"), so this is the whole one-line replacement.

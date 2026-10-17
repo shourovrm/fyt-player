@@ -21,7 +21,9 @@ import androidx.compose.ui.text.LinkInteractionListener
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.fromHtml
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoDetail
@@ -45,9 +47,9 @@ internal fun LazyListScope.descriptionTabSection(
     item {
         val description = detail.description
         if (description.isNullOrBlank()) {
-            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().padding(Spacing.s24), contentAlignment = Alignment.Center) {
                 Text(
-                    "No description",
+                    stringResource(R.string.detail_no_description),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -78,7 +80,7 @@ private fun DescriptionText(
     } else {
         AnnotatedString(description)
     }
-    SelectionContainer(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    SelectionContainer(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
         Text(linkifyGaps(base, detail.ref.pageUrl, linkStyles, listener), style = MaterialTheme.typography.bodyMedium)
     }
 }

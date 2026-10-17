@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Browse area strings: Home, Shorts, shell, channel, listing, results, update. Rules: docs/copy.md. -->
+<resources>
+    <!-- home -->
+    <string name="home_search_placeholder">Search videos and channels</string>
+    <string name="home_clear_search">Clear search</string>
+    <string name="home_refresh_feed">Refresh feed</string>
+    <string name="home_no_sources">No sources yet. Turn one on in Settings.</string>
+    <string name="home_tab_all">All</string>
+    <string name="home_no_results">No results for “%1$s”.</string>
+    <string name="home_for_you">For you</string>
+    <string name="home_feed_section_label">New from channels you watch</string>
+    <string name="home_feed_no_subscriptions">No videos yet. Subscribe to a channel to fill your feed.</string>
+    <string name="home_feed_failed_channels">Could not load %1$d channels. Check your connection and pull down to refresh.</string>
+    <string name="home_feed_nothing_new">No new videos yet. Check back later.</string>
+    <string name="home_recent_searches">Recent searches</string>
+    <string name="home_clear_history">Clear history</string>
+    <string name="home_remove_search">Remove “%1$s”</string>
+
+    <!-- results -->
+    <string name="results_end">No more videos.</string>
+    <string name="results_load_more">Load more</string>
+    <string name="results_subscribers">%1$s subscribers</string>
+
+    <!-- update -->
+    <string name="update_available">Update available: %1$s</string>
+    <string name="update_install">Install</string>
+    <string name="update_dismiss">Dismiss</string>
+    <string name="update_downloading">Downloading update</string>
+
+    <!-- shorts -->
+    <string name="shorts_shelf_title">Shorts</string>
+    <string name="shorts_grid_end">No more Shorts from your channels.</string>
+    <string name="shorts_details_description">Description</string>
+    <string name="shorts_details_comments">Comments</string>
+    <string name="shorts_details_comments_count">Comments (%1$d)</string>
+    <string name="shorts_details">Details</string>
+    <string name="shorts_quality_label">HD</string>
+    <string name="shorts_title">Shorts</string>
+    <string name="shorts_empty_no_subscriptions">No Shorts yet. Subscribe to a channel to see its Shorts here.</string>
+    <string name="shorts_failed_all">Could not load Shorts. Check your connection and try again.</string>
+    <string name="shorts_failed_some">Could not load Shorts from %1$d channels. The others have none.</string>
+    <string name="shorts_empty_none_posted">No Shorts yet. Your channels have not posted any.</string>
+
+    <!-- shell -->
+    <string name="shell_tab_home">Home</string>
+    <string name="shell_tab_shorts">Shorts</string>
+    <string name="shell_tab_library">Library</string>
+    <string name="shell_tab_downloads">Downloads</string>
+    <string name="shell_tab_settings">Settings</string>
+
+    <!-- channel -->
+    <string name="channel_title_fallback">Channel</string>
+    <string name="channel_play_all">Play all</string>
+    <string name="channel_tab_videos">Videos</string>
+    <string name="channel_tab_shorts">Shorts</string>
+    <string name="channel_tab_playlists">Playlists</string>
+    <string name="channel_tab_courses">Courses</string>
+    <string name="channel_tab_search">Search</string>
+    <string name="channel_error_source">Channel</string>
+    <string name="channel_empty_videos_title">No videos yet</string>
+    <string name="channel_empty_videos_message">This channel has not posted any here.</string>
+    <string name="channel_empty_container">No playlists yet.</string>
+    <string name="channel_search_label">Search this channel</string>
+    <string name="channel_search_empty_title">No results for “%1$s”</string>
+    <string name="channel_search_empty_message">Try another search.</string>
+
+    <!-- listing -->
+    <string name="listing_title_fallback">Playlist</string>
+    <string name="listing_share_playlist">Share playlist</string>
+    <string name="listing_followed">Playlist followed</string>
+    <string name="listing_empty_message">Videos added to this playlist appear here.</string>
+</resources>

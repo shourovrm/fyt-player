@@ -3,6 +3,7 @@ package com.fyiplayer.app.settings
 import android.webkit.CookieManager
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -16,10 +17,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
+import com.fyiplayer.app.ui.ConfirmDialog
 import com.fyiplayer.app.ui.showToast
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 
 /** First-party YouTube sign-in (own Google account) for content the account can access --
  *  age-restricted videos, memberships. See [YoutubeLoginActivity] for the login flow. */
@@ -28,43 +33,66 @@ fun AccountSettings() {
     val context = LocalContext.current
     val loggedIn by YoutubeAuth.isLoggedIn.collectAsStateWithLifecycle()
     var showConfirm by remember { mutableStateOf(false) }
+    var showSignOutConfirm by remember { mutableStateOf(false) }
+    val signedInMessage = stringResource(R.string.settings_signed_in_toast)
+    val signedOutMessage = stringResource(R.string.settings_signed_out_toast)
 
-    val signIn = rememberYoutubeSignIn(onSignedIn = { showToast(context, "Signed in") })
+    val signIn = rememberYoutubeSignIn(onSignedIn = { showToast(context, signedInMessage) })
 
-    SettingsSection("Account") {
-        if (loggedIn) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Signed in to YouTube", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+    SettingsSection(stringResource(R.string.settings_account)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (loggedIn) {
+                SettingsLabel(
+                    stringResource(R.string.settings_youtube_account),
+                    stringResource(R.string.settings_signed_in),
+                    Modifier.weight(1f),
+                )
                 // For an expired or rejected session.
-                TextButton(onClick = { signIn(true) }) { Text("Sign in again") }
-                TextButton(onClick = {
-                    YoutubeAuth.clear()
-                    CookieManager.getInstance().removeAllCookies(null)
-                    showToast(context, "Signed out")
-                }) { Text("Sign out") }
-            }
-        } else {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                TextButton(onClick = { showConfirm = true }) { Text("Sign in to YouTube") }
+                TextButton(onClick = { signIn(true) }) { Text(stringResource(R.string.settings_sign_in_again)) }
+                TextButton(onClick = { showSignOutConfirm = true }) {
+                    Text(stringResource(R.string.settings_sign_out), color = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                SettingsLabel(
+                    stringResource(R.string.settings_youtube_account),
+                    stringResource(R.string.settings_account_hint),
+                    Modifier.weight(1f),
+                )
+                TextButton(onClick = { showConfirm = true }) { Text(stringResource(R.string.settings_sign_in)) }
             }
         }
+    }
+
+    if (showSignOutConfirm) {
+        ConfirmDialog(
+            title = stringResource(R.string.settings_sign_out_title),
+            body = stringResource(R.string.settings_sign_out_body),
+            confirmLabel = stringResource(R.string.settings_sign_out),
+            onConfirm = {
+                showSignOutConfirm = false
+                YoutubeAuth.clear()
+                CookieManager.getInstance().removeAllCookies(null)
+                showToast(context, signedOutMessage)
+            },
+            onDismiss = { showSignOutConfirm = false },
+        )
     }
 
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("Sign in to YouTube") },
-            text = { Text("You'll sign in to your Google account inside the app. The session is stored only on this device.") },
+            title = { Text(stringResource(R.string.settings_sign_in_title)) },
+            text = { Text(stringResource(R.string.settings_sign_in_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showConfirm = false
                     signIn(false)
-                }) { Text("Continue") }
+                }) { Text(stringResource(R.string.settings_sign_in)) }
             },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }

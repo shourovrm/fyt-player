@@ -10,7 +10,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.core.canonicalChannelKey
 import kotlinx.coroutines.launch
@@ -28,13 +30,13 @@ internal fun SponsorChannelToggle(channelUrl: String?) {
 
     val whitelisted = key in whitelist
     // Two words on screen; the full sentence goes to the screen reader.
-    val spokenAction = if (whitelisted) "Skip segments on this channel again" else "Stop skipping segments on this channel"
+    val spokenAction = if (whitelisted) stringResource(R.string.detail_sponsor_resume_spoken) else stringResource(R.string.detail_sponsor_stop_spoken)
     TextButton(
         onClick = { scope.launch { prefs.setSponsorChannelWhitelisted(channelUrl, !whitelisted) } },
-        modifier = Modifier.padding(end = 8.dp).semantics { contentDescription = spokenAction },
+        modifier = Modifier.padding(end = Spacing.s8).semantics { contentDescription = spokenAction },
     ) {
         Text(
-            if (whitelisted) "Skips off" else "Skips on",
+            stringResource(if (whitelisted) R.string.detail_sponsor_off else R.string.detail_sponsor_on),
             color = if (whitelisted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
         )
     }

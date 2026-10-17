@@ -21,10 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
@@ -33,8 +37,6 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  */
 internal fun partitionShorts(items: List<VideoRef>): Pair<List<VideoRef>, List<VideoRef>> =
     items.partition { it.isShort }
-
-private val SHELF_CARD_WIDTH = 108.dp
 
 /** Target shelf size: page 1 rarely has more than a handful of shorts, so search auto-pages
  *  (bounded by [MAX_SHELF_AUTO_FETCHES]) until the shelf is worth swiping through. */
@@ -49,13 +51,14 @@ internal const val MAX_SHELF_AUTO_FETCHES = 3
 internal fun ShortsShelf(items: List<VideoRef>, onClick: (VideoRef) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Text(
-            "Shorts",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            stringResource(R.string.shorts_shelf_title),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 6.dp),
         )
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = Spacing.pageMargin),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
         ) {
             items(items, key = { it.pageUrl }) { ref ->
                 ShortsShelfCard(ref, onClick = { onClick(ref) })
@@ -66,12 +69,12 @@ internal fun ShortsShelf(items: List<VideoRef>, onClick: (VideoRef) -> Unit) {
 
 @Composable
 private fun ShortsShelfCard(ref: VideoRef, onClick: () -> Unit) {
-    Column(Modifier.width(SHELF_CARD_WIDTH).clickable(onClick = onClick)) {
+    Column(Modifier.width(Sizes.thumbWidth).clickable(onClick = onClick)) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(9f / 16f)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(Radius.s))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             ref.thumbnailUrl?.let {
@@ -92,7 +95,7 @@ private fun ShortsShelfCard(ref: VideoRef, onClick: () -> Unit) {
                 it,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.fyiExtras.ink3,
             )
         }

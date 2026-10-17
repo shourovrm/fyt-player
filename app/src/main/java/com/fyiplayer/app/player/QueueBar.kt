@@ -36,10 +36,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.VideoRef
-
-private val QUEUE_BAR_HEIGHT = 44.dp
 
 /**
  * A slim strip showing where playback is in the queue, expanding on tap into the full list —
@@ -63,22 +65,22 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
-            .height(QUEUE_BAR_HEIGHT)
+            .height(Sizes.touchTarget)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable { expanded = true }
-            .padding(horizontal = 16.dp),
+            .padding(start = Spacing.s16),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(
-            "${state.index + 1} of ${state.queueSize}",
+            stringResource(R.string.player_queue_position, state.index + 1, state.queueSize),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             current.title,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -86,16 +88,16 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
         )
         Icon(
             Icons.Filled.KeyboardArrowUp,
-            contentDescription = "Show queue",
+            contentDescription = stringResource(R.string.player_queue_show),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(Sizes.icon),
         )
         // Close = clear: dropping to a 1-item queue makes this bar's own guard (queueSize <= 1)
         // hide it, which is the intended dismiss affordance. Never touches playback -- queue ≠ player.
-        IconButton(onClick = { PlaybackSession.clearQueue() }, modifier = Modifier.size(24.dp)) {
+        IconButton(onClick = { PlaybackSession.clearQueue() }, modifier = Modifier.size(Sizes.touchTarget)) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Close queue",
+                contentDescription = stringResource(R.string.player_queue_clear),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -109,11 +111,11 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
         LaunchedEffect(state.index) { listState.scrollToItem(state.index.coerceAtLeast(0)) }
         ModalBottomSheet(onDismissRequest = { expanded = false }, sheetState = sheetState) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(start = Spacing.s16, end = Spacing.s8, bottom = Spacing.s8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Queue — ${state.index + 1} of ${state.queueSize}",
+                    stringResource(R.string.player_queue_title, state.index + 1, state.queueSize),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
@@ -121,15 +123,15 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                 // has no Shuffle glyph -- text button, same pattern as PlaylistDetailScreen's own.
                 TextButton(onClick = { PlaybackSession.toggleShuffle() }) {
                     Text(
-                        if (state.shuffled) "Shuffle on" else "Shuffle",
+                        stringResource(if (state.shuffled) R.string.player_queue_shuffle_on else R.string.player_queue_shuffle),
                         color = if (state.shuffled) MaterialTheme.colorScheme.primary else Color.Unspecified,
                     )
                 }
                 TextButton(onClick = { PlaybackSession.clearQueue(); expanded = false }) {
-                    Text("Clear")
+                    Text(stringResource(R.string.action_clear))
                 }
             }
-            LazyColumn(state = listState, modifier = Modifier.heightIn(max = 420.dp)) {
+            LazyColumn(state = listState, modifier = Modifier.heightIn(max = Spacing.s64 * 7)) {
                 // No pageUrl key: the same video can be enqueued twice, and a duplicate LazyColumn
                 // key is a hard crash ("Key ... was already used", seen on device).
                 itemsIndexed(state.queue) { i, ref ->
@@ -148,7 +150,7 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                             "${i + 1}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 16.dp, end = 4.dp),
+                            modifier = Modifier.padding(start = Spacing.s16, end = 4.dp),
                         )
                         Text(
                             ref.title,
@@ -157,18 +159,18 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(end = 4.dp),
                         )
-                        IconButton(onClick = { PlaybackSession.move(i, i - 1) }, enabled = i > 0, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up")
+                        IconButton(onClick = { PlaybackSession.move(i, i - 1) }, enabled = i > 0, modifier = Modifier.size(Sizes.touchTarget)) {
+                            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.player_queue_move_up))
                         }
                         IconButton(
                             onClick = { PlaybackSession.move(i, i + 1) },
                             enabled = i < state.queue.lastIndex,
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(Sizes.touchTarget),
                         ) {
-                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down")
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.player_queue_move_down))
                         }
-                        IconButton(onClick = { PlaybackSession.removeAt(i) }, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Filled.Close, contentDescription = "Remove from queue")
+                        IconButton(onClick = { PlaybackSession.removeAt(i) }, modifier = Modifier.size(Sizes.touchTarget)) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_remove_from_queue))
                         }
                     }
                 }

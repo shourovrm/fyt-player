@@ -16,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoDetail
@@ -75,13 +77,13 @@ internal fun ShortsDetailsSheet(ref: VideoRef, onDismiss: () -> Unit) {
                 Tab(
                     selected = selectedTab == DetailTab.DESCRIPTION,
                     onClick = { selectedTab = DetailTab.DESCRIPTION },
-                    text = { Text("Description") },
+                    text = { Text(stringResource(R.string.shorts_details_description)) },
                 )
                 if (showCommentsTab) {
                     Tab(
                         selected = selectedTab == DetailTab.COMMENTS,
                         onClick = { selectedTab = DetailTab.COMMENTS },
-                        text = { Text(tabsVm.commentsCount?.let { "Comments ($it)" } ?: "Comments") },
+                        text = { Text(tabsVm.commentsCount?.let { stringResource(R.string.shorts_details_comments_count, it) } ?: stringResource(R.string.shorts_details_comments)) },
                     )
                 }
             }

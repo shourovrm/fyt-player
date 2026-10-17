@@ -185,7 +185,7 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
         } catch (e: Exception) {
-            videoTabs[tab] = before.copy(loading = false, error = "Something went wrong")
+            videoTabs[tab] = before.copy(loading = false, error = "Could not load videos. Try again.")
         }
     }
 
@@ -213,7 +213,7 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
         } catch (e: Exception) {
-            containerTabs[tab] = before.copy(loading = false, error = "Something went wrong")
+            containerTabs[tab] = before.copy(loading = false, error = "Could not load videos. Try again.")
         }
     }
 
@@ -246,7 +246,7 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: ExtractionError) {
                 searchState = VideoTabState(error = e.userMessage(), blocked = e is ExtractionError.AccessChallenge, loaded = true)
             } catch (e: Exception) {
-                searchState = VideoTabState(error = "Something went wrong", loaded = true)
+                searchState = VideoTabState(error = "Could not load videos. Try again.", loaded = true)
             }
         }
     }
@@ -276,7 +276,7 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
                     loading = false, error = e.userMessage(), blocked = e is ExtractionError.AccessChallenge,
                 )
             } catch (e: Exception) {
-                searchState = before.copy(loading = false, error = "Something went wrong")
+                searchState = before.copy(loading = false, error = "Could not load videos. Try again.")
             }
         }
     }

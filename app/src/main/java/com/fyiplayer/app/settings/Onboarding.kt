@@ -1,5 +1,4 @@
 package com.fyiplayer.app.settings
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,9 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 /** First-run language/country prompt over Home (DESIGN.md-style: a sheet, not a blocking page --
@@ -41,31 +43,31 @@ fun OnboardingSheet(prefs: Prefs) {
     // -- persisting "done" there would silently skip onboarding. Only the Done button persists it;
     // any other dismissal (swipe, back, outside tap) just re-shows the sheet next visit.
     ModalBottomSheet(onDismissRequest = {}, sheetState = sheetState) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
-            Text("Language & country", style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.s24, vertical = Spacing.s8)) {
+            Text(stringResource(R.string.settings_onboarding_title), style = MaterialTheme.typography.titleLarge)
             Text(
-                "Sets search results, trending charts and captions. Change anytime in Settings.",
+                stringResource(R.string.settings_onboarding_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                modifier = Modifier.padding(top = 4.dp, bottom = Spacing.s16),
             )
             LocaleDropdown(
-                label = "Language",
+                label = stringResource(R.string.settings_language),
                 options = LANGUAGES,
                 selected = language,
                 onSelect = { scope.launch { prefs.setContentLanguage(it) } },
             )
             LocaleDropdown(
-                label = "Country",
+                label = stringResource(R.string.settings_country),
                 options = COUNTRIES,
                 selected = country,
                 onSelect = { scope.launch { prefs.setContentCountry(it) } },
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = 10.dp),
             )
             Button(
                 onClick = { scope.launch { prefs.setOnboardingDone() } },
-                modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp),
-            ) { Text("Done") }
+                modifier = Modifier.fillMaxWidth().padding(top = Spacing.s24, bottom = Spacing.s8),
+            ) { Text(stringResource(R.string.action_done)) }
         }
     }
 }

@@ -1,5 +1,4 @@
 package com.fyiplayer.app.settings
-
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -7,9 +6,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 // ISO 639-1, English first/default; curated to what NewPipeExtractor's YouTube client accepts.
@@ -41,20 +43,20 @@ fun ContentSettings(prefs: Prefs) {
     val language by prefs.contentLanguage.collectAsStateWithLifecycle(initialValue = "en")
     val country by prefs.contentCountry.collectAsStateWithLifecycle(initialValue = "US")
 
-    SettingsSection("Language & region") {
-        Column(Modifier.padding(horizontal = 16.dp)) {
+    SettingsSection(stringResource(R.string.settings_language_region)) {
+        Column(Modifier.padding(horizontal = Spacing.pageMargin)) {
             LocaleDropdown(
-                label = "Language",
+                label = stringResource(R.string.settings_language),
                 options = LANGUAGES,
                 selected = language,
                 onSelect = { scope.launch { prefs.setContentLanguage(it) } },
             )
             LocaleDropdown(
-                label = "Country",
+                label = stringResource(R.string.settings_country),
                 options = COUNTRIES,
                 selected = country,
                 onSelect = { scope.launch { prefs.setContentCountry(it) } },
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = 10.dp),
             )
         }
     }

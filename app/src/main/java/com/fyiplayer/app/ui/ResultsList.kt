@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -45,14 +47,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.ResultKind
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PlaybackPosition
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -106,7 +110,7 @@ internal fun ResultsListColumn(
     val errorsAtTail = loadMoreFailed && items.isNotEmpty()
     val selecting = selection.isNotEmpty()
 
-    LazyColumn(state = listState, modifier = modifier, contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(state = listState, modifier = modifier, contentPadding = PaddingValues(bottom = Spacing.s24)) {
         topContent?.let { item(key = "topContent") { it() } }
         if (!errorsAtTail) errors.forEach { row -> item { ErrorRowView(row) } }
         if (items.isEmpty() && skeletonRows > 0) {
@@ -133,15 +137,15 @@ internal fun ResultsListColumn(
         } else if (endOfResults && items.isNotEmpty()) {
             item {
                 Text(
-                    "No more results",
-                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    stringResource(R.string.results_end),
+                    modifier = Modifier.fillMaxWidth().padding(Spacing.s16),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
                 )
             }
         } else if (hasMore) {
-            item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(12.dp)) { Text("Load more") } }
+            item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(Spacing.s16)) { Text(stringResource(R.string.results_load_more)) } }
         }
     }
 }
@@ -165,10 +169,11 @@ internal fun formatDuration(seconds: Int): String {
 }
 
 /** Channel rows show subscriber count instead of the video-only uploader/views/age line. */
+@Composable
 private fun resultMetaText(ref: VideoRef): String {
     if (ref.kind == ResultKind.CHANNEL) {
         val subs = ref.subscriberCount
-        if (subs != null && subs >= 0) return "${compactCount(subs)} subscribers"
+        if (subs != null && subs >= 0) return stringResource(R.string.results_subscribers, compactCount(subs))
     }
     return listOfNotNull(ref.uploader, ref.viewCountText, shortAge(ref.uploadedText)).joinToString(" · ")
 }
@@ -185,8 +190,6 @@ private fun compactCount(count: Long): String {
     val tenths = (count / divisor * 10).roundToInt()
     return if (tenths % 10 == 0) "${tenths / 10}$suffix" else "${"%.1f".format(Locale.US, tenths / 10.0)}$suffix"
 }
-
-private val ROW_THUMB = DpSize(120.dp, 67.5.dp)
 
 /** The one result row the whole app renders (Home, Listing, Detail's related). TAP opens the
  *  video, LONG-PRESS opens the shared action sheet. [selecting] is whether the surrounding list is
@@ -206,10 +209,11 @@ internal fun ResultRow(
             .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             .semantics { if (selecting) this.selected = selected }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .heightIn(min = Sizes.listTwoLine)
+            .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(ROW_THUMB).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        Box(Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             // Library rows (likes/playlist/history) can carry only a bare pageUrl when the add
             // happened before enrichment landed -- fall back to the un-expiring hqdefault so the
             // row isn't blank instead of leaving it that way forever.
@@ -221,28 +225,26 @@ internal fun ResultRow(
             // yet, so a "12:34" badge would be a lie. Playlist rows carry no durationSeconds at
             // all (no VideoRef shape fits one), so they fall through with no badge, correctly.
             when {
-                ref.isLive -> CornerBadge("LIVE", background = MaterialTheme.colorScheme.error, color = MaterialTheme.colorScheme.onError)
-                ref.isUpcoming -> CornerBadge("UPCOMING", background = Color.Black.copy(alpha = 0.72f), color = Color(0xFFF2F4F5))
-                ref.durationSeconds != null -> CornerBadge(formatDuration(ref.durationSeconds), background = Color.Black.copy(alpha = 0.72f), color = Color(0xFFF2F4F5))
+                ref.isLive -> CornerBadge(stringResource(R.string.state_live), background = MaterialTheme.colorScheme.error, color = MaterialTheme.colorScheme.onError)
+                ref.isUpcoming -> CornerBadge(stringResource(R.string.state_upcoming), background = MaterialTheme.fyiExtras.videoScrim, color = MaterialTheme.fyiExtras.onVideo)
+                ref.durationSeconds != null -> CornerBadge(formatDuration(ref.durationSeconds), background = MaterialTheme.fyiExtras.videoScrim, color = MaterialTheme.fyiExtras.onVideo)
             }
             val position = LocalPlaybackPositions.current[ref.pageUrl]
             if (position != null && position.positionMs > 0 && position.durationMs > 0) {
-                // YouTube's own idiom (red on a dark track), not the theme accent: the accent is
-                // blue and 2dp of it was invisible on a light thumbnail edge.
                 LinearProgressIndicator(
                     progress = { (position.positionMs.toFloat() / position.durationMs).coerceIn(0f, 1f) },
-                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp),
-                    color = Color(0xFFFF0033),
-                    trackColor = Color.Black.copy(alpha = 0.45f),
+                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(Sizes.progressTrack),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.fyiExtras.videoScrimLight,
                     gapSize = 0.dp,
                     drawStopIndicator = {},
                 )
             }
         }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.s16).weight(1f)) {
             // A Library row can still be mid-enrichment (add landed before detail() resolved, or
             // detail() failed) -- an empty line reads as broken, "Untitled" reads as loading/unknown.
-            Text(ref.title.ifBlank { "Untitled" }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+            Text(ref.title.ifBlank { stringResource(R.string.state_untitled) }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             // Channel · views · age, non-null parts only -- a listing that carried none of these
             // renders no meta line at all rather than a row of dangling separators.
             val meta = resultMetaText(ref)
@@ -251,7 +253,7 @@ internal fun ResultRow(
                     meta,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.fyiExtras.ink3,
                     modifier = Modifier.padding(top = 2.dp),
                 )
@@ -271,7 +273,7 @@ private fun BoxScope.CornerBadge(text: String, background: Color, color: Color) 
             .padding(6.dp)
             .clip(RoundedCornerShape(4.dp))
             .background(background)
-            .padding(horizontal = 5.dp, vertical = 2.dp),
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         color = color,
         style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
     )
@@ -279,8 +281,8 @@ private fun BoxScope.CornerBadge(text: String, background: Color, color: Color) 
 
 @Composable
 private fun LoadingTailRow() {
-    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+    Box(Modifier.fillMaxWidth().padding(Spacing.s16), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(modifier = Modifier.size(Sizes.icon), strokeWidth = 2.dp)
     }
 }
 
@@ -288,15 +290,15 @@ private fun LoadingTailRow() {
  *  loading" shape, no shimmer. */
 @Composable
 private fun SkeletonRow() {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Row(Modifier.fillMaxWidth().heightIn(min = Sizes.listTwoLine).padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
         Box(
-            Modifier.width(120.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))
+            Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
-        Column(Modifier.padding(start = 12.dp).fillMaxWidth()) {
-            Box(Modifier.fillMaxWidth(0.8f).size(14.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
+        Column(Modifier.padding(start = Spacing.s16).fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth(0.8f).height(Spacing.s16).clip(RoundedCornerShape(Radius.xs)).background(MaterialTheme.colorScheme.surfaceVariant))
             Box(
-                Modifier.padding(top = 8.dp).fillMaxWidth(0.4f).size(10.dp).clip(RoundedCornerShape(4.dp))
+                Modifier.padding(top = Spacing.s8).fillMaxWidth(0.4f).height(10.dp).clip(RoundedCornerShape(Radius.xs))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
         }
@@ -308,14 +310,14 @@ internal fun ErrorRowView(row: ErrorRow) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .padding(horizontal = Spacing.pageMargin, vertical = 4.dp)
+            .clip(RoundedCornerShape(Radius.m))
             .background(MaterialTheme.colorScheme.errorContainer)
-            .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = Spacing.s16, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(Sizes.iconSmall))
+        Spacer(Modifier.width(Spacing.s8))
         Text(
             buildAnnotatedString {
                 withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(row.sourceName) }
@@ -328,7 +330,7 @@ internal fun ErrorRowView(row: ErrorRow) {
             modifier = Modifier.weight(1f),
         )
         if (row.onRetry != null) {
-            TextButton(onClick = row.onRetry) { Text("Retry") }
+            TextButton(onClick = row.onRetry) { Text(stringResource(R.string.action_retry)) }
         }
     }
 }

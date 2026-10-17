@@ -11,7 +11,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.CaptionTrack
 
 /**
@@ -31,10 +33,10 @@ fun CaptionSheet(
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(modifier = Modifier.padding(bottom = 16.dp)) {
+        LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
             item {
                 ListItem(
-                    headlineContent = { Text("Off") },
+                    headlineContent = { Text(stringResource(R.string.player_captions_off)) },
                     leadingContent = { RadioButton(selected = selectedLanguage == null, onClick = { onSelect(null) }) },
                     modifier = Modifier.clickable { onSelect(null) },
                 )

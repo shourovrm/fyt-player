@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.SearchFilter
 import com.fyiplayer.app.core.SearchSort
 import com.fyiplayer.app.core.SearchType
@@ -22,8 +23,8 @@ import com.fyiplayer.app.core.SearchType
 @Composable
 internal fun SearchFilterRow(filter: SearchFilter, onChange: (SearchFilter) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
     ) {
         SearchType.entries.forEach { type ->
             FilterChip(

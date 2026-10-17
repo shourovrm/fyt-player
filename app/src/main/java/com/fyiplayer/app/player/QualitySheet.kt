@@ -11,7 +11,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Spacing
 
 /**
  * Resolution picker for the item currently playing. [heights] is
@@ -34,17 +36,17 @@ fun QualitySheet(
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(modifier = Modifier.padding(bottom = 16.dp)) {
+        LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
             item {
                 ListItem(
-                    headlineContent = { Text("Auto") },
+                    headlineContent = { Text(stringResource(R.string.player_quality_auto)) },
                     leadingContent = { RadioButton(selected = selectedHeight == null, onClick = { onSelect(null) }) },
                     modifier = Modifier.clickable { onSelect(null) },
                 )
             }
             items(heights) { height ->
                 ListItem(
-                    headlineContent = { Text("${height}p") },
+                    headlineContent = { Text(stringResource(R.string.player_quality_height, height)) },
                     leadingContent = { RadioButton(selected = height == selectedHeight, onClick = { onSelect(height) }) },
                     modifier = Modifier.clickable { onSelect(height) },
                 )

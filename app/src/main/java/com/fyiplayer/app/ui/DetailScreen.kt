@@ -8,12 +8,16 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -21,7 +25,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -47,6 +52,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
@@ -207,7 +217,7 @@ fun DetailScreen(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier
                             .combinedClickable(onClick = {}, onLongClick = { actionSheetRef = shownRef })
-                            .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                            .padding(start = Spacing.pageMargin, end = Spacing.pageMargin, top = 10.dp),
                     )
                 }
                 // Before detail() lands (or when it fails), the ref itself often already knows the
@@ -224,7 +234,7 @@ fun DetailScreen(
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f).clickable { onOpenListing(uploaderListing) }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                             )
                             // Sits on the channel's own line: it is a per-channel switch, and a
                             // row of its own pushed the view count down for one short label.
@@ -234,15 +244,16 @@ fun DetailScreen(
                             shownRef.uploader,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                         )
                     }
                 }
                 item {
                     val meta = listOfNotNull(
-                        detail.viewCount?.let { "${formatCount(it)} views" } ?: shownRef.viewCountText,
-                        detail.likeCount?.let { "${formatCount(it)} likes" },
-                        detail.dislikeCount?.let { "${formatCount(it)} dislikes" },
+                        detail.viewCount?.let { pluralStringResource(R.plurals.detail_meta_views, it.toPluralQuantity(), formatCount(it)) }
+                            ?: shownRef.viewCountText,
+                        detail.likeCount?.let { pluralStringResource(R.plurals.detail_meta_likes, it.toPluralQuantity(), formatCount(it)) },
+                        detail.dislikeCount?.let { pluralStringResource(R.plurals.detail_meta_dislikes, it.toPluralQuantity(), formatCount(it)) },
                         detail.uploadDate?.let(::formatUploadDate),
                     ).joinToString(" · ")
                     if (meta.isNotBlank()) {
@@ -250,7 +261,7 @@ fun DetailScreen(
                             meta,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
                         )
                     }
                 }
@@ -258,22 +269,27 @@ fun DetailScreen(
                 // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
                 // option (the old showCommentsTab-only gate no longer applies).
                 item {
-                    PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = 16.dp)) {
+                    PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = Spacing.s16)) {
                         Tab(
                             selected = tabsVm.selectedTab == DetailTab.SIMILAR,
                             onClick = { tabsVm.selectedTab = DetailTab.SIMILAR },
-                            text = { Text("Similar") },
+                            text = { Text(stringResource(R.string.detail_tab_similar)) },
                         )
                         Tab(
                             selected = tabsVm.selectedTab == DetailTab.DESCRIPTION,
                             onClick = { tabsVm.selectedTab = DetailTab.DESCRIPTION },
-                            text = { Text("Description") },
+                            text = { Text(stringResource(R.string.detail_tab_description)) },
                         )
                         if (showCommentsTab) {
                             Tab(
                                 selected = tabsVm.selectedTab == DetailTab.COMMENTS,
                                 onClick = { tabsVm.selectedTab = DetailTab.COMMENTS },
-                                text = { Text(tabsVm.commentsCount?.let { "Comments ($it)" } ?: "Comments") },
+                                text = {
+                                    Text(
+                                        tabsVm.commentsCount?.let { stringResource(R.string.detail_tab_comments_count, it) }
+                                            ?: stringResource(R.string.detail_tab_comments),
+                                    )
+                                },
                             )
                         }
                     }
@@ -299,7 +315,7 @@ fun DetailScreen(
                             error = tabsVm.commentsError,
                             retryEnabled = !tabsVm.commentsBlocked,
                             onRetry = { tabsVm.retryComments(source, shownRef) },
-                            modifier = Modifier.padding(top = 12.dp),
+                            modifier = Modifier.padding(top = 10.dp),
                         )
                     }
                 }
@@ -311,29 +327,51 @@ fun DetailScreen(
 }
 
 /**
- * Like / Save / Download / Share, directly under the title (no Queue: the page's own video is already the queue) -- the same handlers
+ * Like / Add to playlist / Download / Share, directly under the title (no Queue: the page's own video is already the queue) -- the same handlers
  * [VideoActionSheet]'s long-press sheet uses ([VideoActions], `ui/VideoActionSheet.kt`), just laid
- * out as a permanent row instead of a sheet. Like is the only button with an active look (accent +
- * filled icon); it's read from [VideoActions.likedFlow], not a one-shot check, so a toggle from
- * elsewhere (or from this row itself) is never stale.
+ * out as a permanent row instead of a sheet. Download is the page's one filled button; Like shows
+ * the accent colour and a filled icon while liked, read from [VideoActions.likedFlow], not a
+ * one-shot check, so a toggle from elsewhere (or from this row itself) is never stale. The row
+ * scrolls sideways so four labelled buttons survive large font scale.
  */
 @Composable
 private fun VideoActionRow(actions: VideoActions, modifier: Modifier = Modifier) {
     val liked by actions.likedFlow.collectAsState(initial = false)
     var showPlaylistPicker by remember(actions.ref.pageUrl) { mutableStateOf(false) }
     val context = LocalContext.current
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
-    Row(modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
-        ActionButton(label = "Like", active = liked, onClick = { actions.toggleLike(liked) }) { color ->
+    Row(
+        modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val likeColor = if (liked) MaterialTheme.colorScheme.primary else onSurfaceVariant
+        TextButton(onClick = { actions.toggleLike(liked) }) {
             Icon(
                 if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = null, tint = color, modifier = Modifier.size(20.dp),
+                contentDescription = null, tint = likeColor, modifier = Modifier.size(Sizes.iconSmall),
             )
+            Spacer(Modifier.width(Spacing.s8))
+            Text(stringResource(if (liked) R.string.action_unlike else R.string.action_like), color = likeColor)
         }
-        ActionButton(label = "Save", onClick = { showPlaylistPicker = true }) { color -> SaveGlyph(tint = color) }
-        ActionButton(label = "Download", onClick = { actions.startDownload() }) { color -> DownloadTrayGlyph(tint = color) }
-        ActionButton(label = "Share", onClick = { actions.share() }) { color ->
-            Icon(Icons.Filled.Share, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+        TextButton(onClick = { showPlaylistPicker = true }) {
+            SaveGlyph(tint = onSurfaceVariant)
+            Spacer(Modifier.width(Spacing.s8))
+            Text(stringResource(R.string.action_add_to_playlist), color = onSurfaceVariant)
+        }
+        Button(onClick = { actions.startDownload() }) {
+            DownloadTrayGlyph(tint = MaterialTheme.colorScheme.onPrimary)
+            Spacer(Modifier.width(Spacing.s8))
+            Text(stringResource(R.string.action_download))
+        }
+        TextButton(onClick = { actions.share() }) {
+            Icon(Icons.Filled.Share, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(Sizes.iconSmall))
+            Spacer(Modifier.width(Spacing.s8))
+            Text(stringResource(R.string.action_share), color = onSurfaceVariant)
         }
     }
 
@@ -349,34 +387,11 @@ private fun VideoActionRow(actions: VideoActions, modifier: Modifier = Modifier)
     }
 }
 
-/** One column of the action row: icon over a 10.5sp-class label, ink2 idle / accent when [active]. */
-@Composable
-private fun RowScope.ActionButton(
-    label: String,
-    active: Boolean = false,
-    onClick: () -> Unit,
-    icon: @Composable (Color) -> Unit,
-) {
-    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(
-        modifier = Modifier.weight(1f).clickable(onClick = onClick).padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        icon(color)
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
-}
-
 /** `material-icons-core` has neither a bookmark nor a download glyph (CLAUDE.md's own gotcha);
  *  drawn by hand the same way the player's Pause/Skip/Fullscreen glyphs solve the same gap
  *  (`player/PlayerOverlays.kt`). */
 @Composable
-private fun SaveGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+private fun SaveGlyph(tint: Color, size: Dp = Sizes.iconSmall, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -393,7 +408,7 @@ private fun SaveGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun DownloadTrayGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+private fun DownloadTrayGlyph(tint: Color, size: Dp = Sizes.iconSmall, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -408,6 +423,9 @@ private fun DownloadTrayGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier 
         drawLine(tint, Offset(w * 0.14f, h * 0.88f), Offset(w * 0.86f, h * 0.88f), stroke, cap = StrokeCap.Round)
     }
 }
+
+/** Plural rules only need the small counts to pick a form; clamp so a huge count cannot overflow. */
+private fun Long.toPluralQuantity(): Int = coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
 private fun formatCount(n: Long): String = NumberFormat.getIntegerInstance().format(n)
 

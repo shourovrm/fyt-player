@@ -26,6 +26,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -141,7 +144,7 @@ fun AppScaffold(
                                 selected = tab.route == selected,
                                 onClick = { navigateToTab(navController, tab.route, route) },
                                 icon = { Icon(tab.icon, contentDescription = null) },
-                                label = { Text(tab.label) },
+                                label = { Text(stringResource(tab.labelRes)) },
                             )
                         }
                     }
@@ -174,14 +177,14 @@ fun AppScaffold(
     }
 }
 
-private class NavTab(val route: String, val label: String, val icon: ImageVector)
+private class NavTab(val route: String, @StringRes val labelRes: Int, val icon: ImageVector)
 
 private val NAV_TABS = listOf(
-    NavTab(Routes.HOME, "Home", Icons.Filled.Home),
-    NavTab(Routes.SHORTS, "Shorts", Icons.Filled.PlayArrow),
-    NavTab(Routes.LIBRARY, "Library", Icons.Filled.Favorite),
-    NavTab(Routes.DOWNLOADS, "Downloads", Icons.AutoMirrored.Filled.List),
-    NavTab(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
+    NavTab(Routes.HOME, R.string.shell_tab_home, Icons.Filled.Home),
+    NavTab(Routes.SHORTS, R.string.shell_tab_shorts, Icons.Filled.PlayArrow),
+    NavTab(Routes.LIBRARY, R.string.shell_tab_library, Icons.Filled.Favorite),
+    NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, Icons.AutoMirrored.Filled.List),
+    NavTab(Routes.SETTINGS, R.string.shell_tab_settings, Icons.Filled.Settings),
 )
 
 private const val NAV_ANIM_MILLIS = 180

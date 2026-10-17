@@ -7,7 +7,9 @@ import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -23,10 +25,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
@@ -76,7 +82,7 @@ class VideoActions internal constructor(
             putExtra(Intent.EXTRA_TEXT, ref.pageUrl)
             putExtra(Intent.EXTRA_TITLE, ref.title)
         }
-        context.startActivity(Intent.createChooser(send, "Share link"))
+        context.startActivity(Intent.createChooser(send, context.getString(R.string.detail_share_chooser)))
     }
 
     /** Every download asks which size, every time -- never a silent fall-back to the playback
@@ -98,7 +104,7 @@ class VideoActions internal constructor(
             val outcome = downloads.start(ref, option)
             onMessage(
                 when (outcome) {
-                    is EnqueueOutcome.Queued -> "Download queued"
+                    is EnqueueOutcome.Queued -> context.getString(R.string.detail_download_queued)
                     is EnqueueOutcome.Failed -> outcome.message
                 },
             )
@@ -116,9 +122,9 @@ class VideoActions internal constructor(
     fun downloadSubtitles() {
         scope.launch {
             val message = when (val outcome = downloads.downloadSubtitles(ref)) {
-                SubtitleOutcome.Saved -> "Subtitles saved"
-                SubtitleOutcome.NoSubtitles -> "No subtitles for this video"
-                SubtitleOutcome.Unsupported -> "Subtitle format not supported"
+                SubtitleOutcome.Saved -> context.getString(R.string.detail_captions_saved)
+                SubtitleOutcome.NoSubtitles -> context.getString(R.string.detail_captions_none)
+                SubtitleOutcome.Unsupported -> context.getString(R.string.detail_captions_unsupported)
                 is SubtitleOutcome.Failed -> outcome.message
             }
             showToast(context, message)
@@ -148,20 +154,22 @@ fun VideoActionSheet(ref: VideoRef, onDismiss: () -> Unit) {
     val liked by actions.likedFlow.collectAsState(initial = false)
     var showPlaylistPicker by remember(ref.pageUrl) { mutableStateOf(false) }
     val context = LocalContext.current
+    val addedToQueueMessage = stringResource(R.string.detail_added_to_queue)
+    val alreadyInQueueMessage = stringResource(R.string.detail_already_in_queue)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         // Scrollable: in landscape the sheet is shorter than its items and Download fell off the end.
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
-            SheetAction("Play next") { PlaybackSession.playNext(ref); onDismiss() }
-            SheetAction("Add to queue") {
-                showToast(context, if (PlaybackSession.enqueue(ref)) "Added to queue" else "Already in queue")
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = Spacing.s16)) {
+            SheetAction(stringResource(R.string.detail_play_next)) { PlaybackSession.playNext(ref); onDismiss() }
+            SheetAction(stringResource(R.string.action_add_to_queue)) {
+                showToast(context, if (PlaybackSession.enqueue(ref)) addedToQueueMessage else alreadyInQueueMessage)
                 onDismiss()
             }
-            SheetAction("Add to playlist") { showPlaylistPicker = true }
-            SheetAction(if (liked) "Unlike" else "Like") { actions.toggleLike(liked); onDismiss() }
-            SheetAction("Share") { actions.share(); onDismiss() }
-            SheetAction("Download") { actions.startDownload() }
-            SheetAction("Download subtitles") { actions.downloadSubtitles(); onDismiss() }
+            SheetAction(stringResource(R.string.action_add_to_playlist)) { showPlaylistPicker = true }
+            SheetAction(stringResource(if (liked) R.string.action_unlike else R.string.action_like)) { actions.toggleLike(liked); onDismiss() }
+            SheetAction(stringResource(R.string.action_share)) { actions.share(); onDismiss() }
+            SheetAction(stringResource(R.string.action_download)) { actions.startDownload() }
+            SheetAction(stringResource(R.string.detail_download_captions)) { actions.downloadSubtitles(); onDismiss() }
         }
     }
 
@@ -206,7 +214,7 @@ fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add to playlist") },
+        title = { Text(stringResource(R.string.action_add_to_playlist)) },
         text = {
             // A plain Column, not LazyColumn: an unbounded-height lazy list inside a dialog's
             // wrap-content text slot throws (measured with an infinite max height), and a
@@ -221,13 +229,14 @@ fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss
                                 scope.launch { playlists.addItem(playlist.id, ref) }
                                 onDismiss()
                             }
-                            .padding(vertical = 10.dp),
+                            .heightIn(min = Sizes.touchTarget)
+                            .wrapContentHeight(Alignment.CenterVertically),
                     )
                 }
                 OutlinedTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    label = { Text("New playlist") },
+                    label = { Text(stringResource(R.string.playlist_new)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = {
@@ -239,7 +248,7 @@ fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss
                             onDismiss()
                         }
                     }),
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = Spacing.s8),
                 )
             }
         },
@@ -252,8 +261,8 @@ fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss
                     }
                 }
                 onDismiss()
-            }) { Text("Done") }
+            }) { Text(stringResource(R.string.action_done)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

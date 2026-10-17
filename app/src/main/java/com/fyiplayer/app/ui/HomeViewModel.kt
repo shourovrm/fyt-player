@@ -284,6 +284,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun outcomeFor(cur: TabResult, page: String?, error: Throwable): TabResult = when (error) {
         is ExtractionError.Unsupported -> applyUnsupported(cur)
         is ExtractionError -> applyError(cur, page, error)
-        else -> cur.copy(loading = false, error = "Something went wrong", retryPage = page, nextPage = null, loaded = true)
+        else -> cur.copy(loading = false, error = "Could not load results. Try again.", retryPage = page, nextPage = null, loaded = true)
     }
 }

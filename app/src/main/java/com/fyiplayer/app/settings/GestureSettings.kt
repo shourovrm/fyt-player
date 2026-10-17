@@ -1,9 +1,10 @@
 package com.fyiplayer.app.settings
-
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
 import kotlinx.coroutines.launch
 
@@ -15,14 +16,16 @@ fun GestureSettings(prefs: Prefs) {
     val brightness by prefs.gestureBrightness.collectAsStateWithLifecycle(initialValue = true)
     val volume by prefs.gestureVolume.collectAsStateWithLifecycle(initialValue = true)
 
-    SettingsSection("Gestures") {
+    SettingsSection(stringResource(R.string.settings_gestures)) {
         SettingsSwitchRow(
-            label = "Brightness — drag left side",
+            label = stringResource(R.string.settings_gesture_brightness),
+            hint = stringResource(R.string.settings_gesture_brightness_hint),
             checked = brightness,
             onCheckedChange = { scope.launch { prefs.setGestureBrightness(it) } },
         )
         SettingsSwitchRow(
-            label = "Volume — drag right side",
+            label = stringResource(R.string.settings_gesture_volume),
+            hint = stringResource(R.string.settings_gesture_volume_hint),
             checked = volume,
             onCheckedChange = { scope.launch { prefs.setGestureVolume(it) } },
         )

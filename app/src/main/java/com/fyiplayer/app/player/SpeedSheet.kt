@@ -11,7 +11,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Spacing
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
 
@@ -20,10 +22,10 @@ private val SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
 @Composable
 fun SpeedSheet(current: Float, onSelect: (Float) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(modifier = Modifier.padding(bottom = 16.dp)) {
+        LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
             items(SPEEDS) { speed ->
                 ListItem(
-                    headlineContent = { Text("${trimSpeed(speed)}x") },
+                    headlineContent = { Text(stringResource(R.string.player_speed_value, trimSpeed(speed))) },
                     leadingContent = { RadioButton(selected = speed == current, onClick = { onSelect(speed) }) },
                     modifier = Modifier.clickable { onSelect(speed) },
                 )

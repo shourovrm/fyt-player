@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -45,16 +46,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.settings.OnboardingSheet
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 
 /**
  * Home (browse) and Search share this screen: a blank query shows [HomeFeedSection] (newest
@@ -135,10 +140,11 @@ fun HomeScreen(
             vm.continueTab(feeding)
         }
     }
+    val unavailableText = stringResource(R.string.state_unavailable)
     val allExhausted = feeding.isNotEmpty() && feedingResults.all { it.exhausted }
     val errorRows = feeding.zip(feedingResults).mapNotNull { (src, res) ->
         when {
-            res.blocked -> ErrorRow(src.displayName, res.error ?: "Unavailable", onRetry = null)
+            res.blocked -> ErrorRow(src.displayName, res.error ?: unavailableText, onRetry = null)
             res.error != null -> ErrorRow(src.displayName, res.error, onRetry = { vm.retryTab(src) })
             else -> null
         }
@@ -177,7 +183,7 @@ fun HomeScreen(
 
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
+            Modifier.fillMaxWidth().padding(start = Spacing.pageMargin, end = Spacing.pageMargin, top = 10.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SearchPill(
@@ -186,18 +192,14 @@ fun HomeScreen(
                 onFocusChanged = { searchFieldFocused = it },
                 onClear = { vm.clearSearch() },
                 onSearch = { submitSearch(vm.query) },
+                onRefresh = { vm.refreshFeed(browseSources) },
                 modifier = Modifier.weight(1f),
             )
-            if (!isSearching) {
-                IconButton(onClick = { vm.refreshFeed(browseSources) }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh feed", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
         }
         when {
             browseSources.isEmpty() -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Enable a source in Settings to start browsing.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.home_no_sources), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             vm.query.isBlank() && searchFieldFocused && searchHistory.isNotEmpty() -> {
@@ -217,9 +219,9 @@ fun HomeScreen(
                 // tabIds always carries a synthetic "All" entry on top of browseSources, so
                 // tabIds.size is never 1 even with a single source -- gate on the real count.
                 if (browseSources.size > 1) {
-                    ScrollableTabRow(selectedTabIndex = tabIds.indexOf(vm.selectedTab).coerceAtLeast(0), edgePadding = 12.dp) {
+                    ScrollableTabRow(selectedTabIndex = tabIds.indexOf(vm.selectedTab).coerceAtLeast(0), edgePadding = Spacing.s16) {
                         tabIds.forEach { id ->
-                            val label = if (id == ALL_TAB_ID) "All" else browseSources.find { it.id == id }?.displayName ?: id
+                            val label = if (id == ALL_TAB_ID) stringResource(R.string.home_tab_all) else browseSources.find { it.id == id }?.displayName ?: id
                             Tab(selected = id == vm.selectedTab, onClick = { vm.selectedTab = id }, text = { Text(label) })
                         }
                     }
@@ -243,7 +245,7 @@ fun HomeScreen(
                     }
                     searchItems.isEmpty() && errorRows.isEmpty() -> {
                         Box(Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                            Text("No results for “${vm.query}”.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
+                            Text(stringResource(R.string.home_no_results, vm.query), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(Spacing.s24))
                         }
                     }
                     else -> {
@@ -328,10 +330,10 @@ fun HomeScreen(
 @Composable
 private fun TopicChipsRow(topics: List<Topic>, selected: Topic?, onSelect: (Topic?) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.pageMargin, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
     ) {
-        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("For you") })
+        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text(stringResource(R.string.home_for_you)) })
         topics.forEach { topic ->
             FilterChip(selected = selected == topic, onClick = { onSelect(topic) }, label = { Text(topic.label) })
         }
@@ -367,20 +369,17 @@ private fun HomeFeedSection(
         }
         feed.items.isEmpty() -> {
             val message = when {
-                !feed.hasSubscriptions ->
-                    "Your feed is empty. Search for a channel, open it, and subscribe to build it."
-                // A failed fetch is not evidence that there is nothing new — say which happened.
-                feed.failedChannels > 0 ->
-                    "Couldn't load uploads from ${feed.failedChannels} of your subscriptions. " +
-                        "Check your connection and pull refresh."
-                else -> "No new uploads from your subscriptions right now."
+                !feed.hasSubscriptions -> stringResource(R.string.home_feed_no_subscriptions)
+                // A failed fetch is not evidence that there is nothing new, so say which happened.
+                feed.failedChannels > 0 -> stringResource(R.string.home_feed_failed_channels, feed.failedChannels)
+                else -> stringResource(R.string.home_feed_nothing_new)
             }
             Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     message,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(Spacing.s24),
                 )
             }
         }
@@ -394,6 +393,14 @@ private fun HomeFeedSection(
                 listState = listState,
                 modifier = modifier,
                 isLoadingMore = feed.loading,
+                topContent = {
+                    Text(
+                        stringResource(R.string.home_feed_section_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                    )
+                },
             )
         }
     }
@@ -407,19 +414,19 @@ private fun SearchHistorySuggestions(
     onClearAll: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Recent searches", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f).padding(vertical = 12.dp))
-            TextButton(onClick = onClearAll) { Text("Clear all") }
+        Row(Modifier.fillMaxWidth().padding(start = Spacing.s16), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.home_recent_searches), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f).padding(vertical = Spacing.s16))
+            TextButton(onClick = onClearAll) { Text(stringResource(R.string.home_clear_history)) }
         }
         entries.take(10).forEach { q ->
             Row(
-                Modifier.fillMaxWidth().clickable { onPick(q) }.padding(start = 16.dp, end = 4.dp),
+                Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).clickable { onPick(q) }.padding(start = Spacing.s16, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(q, modifier = Modifier.weight(1f).padding(start = 12.dp, top = 10.dp, bottom = 10.dp))
+                Text(q, modifier = Modifier.weight(1f).padding(start = Spacing.s16, top = 10.dp, bottom = 10.dp))
                 IconButton(onClick = { onDelete(q) }) {
-                    Icon(Icons.Filled.Clear, contentDescription = "Remove \"$q\" from history")
+                    Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.home_remove_search, q))
                 }
             }
         }
@@ -434,11 +441,11 @@ private fun SearchSuggestionsDropdown(suggestions: List<String>, onPick: (String
     Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
         suggestions.forEach { q ->
             Row(
-                Modifier.fillMaxWidth().clickable { onPick(q) }.padding(start = 16.dp, end = 16.dp),
+                Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).clickable { onPick(q) }.padding(start = Spacing.s16, end = Spacing.s16),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(q, modifier = Modifier.weight(1f).padding(start = 12.dp, top = 10.dp, bottom = 10.dp))
+                Text(q, modifier = Modifier.weight(1f).padding(start = Spacing.s16, top = 10.dp, bottom = 10.dp))
             }
         }
     }
@@ -460,7 +467,7 @@ internal fun isChannelPageUrl(pageUrl: String): Boolean {
     return path.startsWith("/channel/") || path.startsWith("/@") || path.startsWith("/c/") || path.startsWith("/user/")
 }
 
-/** Search-first top bar: one 48dp filled search pill. */
+/** Search-first top bar: one 56 dp pill. The trailing icon is Clear while there is a query, else Refresh. */
 @Composable
 private fun SearchPill(
     query: String,
@@ -468,20 +475,21 @@ private fun SearchPill(
     onFocusChanged: (Boolean) -> Unit,
     onClear: () -> Unit,
     onSearch: () -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .height(Sizes.searchBar)
+            .clip(RoundedCornerShape(50))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 16.dp),
+            .padding(start = Spacing.s16, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Box(Modifier.weight(1f).padding(start = 10.dp)) {
             if (query.isEmpty()) {
-                Text("Search", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.home_search_placeholder), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
             }
             BasicTextField(
                 value = query,
@@ -495,7 +503,9 @@ private fun SearchPill(
             )
         }
         if (query.isNotEmpty()) {
-            IconButton(onClick = onClear) { Icon(Icons.Filled.Clear, contentDescription = "Clear search", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            IconButton(onClick = onClear) { Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.home_clear_search), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        } else {
+            IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.home_refresh_feed), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

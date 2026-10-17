@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.layout.ContentScale
@@ -41,7 +42,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -50,16 +56,19 @@ import com.fyiplayer.app.core.SeekThumbnails
 import kotlinx.coroutines.delay
 import com.fyiplayer.app.settings.WallSignInButton
 
-/** One friendly line per failure kind — never a stack trace, never the dead signed URL a
+/** One friendly line per failure kind -- never a stack trace, never the dead signed URL a
  *  Network/Expired message could otherwise carry. */
-private fun friendlyMessage(e: ExtractionError): String = when (e) {
-    is ExtractionError.Network -> "No connection. Check your network and retry."
-    is ExtractionError.ContentUnavailable -> "This video is no longer available."
-    is ExtractionError.AccessChallenge -> "Unavailable: this page requires a login, CAPTCHA, or age check."
-    // Never claim a retry here: by the time this renders, the one permitted re-resolve is spent.
-    is ExtractionError.Expired -> "Stream link expired."
-    is ExtractionError.Unsupported -> "Can't play this video right now."
-}
+@Composable
+private fun friendlyMessage(e: ExtractionError): String = stringResource(
+    when (e) {
+        is ExtractionError.Network -> R.string.error_no_connection
+        is ExtractionError.ContentUnavailable -> R.string.error_content_unavailable
+        is ExtractionError.AccessChallenge -> R.string.error_access_wall
+        // Never claim a retry here: by the time this renders, the one permitted re-resolve is spent.
+        is ExtractionError.Expired -> R.string.error_link_expired
+        is ExtractionError.Unsupported -> R.string.player_error_cannot_play
+    },
+)
 
 /**
  * The full player: shared surface, gesture layer, HUDs, centred transport and the one-row bottom
@@ -185,16 +194,20 @@ fun PlayerScreen(
     // instead of resuming a timer that expired mid-drag and would yank the chrome away -- a hide
     // during a seekbar drag unmounts the bar and releases the drag under the user's finger.
     var scrubbing by remember { mutableStateOf(false) }
+    // Same reasoning for the More menu: it is a dropdown over the chrome, so hiding the chrome
+    // would close it under the finger.
+    var moreMenuOpen by remember { mutableStateOf(false) }
     // The end of the video brings the controls up so Replay is one tap, not two.
     LaunchedEffect(state.ended) {
         if (state.ended) interact()
     }
-    LaunchedEffect(controlsToken, state.isPlaying, scrubbing) {
-        if (!state.isPlaying || scrubbing) return@LaunchedEffect
+    LaunchedEffect(controlsToken, state.isPlaying, scrubbing, moreMenuOpen) {
+        if (!state.isPlaying || scrubbing || moreMenuOpen) return@LaunchedEffect
         delay(3000); controlsVisible = false
     }
 
-    Box(modifier.fillMaxSize().background(Color.Black)) {
+    val extras = MaterialTheme.fyiExtras
+    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim)) {
         val ref = state.current
         val error = state.error
         when {
@@ -209,37 +222,41 @@ fun PlayerScreen(
                 }
                 IconButton(
                     onClick = { PlaybackSession.play(listOf(pageRef), 0) },
-                    modifier = Modifier.align(Alignment.Center).size(72.dp),
+                    modifier = Modifier.align(Alignment.Center).size(Sizes.transportButton),
                 ) {
                     Icon(
                         Icons.Filled.PlayArrow,
-                        contentDescription = "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(64.dp),
+                        contentDescription = stringResource(R.string.action_play),
+                        tint = extras.onVideo,
+                        modifier = Modifier.size(Sizes.transportGlyph),
                     )
                 }
             }
-            ref == null -> Text("Nothing playing", color = Color.White, modifier = Modifier.align(Alignment.Center))
+            ref == null -> Text(
+                stringResource(R.string.player_nothing_playing),
+                color = extras.onVideo,
+                modifier = Modifier.align(Alignment.Center),
+            )
             error != null -> Column(
-                modifier = Modifier.align(Alignment.Center).padding(32.dp),
+                modifier = Modifier.align(Alignment.Center).padding(Spacing.s32),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(friendlyMessage(error), color = Color.White)
+                Text(friendlyMessage(error), color = extras.onVideo)
                 // An AccessChallenge is an honest wall (login/CAPTCHA/age) -- re-resolving can't
                 // pass it, so no Retry there, same convention as ResultsList's onRetry = null.
                 if (error is ExtractionError.AccessChallenge) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Spacing.s16))
                     WallSignInButton(onSignedIn = { PlaybackSession.retryCurrent() })
                 } else {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(Spacing.s16))
                     // The reported "stuck play button": an error used to render dead-end text with
                     // no way forward short of leaving the screen. retryCurrent() re-resolves the
                     // same item from where it left off -- not a bypass of whatever stopped it.
                     OutlinedButton(
                         onClick = { PlaybackSession.retryCurrent() },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
-                    ) { Text("Retry") }
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.onVideo),
+                        border = BorderStroke(1.dp, extras.onVideoDim),
+                    ) { Text(stringResource(R.string.action_retry)) }
                 }
             }
             else -> {
@@ -291,23 +308,23 @@ fun PlayerScreen(
                 )
 
                 if (state.isBuffering) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White)
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = extras.onVideo)
                 }
                 if (showBrightnessHud) {
-                    GestureHud(brightnessPercent, isBrightness = true, modifier = Modifier.align(Alignment.CenterStart).padding(24.dp))
+                    GestureHud(brightnessPercent, isBrightness = true, modifier = Modifier.align(Alignment.CenterStart).padding(Spacing.s24))
                 }
                 if (showVolumeHud) {
-                    GestureHud(volumePercent, isBrightness = false, modifier = Modifier.align(Alignment.CenterEnd).padding(24.dp))
+                    GestureHud(volumePercent, isBrightness = false, modifier = Modifier.align(Alignment.CenterEnd).padding(Spacing.s24))
                 }
                 seekPreviewMs?.let {
                     SeekPreviewHud(
                         formatPosition(it, PlaybackSession.progress.value.durationMs),
-                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp),
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = Spacing.s48),
                     )
                 }
                 fastSeekTotal?.let { total ->
                     val side = if (total >= 0) Alignment.CenterEnd else Alignment.CenterStart
-                    FastSeekOverlay(total, modifier = Modifier.align(side).padding(24.dp))
+                    FastSeekOverlay(total, modifier = Modifier.align(side).padding(Spacing.s24))
                 }
 
                 if (controlsVisible && !scrubbing) {
@@ -317,38 +334,38 @@ fun PlayerScreen(
                     Row(
                         modifier = Modifier.align(Alignment.Center),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.s24),
                     ) {
                         if (state.index > 0) {
-                            IconButton(onClick = { PlaybackSession.skipPrevious(); interact() }, modifier = Modifier.size(48.dp)) {
-                                SkipGlyph(forward = false, tint = Color.White)
+                            IconButton(onClick = { PlaybackSession.skipPrevious(); interact() }, modifier = Modifier.size(Sizes.transportButton)) {
+                                SkipGlyph(forward = false, tint = extras.onVideo, size = Sizes.transportGlyph)
                             }
                         }
                         CenterPlayButton(onClick = { PlaybackSession.togglePlayPause(); interact() }, playing = state.isPlaying, ended = state.ended)
                         if (state.index + 1 < state.queueSize) {
-                            IconButton(onClick = { PlaybackSession.skipNext(); interact() }, modifier = Modifier.size(48.dp)) {
-                                SkipGlyph(forward = true, tint = Color.White)
+                            IconButton(onClick = { PlaybackSession.skipNext(); interact() }, modifier = Modifier.size(Sizes.transportButton)) {
+                                SkipGlyph(forward = true, tint = extras.onVideo, size = Sizes.transportGlyph)
                             }
                         }
                     }
-                    // Top-left close / minimise, portrait only (PipePipe hides its X in
+                    // Top-left close / minimize, portrait only (PipePipe hides its X in
                     // fullscreen too). Fullscreen has the exit-fullscreen button instead.
                     if (!fullscreen && (onClose != null || onMinimize != null)) {
                         Row(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
                                 .fillMaxWidth()
-                                .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)))
+                                .background(Brush.verticalGradient(listOf(extras.videoScrimLight, Color.Transparent)))
                                 .padding(4.dp),
                         ) {
                             if (onClose != null) {
-                                IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                                IconButton(onClick = onClose, modifier = Modifier.size(Sizes.touchTarget)) {
+                                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close), tint = extras.onVideo)
                                 }
                             }
                             if (onMinimize != null) {
-                                IconButton(onClick = onMinimize, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Minimise", tint = Color.White)
+                                IconButton(onClick = onMinimize, modifier = Modifier.size(Sizes.touchTarget)) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.player_minimize), tint = extras.onVideo)
                                 }
                             }
                         }
@@ -363,22 +380,24 @@ fun PlayerScreen(
                     onToggleFullscreen = { interact(); onToggleFullscreen() },
                     captionsAvailable = state.availableCaptions.isNotEmpty(),
                     onOpenCaptions = { interact(); showCaptionSheet = true },
-                    qualityLabel = state.selectedHeight?.let { "${it}p" } ?: "auto",
+                    qualityLabel = state.selectedHeight?.let { stringResource(R.string.player_quality_height, it) }
+                        ?: stringResource(R.string.player_quality_auto),
                     onOpenQuality = { interact(); showQualitySheet = true },
-                    speedLabel = "${trimSpeed(state.speed)}x",
+                    speedLabel = stringResource(R.string.player_speed_value, trimSpeed(state.speed)),
                     onOpenSpeed = { interact(); showSpeedSheet = true },
                     looping = state.repeatMode == RepeatMode.ONE,
                     onToggleLoop = { interact(); PlaybackSession.toggleLoop() },
                     onScrubbingChange = { scrubbing = it; if (it) interact() },
+                    onMoreMenuOpenChange = { moreMenuOpen = it; if (it) interact() },
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
 
                 val sponsorOffer by PlaybackSession.sponsorOffer.collectAsState()
                 sponsorOffer?.let { offer ->
-                    // Above the bottom chrome (time row + seekbar), clear of the fullscreen side inset.
+                    // Above the bottom chrome (control row + seekbar), clear of the fullscreen side inset.
                     SponsorSkipButton(
                         offer,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = if (fullscreen) 72.dp else 64.dp),
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = Spacing.s24, bottom = Spacing.s64 + Spacing.s16),
                     )
                 }
 
