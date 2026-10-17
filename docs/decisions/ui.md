@@ -2,9 +2,19 @@
 
 ## Current state
 
-2026-10-18: `docs/design-system.md` (Material 3) is the UI spec; audit found 446 raw dp /
-54 distinct values, 5 raw sp, ~190 Kotlin string literals, icon buttons at 32-44 dp. Gate test,
-copy pass (`docs/copy.md`) and per-page rebuild NOT started: run `/design-system spec`.
+2026-10-18 (v0.2.26, device-UNverified, no device attached): whole UI rebuilt on
+`docs/design-system.md` (Material 3). Tokens in `ui/theme/Spacing.kt` (Spacing/Sizes/Radius),
+Material type roles in Type.kt, over-video colours in `fyiExtras`. Every visible string is in
+`res/values/strings_<area>.xml` under the `docs/copy.md` vocabulary (that file lists every
+rewrite). Gates: `DesignTokensGateTest` + `CopyGateTest` (6 tests) green; 495 unit tests green.
+Drift before -> after: raw dp 446/54 distinct -> 124 inline all in {0,1,2,4,6,10}; raw sp 5 -> 0;
+raw colours 3 + 66 White/Black -> 0; Kotlin string literals ~190 -> 5 (symbols/dynamic values).
+Behaviour changes to verify on device: player quality/speed/captions/loop now behind one More
+menu in the 48 dp control row (auto-hide pauses while open); mini player 72 dp; Shorts rail
+buttons 48 dp; Detail action row = Like/Add to playlist/Download(filled)/Share, scrolls
+sideways; DownloadRow = ResultRow shape, Failed is a badge; Sign out and Clear history confirm;
+"App" section renamed "About"; search bar 56 dp with refresh inside. Check DownloadRow at 360 dp
+/ font 1.3 (text column ~100 dp), Shorts shelf cards now 120 wide (was 108).
 
 2026-10-07 DEVICE-VERIFIED (v0.2.24): Settings has SponsorBlock (8 categories x 3 modes),
 Video page (dislike opt-in), Downloads without "File format", "Clear watch and search
@@ -183,6 +193,11 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
   remove), playlist tab thumbnails, unsubscribe flow.
 
 ## Gotchas
+- Any `.dp` literal outside ui/theme other than 0/1/2/4/6/10, any `.sp`, any raw colour, or any
+  quoted literal passed to Text/contentDescription/label fails the gate tests. Add a token or a
+  string resource instead; never loosen the regex.
+- Core enum labels (SearchType, SponsorMode, Topic) are Kotlin strings the copy gate does not
+  scan: keep them to the docs/copy.md vocabulary by hand.
 
 - charts.youtube.com: `gl` must be a real country even when `chart_params_country_code=global`; gl=global returns an empty chart.
 - Explore chip set is a persisted pref: a new Topic is only default-on for fresh installs; existing installs enable it in Settings.
