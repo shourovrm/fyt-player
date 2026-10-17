@@ -52,6 +52,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true; buildConfig = true }
+    lint { lintConfig = file("lint.xml"); abortOnError = true }
 
     packaging {
         // extraction engine needs extracted native libs; libc++_shared ships in more than one artifact

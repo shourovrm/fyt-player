@@ -9,15 +9,16 @@ import androidx.compose.ui.unit.sp
 // System font stack only — no bundled or downloaded font.
 private val base = TextStyle(fontFamily = FontFamily.Default)
 
-// Eight-step scale mapped onto the closest-fitting Material3 slots; unmapped slots
-// keep Typography()'s own defaults, which are already FontFamily.Default.
+// Material 3 type scale, values from androidx material3 1.4.0 TypeScaleTokens. Screens use these
+// roles as-is: no `.copy(fontSize = …)` anywhere else (DesignTokensGateTest enforces it).
 val FyiTypography = Typography(
-    headlineSmall = base.copy(fontSize = 22.sp, fontWeight = FontWeight.SemiBold), // screen headings
-    titleLarge = base.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold), // app bar title
-    titleMedium = base.copy(fontSize = 16.5.sp, fontWeight = FontWeight.SemiBold), // video title
-    bodyLarge = base.copy(fontSize = 15.sp, fontWeight = FontWeight.Normal), // row title
-    bodyMedium = base.copy(fontSize = 14.sp, fontWeight = FontWeight.Normal), // body, result titles
-    bodySmall = base.copy(fontSize = 13.sp, fontWeight = FontWeight.Normal), // secondary row values
-    labelMedium = base.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Medium), // summaries, values
-    labelSmall = base.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium), // chips, durations
+    titleLarge = base.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Normal), // app bar, dialog title
+    titleMedium = base.copy(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.15.sp), // video title
+    titleSmall = base.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.1.sp),
+    bodyLarge = base.copy(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.5.sp), // row title, field text
+    bodyMedium = base.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.25.sp), // body, settings label
+    bodySmall = base.copy(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.4.sp), // meta, hints
+    labelLarge = base.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.1.sp), // buttons, chips, tabs
+    labelMedium = base.copy(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp), // nav labels, section labels
+    labelSmall = base.copy(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp), // badges
 )

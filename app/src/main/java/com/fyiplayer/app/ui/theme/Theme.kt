@@ -20,6 +20,12 @@ data class FyiExtraColors(
     val warning: Color,
     val ink3: Color,
     val surface3: Color,
+    val onVideo: Color = OnVideo,
+    val onVideoDim: Color = OnVideoDim,
+    val videoScrim: Color = VideoScrim,
+    val videoScrimLight: Color = VideoScrimLight,
+    val videoScrimFaint: Color = VideoScrimFaint,
+    val likedOnVideo: Color = LikedOnVideo,
 )
 
 private val LocalFyiExtraColors = staticCompositionLocalOf {
