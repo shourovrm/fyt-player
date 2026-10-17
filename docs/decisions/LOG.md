@@ -235,3 +235,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-10-06 | SponsorBlock whitelist in DataStore, not Room | avoids a schema migration
 - 2026-10-06 | YouTube pairs play as local-manifest DASH (v0.2.24) | bounded requests complete and reuse the HTTP/1.1 connection; user chose it over Cronet/HTTP3
 - 2026-10-07 | resume snaps to the containing video segment's start (v0.2.25) | exact resume downloads+decodes keyframe->position first; Media3 SeekParameters do not apply to the initial position
+2026-10-18 | UI follows Material 3 via docs/design-system.md | audit: 54 distinct raw dp values, off-scale type, no gate; M3 is what Compose ships
