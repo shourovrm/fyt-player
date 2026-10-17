@@ -100,7 +100,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
             }
         } else if (vm.items.isEmpty() && vm.error == null) {
             // Loaded fine, nothing in it: say so instead of a blank screen.
-            Box(Modifier.fillMaxSize().padding(padding)) { EmptyStateScreen(stringResource(R.string.channel_empty_videos_title), stringResource(R.string.listing_empty_message)) }
+            Box(Modifier.fillMaxSize().padding(padding)) { EmptyStateScreen(stringResource(R.string.channel_empty_videos_title)) }
         } else {
             val errors = vm.error?.let {
                 listOf(ErrorRow(listing.title, it, onRetry = if (vm.blocked) null else { { vm.retry(listing) } }))

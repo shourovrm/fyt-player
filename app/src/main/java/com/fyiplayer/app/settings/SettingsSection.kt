@@ -10,10 +10,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.ui.theme.Spacing
 
-/** One labelled group, shared by every settings section file so they read as one list, not six
- *  differently-styled ones. */
+/** One group of rows on a settings page. A null [title] draws no header: a page that holds a
+ *  single concern already names it in the app bar, so a header would only repeat it. */
 @Composable
-internal fun SettingsSection(title: String, content: @Composable () -> Unit) {
+internal fun SettingsSection(title: String?, content: @Composable () -> Unit) {
+    if (title == null) {
+        Column(Modifier.fillMaxWidth()) { content() }
+        return
+    }
     Column(Modifier.fillMaxWidth().padding(top = Spacing.s16)) {
         Text(
             title,

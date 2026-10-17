@@ -237,3 +237,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 - 2026-10-07 | resume snaps to the containing video segment's start (v0.2.25) | exact resume downloads+decodes keyframe->position first; Media3 SeekParameters do not apply to the initial position
 2026-10-18 | UI follows Material 3 via docs/design-system.md | audit: 54 distinct raw dp values, off-scale type, no gate; M3 is what Compose ships
 2026-10-18 | v0.2.26: UI rebuilt on Material 3 tokens, strings to resources, gate tests | 54 distinct raw dp values and ~190 Kotlin strings had drifted; a spec plus a failing test is what holds
+2026-10-18 | v0.2.27: Settings hub-and-spoke, hints and explanatory copy deleted app-wide | 12 sections / ~50 controls on one scroll; "explaining everything is peak AI slop" (owner)

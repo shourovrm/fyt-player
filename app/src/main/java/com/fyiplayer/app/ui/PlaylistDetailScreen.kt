@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
 fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: () -> Unit = {}) {
     val playlistId = remember(id) { id.toLongOrNull() }
     if (playlistId == null) {
-        LibraryEmptyState(stringResource(R.string.playlist_not_found), stringResource(R.string.playlist_not_found_hint))
+        LibraryEmptyState(stringResource(R.string.playlist_not_found))
         return
     }
 
@@ -165,7 +165,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
             }
             when {
                 items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                videos.isEmpty() -> LibraryEmptyState(stringResource(R.string.playlist_empty), stringResource(R.string.playlist_empty_hint))
+                videos.isEmpty() -> LibraryEmptyState(stringResource(R.string.playlist_empty))
                 else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) Sizes.fab + Spacing.s32 else 0.dp)) {
                     itemsIndexed(videos, key = { _, ref -> ref.pageUrl }) { index, ref ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -218,7 +218,6 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
     if (confirmingDelete) {
         ConfirmDialog(
             title = stringResource(R.string.library_delete_playlist_title),
-            body = stringResource(R.string.library_delete_playlist_body, name ?: defaultTitle),
             confirmLabel = stringResource(R.string.action_delete),
             onConfirm = {
                 confirmingDelete = false

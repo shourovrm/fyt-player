@@ -43,7 +43,7 @@ fun ContentSettings(prefs: Prefs) {
     val language by prefs.contentLanguage.collectAsStateWithLifecycle(initialValue = "en")
     val country by prefs.contentCountry.collectAsStateWithLifecycle(initialValue = "US")
 
-    SettingsSection(stringResource(R.string.settings_language_region)) {
+    SettingsSection(stringResource(R.string.settings_language_country)) {
         Column(Modifier.padding(horizontal = Spacing.pageMargin)) {
             LocaleDropdown(
                 label = stringResource(R.string.settings_language),

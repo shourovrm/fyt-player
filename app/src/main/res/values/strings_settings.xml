@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Settings page and first-run sheet. Rules: docs/copy.md. -->
+<!-- Settings hub, its pages and the first-run sheet. Rules: docs/copy.md. -->
 <resources>
     <!-- shared by several rows -->
     <string name="settings_view">View</string>
@@ -7,63 +7,81 @@
     <string name="settings_reset">Reset</string>
     <string name="settings_change">Change</string>
     <string name="settings_version">Version</string>
+    <string name="settings_value_off">Off</string>
 
-    <!-- sections -->
-    <string name="settings_sources">Sources</string>
-    <string name="settings_language_region">Language and region</string>
+    <!-- hub rows and page titles -->
     <string name="settings_account">Account</string>
+    <string name="settings_content">Content</string>
     <string name="settings_playback">Playback</string>
-    <string name="settings_sponsorblock">SponsorBlock</string>
-    <string name="settings_video_page">Video page</string>
-    <string name="settings_gestures">Gestures</string>
+    <string name="settings_skipping">Skipping</string>
     <string name="settings_downloads">Downloads</string>
     <string name="settings_history">History</string>
-    <string name="settings_about">About</string>
-    <string name="settings_site_support">Site support</string>
     <string name="settings_backup">Backup</string>
+    <string name="settings_about">About</string>
 
-    <!-- sources, language -->
+    <!-- hub summaries -->
+    <string name="settings_summary_signed_in">Signed in to YouTube</string>
+    <string name="settings_summary_signed_out">Not signed in</string>
+    <string name="settings_summary_locale">%1$s, %2$s</string>
+    <string name="settings_summary_playback">Up to %1$dp on Wi‑Fi, %2$dp on mobile</string>
+    <string name="settings_summary_background_on">background on</string>
+    <string name="settings_summary_skipping">%1$d skipped, %2$d with a button</string>
+    <string name="settings_summary_history_both">Watch and search history on</string>
+    <string name="settings_summary_history_watch">Watch history on</string>
+    <string name="settings_summary_history_search">Search history on</string>
+    <string name="settings_summary_backup">Export or import your library</string>
+    <string name="settings_summary_version">Version %1$s</string>
+
+    <!-- group headers -->
+    <string name="settings_sources">Sources</string>
     <string name="settings_home_topics">Home topics</string>
-    <string name="settings_home_topics_hint">Chips shown on Home. Local shows new releases for your country.</string>
+    <string name="settings_language_country">Language and country</string>
+    <string name="settings_quality">Quality</string>
+    <string name="settings_gestures">Gestures</string>
+    <string name="settings_video_page">Video page</string>
+    <string name="settings_site_support">Site support</string>
+    <string name="settings_reports">Reports</string>
+
+    <!-- content -->
     <string name="settings_language">Language</string>
     <string name="settings_country">Country</string>
-    <string name="settings_onboarding_title">Language and country</string>
-    <string name="settings_onboarding_hint">Sets search results, trending charts and captions. You can change it in Settings.</string>
 
     <!-- account -->
     <string name="settings_youtube_account">YouTube account</string>
-    <string name="settings_signed_in">Signed in</string>
-    <string name="settings_account_hint">Lets you play age-restricted and members-only videos.</string>
     <string name="settings_sign_in">Sign in</string>
     <string name="settings_sign_in_again">Sign in again</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_sign_in_title">Sign in to YouTube</string>
-    <string name="settings_sign_in_body">Sign in with your Google account inside the app. The sign-in stays on this phone.</string>
     <string name="settings_sign_out_title">Sign out of YouTube</string>
-    <string name="settings_sign_out_body">Age-restricted and members-only videos stop playing until you sign in again.</string>
     <string name="settings_signed_in_toast">Signed in</string>
     <string name="settings_signed_out_toast">Signed out</string>
 
     <!-- playback -->
     <string name="settings_background_playback">Background playback</string>
-    <string name="settings_background_playback_hint">Keeps audio playing when you leave the app.</string>
     <string name="settings_autoplay_next">Autoplay next</string>
-    <string name="settings_default_quality">Default quality</string>
-    <string name="settings_quality_wifi">Wi-Fi</string>
-    <string name="settings_quality_mobile">Mobile data</string>
+    <string name="settings_quality_wifi">On Wi‑Fi</string>
+    <string name="settings_quality_mobile">On mobile data</string>
     <string name="settings_resolution_option">%1$dp</string>
 
-    <!-- sponsored segments, video page -->
-    <string name="settings_sponsorblock_skip">Skip sponsored segments</string>
-    <string name="settings_sponsorblock_skip_hint">Asks sponsor.ajay.app about each YouTube video you open.</string>
-    <string name="settings_dislike_counts">Show dislike counts</string>
-    <string name="settings_dislike_counts_hint">Asks returnyoutubedislike.com about each video you open.</string>
-
-    <!-- gestures -->
+    <!-- gestures, video page -->
     <string name="settings_gesture_brightness">Brightness</string>
-    <string name="settings_gesture_brightness_hint">Drag up or down on the left side of the player.</string>
     <string name="settings_gesture_volume">Volume</string>
-    <string name="settings_gesture_volume_hint">Drag up or down on the right side of the player.</string>
+    <string name="settings_dislike_counts">Show dislike counts</string>
+    <string name="settings_dislike_counts_hint">Uses returnyoutubedislike.com</string>
+
+    <!-- skipping -->
+    <string name="settings_sponsorblock_skip">Skip sponsored segments</string>
+    <string name="settings_sponsorblock_skip_hint">Uses sponsor.ajay.app</string>
+    <string name="settings_category_sponsor">Sponsor</string>
+    <string name="settings_category_intro">Intro</string>
+    <string name="settings_category_credits">Credits</string>
+    <string name="settings_category_reminder">Reminder</string>
+    <string name="settings_category_promotion">Promotion</string>
+    <string name="settings_category_non_music">Non-music part</string>
+    <string name="settings_category_recap">Recap</string>
+    <string name="settings_category_filler">Filler</string>
+    <string name="settings_mode_skip">Skip</string>
+    <string name="settings_mode_button">Show button</string>
 
     <!-- downloads -->
     <string name="settings_download_folder">Download folder</string>
@@ -74,42 +92,40 @@
     <string name="settings_save_search_history">Save search history</string>
     <string name="settings_remember_position">Remember position</string>
     <string name="settings_clear_history">Clear history</string>
-    <string name="settings_clear_history_hint">Removes watched videos and past searches.</string>
-    <string name="settings_clear_history_title">Clear history</string>
-    <string name="settings_clear_history_body">Watched videos and past searches are removed. This cannot be undone.</string>
+    <string name="settings_clear_history_body">This cannot be undone.</string>
 
     <!-- about -->
     <string name="settings_check_updates">Check for updates</string>
     <string name="settings_update_checking">Checking for updates</string>
-    <string name="settings_update_current">You have the latest version.</string>
-    <string name="settings_update_failed">Update check failed. Check your connection and try again.</string>
+    <string name="settings_update_current">Up to date.</string>
+    <string name="settings_update_failed">Could not check. Try again.</string>
     <string name="settings_update_available">Version %1$s is available</string>
     <string name="settings_update_install">Install update</string>
     <string name="settings_update_downloading">Downloading update</string>
 
-    <!-- site support -->
+    <!-- site support, reports -->
     <string name="settings_site_support_bundled">Bundled with the app</string>
     <string name="settings_update_channel">Update channel</string>
     <string name="settings_site_support_update">Update site support</string>
     <string name="settings_site_support_updated">Site support updated.</string>
-    <string name="settings_site_support_current">Site support is up to date.</string>
+    <string name="settings_site_support_current">Up to date.</string>
     <string name="settings_site_support_last_checked">Last checked %1$s</string>
     <string name="settings_crash_report">Crash report</string>
     <string name="settings_playback_report">Playback report</string>
-    <string name="settings_playback_report_hint">Recent timings and error types, with no links.</string>
 
     <!-- backup -->
     <string name="settings_backup_export">Export library</string>
     <string name="settings_backup_import">Import library</string>
     <string name="settings_backup_import_confirm">Import</string>
     <string name="settings_backup_exported">Library exported.</string>
-    <string name="settings_backup_export_failed">Export failed. Try again.</string>
-    <string name="settings_backup_import_failed">Import failed. Check the file and try again.</string>
-    <string name="settings_backup_nothing_new">Nothing new to add. Everything in this file is already in your library.</string>
-    <string name="settings_backup_adds">This file adds playlists %1$d, playlist videos %2$d, likes %3$d and channels %4$d. Nothing you saved is changed or removed.</string>
-    <string name="settings_backup_added">Added playlists %1$d, playlist videos %2$d, likes %3$d and channels %4$d.</string>
+    <string name="settings_backup_export_failed">Export failed.</string>
+    <string name="settings_backup_import_failed">Import failed.</string>
+    <string name="settings_backup_nothing_new">Nothing new to add.</string>
+    <string name="settings_backup_adds">Adds %1$d playlists, %2$d videos, %3$d likes, %4$d channels.</string>
+    <string name="settings_backup_added">Added %1$d playlists, %2$d videos, %3$d likes, %4$d channels.</string>
     <plurals name="settings_backup_skipped">
         <item quantity="one">%1$d entry with an unusable link is skipped.</item>
         <item quantity="other">%1$d entries with an unusable link are skipped.</item>
     </plurals>
+
 </resources>

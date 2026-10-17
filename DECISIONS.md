@@ -12,9 +12,9 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- v0.2.26 (Material 3 rebuild, every string moved to resources) released UNverified on device:
-  no device was attached. First device run: install clean, walk Home/Detail/player More menu/
-  Downloads/Settings at font scale 1.0 and 1.3; see ui.md newest entry for what changed.
+- v0.2.26 (Material 3 rebuild) and v0.2.27 (Settings hub, copy cut) released UNverified: no
+  device attached. First device run: clean install, walk Home/Detail/player More menu/Downloads/
+  every Settings page at font scale 1.0 and 1.3; ui.md newest entries list what changed.
 - Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
 - v0.2.25 (segment-start resume) is RELEASED and installed on the A059 but its new path has

@@ -2,8 +2,7 @@ package com.fyiplayer.app.settings
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,8 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,16 +43,19 @@ import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
+// Master is the unreleased development build; the menu offers only the two channels users choose between.
+private val SELECTABLE_CHANNELS = EngineChannel.entries
+
 /** Site support: version, update channel and the explicit "Update site support" action. Sites
  *  change their pages within weeks (CLAUDE.md), so this is the user's only recourse -- nothing
  *  here runs unless tapped. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EngineSettings() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var version by remember { mutableStateOf<String?>(null) }
     var channel by remember { mutableStateOf(EngineChannel.STABLE) }
+    var channelMenuOpen by remember { mutableStateOf(false) }
     var updating by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
     var crash by remember { mutableStateOf<String?>(null) }
@@ -80,14 +82,22 @@ fun EngineSettings() {
             label = stringResource(R.string.settings_version),
             hint = version ?: stringResource(R.string.settings_site_support_bundled),
         )
-        Column(Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
-            Text(stringResource(R.string.settings_update_channel), style = MaterialTheme.typography.bodyMedium)
-            Row(
-                Modifier.padding(top = Spacing.s8),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
-            ) {
-                EngineChannel.entries.forEach { c ->
-                    FilterChip(selected = c == channel, onClick = { channel = c }, label = { Text(c.label) })
+        Box {
+            SettingsValueRow(
+                label = stringResource(R.string.settings_update_channel),
+                value = channel.label,
+                opens = ValueRowOpens.MENU,
+                onClick = { channelMenuOpen = true },
+            )
+            DropdownMenu(expanded = channelMenuOpen, onDismissRequest = { channelMenuOpen = false }) {
+                SELECTABLE_CHANNELS.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label) },
+                        onClick = {
+                            channel = option
+                            channelMenuOpen = false
+                        },
+                    )
                 }
             }
         }
@@ -132,6 +142,9 @@ fun EngineSettings() {
                 modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
             )
         }
+    }
+
+    if (crash != null || playbackLog != null) SettingsSection(stringResource(R.string.settings_reports)) {
         if (crash != null) {
             SettingsInfoRow(
                 label = stringResource(R.string.settings_crash_report),
@@ -143,7 +156,7 @@ fun EngineSettings() {
         if (playbackLog != null) {
             SettingsInfoRow(
                 label = stringResource(R.string.settings_playback_report),
-                hint = stringResource(R.string.settings_playback_report_hint),
+                hint = null,
                 actionLabel = stringResource(R.string.settings_view),
                 onAction = { showPlaybackLog = true },
             )

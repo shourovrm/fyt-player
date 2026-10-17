@@ -2,6 +2,14 @@
 
 ## Current state
 
+2026-10-18 (v0.2.27, device-UNverified): Settings is hub-and-spoke: `SettingsScreen` = 8 rows with
+live summaries, `SettingsPageScreen(page)` on route `settings/{page}` hosts the unchanged section
+composables. Quality = value rows + radio dialog; SponsorBlock = 8 rows + Off/Skip/Show button
+menu (dimmed when master switch off, no longer hidden); Home topics = switch rows; update channel
+= menu (Stable/Nightly/Master). Every explanatory hint and empty-state second sentence deleted
+app-wide (docs/copy.md hint policy: "explaining is slop"). Verify on device: hub summaries,
+each subpage, back + tab highlight, radio dialog, Skipping menus.
+
 2026-10-18 (v0.2.26, device-UNverified, no device attached): whole UI rebuilt on
 `docs/design-system.md` (Material 3). Tokens in `ui/theme/Spacing.kt` (Spacing/Sizes/Radius),
 Material type roles in Type.kt, over-video colours in `fyiExtras`. Every visible string is in

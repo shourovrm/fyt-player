@@ -38,9 +38,9 @@
     <string name="state_unavailable">Unavailable</string>
 
     <!-- shared errors: what failed, then one action -->
-    <string name="error_no_connection">No connection. Check your network and try again.</string>
-    <string name="error_content_unavailable">This video is gone, private, or never existed.</string>
-    <string name="error_access_wall">This page needs a sign-in, a CAPTCHA, or a region the app cannot reach.</string>
-    <string name="error_link_expired">This link expired. Open the video again to get a new one.</string>
-    <string name="error_unsupported">Not supported yet.</string>
+    <string name="error_no_connection">No connection.</string>
+    <string name="error_content_unavailable">This video is unavailable.</string>
+    <string name="error_access_wall">This video needs a sign-in or is blocked here.</string>
+    <string name="error_link_expired">Link expired. Open the video again.</string>
+    <string name="error_unsupported">Not supported.</string>
 </resources>

@@ -9,7 +9,7 @@
 
     <!-- states -->
     <string name="player_nothing_playing">Nothing playing</string>
-    <string name="player_error_cannot_play">Cannot play this video yet.</string>
+    <string name="player_error_cannot_play">Cannot play this video.</string>
 
     <!-- transport and top bar -->
     <string name="player_pause">Pause</string>

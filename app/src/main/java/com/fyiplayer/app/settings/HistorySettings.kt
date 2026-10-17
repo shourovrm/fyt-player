@@ -44,7 +44,7 @@ fun HistorySettings(prefs: Prefs) {
 
     var confirmingClear by remember { mutableStateOf(false) }
 
-    SettingsSection(stringResource(R.string.settings_history)) {
+    SettingsSection(null) {
         SettingsSwitchRow(
             label = stringResource(R.string.settings_save_watch_history),
             checked = recordWatch,
@@ -62,14 +62,14 @@ fun HistorySettings(prefs: Prefs) {
         )
         SettingsDestructiveRow(
             label = stringResource(R.string.settings_clear_history),
-            hint = stringResource(R.string.settings_clear_history_hint),
+            hint = null,
             onClick = { confirmingClear = true },
         )
     }
 
     if (confirmingClear) {
         ConfirmDialog(
-            title = stringResource(R.string.settings_clear_history_title),
+            title = stringResource(R.string.settings_clear_history),
             body = stringResource(R.string.settings_clear_history_body),
             confirmLabel = stringResource(R.string.action_clear),
             onConfirm = {

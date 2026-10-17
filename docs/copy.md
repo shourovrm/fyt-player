@@ -37,10 +37,15 @@ Verbs, one meaning each: **Delete** destroys something you made (a playlist, a d
 - Label: a noun phrase of at most three words, sentence case, never a question.
 - Button: a verb, or verb plus object, one to three words. Dialog confirm button repeats the verb
   of the title ("Clear history" dialog confirms with "Clear").
-- Hint: one line, at most twelve words, states the effect. Present only when the label is not
-  enough. A hint that names a third-party host is the privacy disclosure and stays.
+- Hint: almost never. A hint exists only when the label alone would mislead, or to name a
+  third-party host the setting talks to ("Uses sponsor.ajay.app"). At most five words. Never
+  explain how the app works, what a setting is for, or what the user could do next.
+- Explaining is slop. A screen that teaches the app is a screen with the wrong labels. Fix the
+  label, delete the sentence.
 - Status line: what happened, then what you can do. Error: what failed, then one action.
-- Empty state: "No <plural noun> yet." plus at most one sentence of what fills it.
+- Empty state: "No <plural noun> yet." and nothing else, unless the user cannot know how to
+  fill it; then one clause of at most six words.
+- Dialog body: only when something is lost, at most eight words. Toast: at most four words.
 - Confirm dialog: title is the action as a verb phrase ("Clear watch history"), body says what
   is lost, buttons Cancel and the verb.
 - One calm voice. No jokes, no exclamation marks, no dashes, no "Oops", no "Please".
@@ -167,3 +172,32 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Settings | Nothing new to add -- everything in this file is already in your library. | Nothing new to add. Everything in this file is already in your library. | no dash |
 | Settings | Adds N playlists, N playlist videos, N liked videos and N channels. | This file adds playlists N, playlist videos N, likes N and channels N. | avoids "1 playlists" |
 | Settings | Background playback | Background playback / Keeps audio playing when you leave the app. | states the effect |
+| Settings | one scroll of 12 sections | hub of 8 rows (Account, Content, Playback, Skipping, Downloads, History, Backup, About), each its own page | too much on one page |
+| Settings | 10 quality chips | "On Wi‑Fi 1080p" / "On mobile data 720p" value rows with a radio dialog | chips are not settings |
+| Settings | 24 SponsorBlock chips | 8 rows with a trailing Off / Skip / Show button menu | chips are not settings |
+| Settings | every hint (topics, account, background, gestures, clear history, playback report, onboarding) | deleted | explaining is slop |
+| Settings | Asks sponsor.ajay.app about each YouTube video you open. | Uses sponsor.ajay.app | third-party hint, five words max |
+| Settings | Asks returnyoutubedislike.com about each video you open. | Uses returnyoutubedislike.com | third-party hint |
+| Settings | sign-in and sign-out dialog bodies | deleted | nothing is lost |
+| Settings | Watched videos and past searches are removed. This cannot be undone. | This cannot be undone. | body says only what is lost |
+| Settings | You have the latest version. / Site support is up to date. | Up to date. | shorter |
+| Settings | Update check failed. Check your connection and try again. | Could not check. Try again. | shorter |
+| Settings | Export failed. Try again. / Import failed. Check the file and try again. | Export failed. / Import failed. | shorter |
+| Settings | This file adds playlists N, playlist videos N, likes N and channels N. Nothing you saved is changed or removed. | Adds N playlists, N videos, N likes, N channels. | shorter |
+| Settings | Nothing new to add. Everything in this file is already in your library. | Nothing new to add. | shorter |
+| Shared | No connection. Check your network and try again. | No connection. | shorter |
+| Shared | This video is gone, private, or never existed. | This video is unavailable. | shorter |
+| Shared | This page needs a sign-in, a CAPTCHA, or a region the app cannot reach. | This video needs a sign-in or is blocked here. | shorter |
+| Shared | This link expired. Open the video again to get a new one. | Link expired. Open the video again. | shorter |
+| Empty states | second sentences on Home, Shorts, Channel, Listing, Library, Playlist, Downloads ("Subscribe to a channel to fill your feed", "Videos you download appear here and play offline", …) | deleted; "No <noun> yet." stands alone | explaining is slop |
+| Errors | Could not load N channels. Check your connection and pull down to refresh. | N channels did not load. | shorter |
+| Errors | Could not load Shorts. Check your connection and try again. | Shorts did not load. Try again. | shorter |
+| Library | Playlist not renamed. That name may already be used. | That name is taken. | shorter |
+| Library | Every watched video is removed from History. This cannot be undone. | This cannot be undone. | body says only what is lost |
+| Library | "x" is deleted. The videos in it are not. | deleted | nothing else is lost |
+| Library | unsubscribe / unfollow dialog bodies | deleted | restate the title |
+| Downloads | Remove keeps the file on this phone. Delete erases it. Delete frees SIZE. | Delete frees SIZE. | body says only what is lost |
+| Downloads | Removed from the list. The file could not be deleted. | File not deleted. | shorter |
+| Downloads | This file is no longer on this phone. / No app can open this video. / This file cannot be opened from here. | File missing. / No app can open this. / Cannot open this file. | shorter |
+| Detail | No captions for this video / Caption format not supported / Checking quality options | No captions / Captions not supported / Checking quality | toast, four words |
+| Detail | Stop skipping sponsored segments on this channel / Skip sponsored segments on this channel again | Stop skipping on this channel / Resume skipping on this channel | shorter |

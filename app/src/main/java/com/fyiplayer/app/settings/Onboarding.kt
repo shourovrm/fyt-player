@@ -44,12 +44,10 @@ fun OnboardingSheet(prefs: Prefs) {
     // any other dismissal (swipe, back, outside tap) just re-shows the sheet next visit.
     ModalBottomSheet(onDismissRequest = {}, sheetState = sheetState) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.s24, vertical = Spacing.s8)) {
-            Text(stringResource(R.string.settings_onboarding_title), style = MaterialTheme.typography.titleLarge)
             Text(
-                stringResource(R.string.settings_onboarding_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, bottom = Spacing.s16),
+                stringResource(R.string.settings_language_country),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = Spacing.s16),
             )
             LocaleDropdown(
                 label = stringResource(R.string.settings_language),

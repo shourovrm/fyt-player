@@ -39,7 +39,7 @@ fun AccountSettings() {
 
     val signIn = rememberYoutubeSignIn(onSignedIn = { showToast(context, signedInMessage) })
 
-    SettingsSection(stringResource(R.string.settings_account)) {
+    SettingsSection(null) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin),
             verticalAlignment = Alignment.CenterVertically,
@@ -47,7 +47,7 @@ fun AccountSettings() {
             if (loggedIn) {
                 SettingsLabel(
                     stringResource(R.string.settings_youtube_account),
-                    stringResource(R.string.settings_signed_in),
+                    stringResource(R.string.settings_summary_signed_in),
                     Modifier.weight(1f),
                 )
                 // For an expired or rejected session.
@@ -58,7 +58,7 @@ fun AccountSettings() {
             } else {
                 SettingsLabel(
                     stringResource(R.string.settings_youtube_account),
-                    stringResource(R.string.settings_account_hint),
+                    stringResource(R.string.settings_summary_signed_out),
                     Modifier.weight(1f),
                 )
                 TextButton(onClick = { showConfirm = true }) { Text(stringResource(R.string.settings_sign_in)) }
@@ -69,7 +69,6 @@ fun AccountSettings() {
     if (showSignOutConfirm) {
         ConfirmDialog(
             title = stringResource(R.string.settings_sign_out_title),
-            body = stringResource(R.string.settings_sign_out_body),
             confirmLabel = stringResource(R.string.settings_sign_out),
             onConfirm = {
                 showSignOutConfirm = false
@@ -85,7 +84,6 @@ fun AccountSettings() {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text(stringResource(R.string.settings_sign_in_title)) },
-            text = { Text(stringResource(R.string.settings_sign_in_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showConfirm = false

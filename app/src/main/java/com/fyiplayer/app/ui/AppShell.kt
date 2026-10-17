@@ -34,6 +34,7 @@ object Routes {
     const val LIBRARY = "library"
     const val DOWNLOADS = "downloads"
     const val SETTINGS = "settings"
+    const val SETTINGS_PAGE = "settings/{page}"
     const val DETAIL = "detail/{pageUrl}"
     // key is a full channel/playlist URL (path segment); sourceId/kind/title ride as query args so
     // ListingScreen can call the right VideoSource.listing() without a second lookup.
@@ -58,6 +59,8 @@ fun NavController.openListing(listing: Listing) = navigate(
 )
 
 fun NavController.openPlaylist(id: String) = navigate("playlist/${Uri.encode(id)}")
+
+fun NavController.openSettingsPage(page: String) = navigate("settings/$page")
 
 private val YOUTUBE_HOSTS = setOf("youtube.com", "www.youtube.com", "m.youtube.com")
 private val VERTICAL_CLIP_HOSTS = setOf("tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com")
@@ -167,7 +170,14 @@ fun AppShell(navController: NavHostController) {
             DownloadsScreen()
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen()
+            SettingsScreen(onOpenPage = { navController.openSettingsPage(it) })
+        }
+        composable(
+            Routes.SETTINGS_PAGE,
+            arguments = listOf(navArgument("page") { type = NavType.StringType }),
+        ) { entry ->
+            val page = entry.arguments?.getString("page").orEmpty()
+            SettingsPageScreen(page, onBack = { navController.popBackStack() })
         }
         composable(
             Routes.DETAIL,

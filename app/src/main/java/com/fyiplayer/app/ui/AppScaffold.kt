@@ -255,7 +255,7 @@ private fun selectedTab(route: String?): String? = when (route) {
     Routes.SHORTS -> Routes.SHORTS
     Routes.LIBRARY, Routes.PLAYLIST -> Routes.LIBRARY
     Routes.DOWNLOADS -> Routes.DOWNLOADS
-    Routes.SETTINGS -> Routes.SETTINGS
+    Routes.SETTINGS, Routes.SETTINGS_PAGE -> Routes.SETTINGS
     else -> null
 }
 
