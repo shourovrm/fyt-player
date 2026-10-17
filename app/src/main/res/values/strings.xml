@@ -1,4 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Shared strings used by more than one area. Area-specific strings live in strings_<area>.xml
+     with an area prefix on the name. Rules: docs/copy.md. -->
 <resources>
     <string name="app_name">FYT Player</string>
+
+    <!-- shared buttons: verb, or verb + object -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_back">Back</string>
+    <string name="action_done">Done</string>
+    <string name="action_save">Save</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_play">Play</string>
+    <string name="action_share">Share</string>
+    <string name="action_download">Download</string>
+    <string name="action_more">More options</string>
+    <string name="action_like">Like</string>
+    <string name="action_unlike">Unlike</string>
+    <string name="action_add_to_queue">Add to queue</string>
+    <string name="action_add_to_playlist">Add to playlist</string>
+    <string name="action_remove_from_queue">Remove from queue</string>
+    <string name="action_subscribe">Subscribe</string>
+    <string name="action_unsubscribe">Unsubscribe</string>
+    <string name="action_follow_playlist">Follow playlist</string>
+    <string name="action_unfollow_playlist">Unfollow playlist</string>
+
+    <!-- shared states -->
+    <string name="state_loading">Loading</string>
+    <string name="state_untitled">Untitled</string>
+    <string name="state_subscribed">Subscribed</string>
+    <string name="state_followed">Followed</string>
+    <string name="state_live">Live</string>
+    <string name="state_upcoming">Upcoming</string>
+    <string name="state_unavailable">Unavailable</string>
+
+    <!-- shared errors: what failed, then one action -->
+    <string name="error_no_connection">No connection. Check your network and try again.</string>
+    <string name="error_content_unavailable">This video is gone, private, or never existed.</string>
+    <string name="error_access_wall">This page needs a sign-in, a CAPTCHA, or a region the app cannot reach.</string>
+    <string name="error_link_expired">This link expired. Open the video again to get a new one.</string>
+    <string name="error_unsupported">Not supported yet.</string>
 </resources>

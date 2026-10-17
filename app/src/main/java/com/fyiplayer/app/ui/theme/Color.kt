@@ -34,3 +34,14 @@ val LightAccentDim = Color(0x1F0B6B96)
 val LightPositive = Color(0xFF1D7D43)
 val LightWarning = Color(0xFF8A5A00)
 val LightDestructive = Color(0xFFB3352F)
+
+// Over-video roles, theme-independent: video is always dark, so ink stays white and the scrim
+// stays black in both schemes. Badges, player chrome and the Shorts rail use these, never
+// Color.White / Color.Black directly.
+val OnVideo = Color(0xFFF2F4F5)
+val OnVideoDim = Color(0xB3F2F4F5)
+val VideoScrim = Color(0xB8000000)
+val VideoScrimLight = Color(0x73000000)
+val VideoScrimFaint = Color(0x59000000)
+// Marks a liked state over video (Shorts rail). Not a status colour: an identity swatch.
+val LikedOnVideo = Color(0xFFE0245E)

@@ -24,8 +24,8 @@ grow with text.
 
 ## Space
 
-Base 8 dp. Allowed dp outside `ui/theme/Spacing.kt`: 2, 4, 6, 10 (nested units) and
-8, 16, 24, 32, 40, 48, 56, 64. Page margin 16 dp under 600 dp width, 24 dp above. Row gap
+Base 8 dp. Scale in `ui/theme/Spacing.kt`: 8, 16, 24, 32, 40, 48, 56, 64 (`Spacing`), component
+sizes (`Sizes`), radii (`Radius`). Inline dp allowed outside the theme: 0, 1, 2, 4, 6, 10 only. Page margin 16 dp under 600 dp width, 24 dp above. Row gap
 8 dp vertical. Thumbnail 120 x 68 (16:9 snapped to the 4 dp grid). Radius: 4 badge, 8 thumbnail
 and chip, 12 card and error row, 28 sheet, full pill and search bar.
 
