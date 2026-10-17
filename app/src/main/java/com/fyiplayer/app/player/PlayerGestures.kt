@@ -4,7 +4,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.ui.theme.Spacing
 import kotlin.math.abs
 
 private enum class HalfSide { LEFT, RIGHT }
@@ -17,10 +17,6 @@ private fun third(x: Float, width: Int) = when {
     x > width * 2f / 3f -> ThirdSide.RIGHT
     else -> ThirdSide.MIDDLE
 }
-
-// dp; converted to px at the gesture site via PointerInputScope's own Density.
-private const val EDGE_DEAD_ZONE_DP = 24
-private const val BOTTOM_DEAD_ZONE_DP = 32
 
 // px of total drag distance before a direction is locked -- keeps a shaky near-vertical tap from
 // firing a one-frame seek, and vice versa.
@@ -100,8 +96,8 @@ fun Modifier.playerGestures(
         var accDy = 0f
         var startSide = HalfSide.LEFT
         var inDeadZone = false
-        val edgePx = EDGE_DEAD_ZONE_DP.dp.toPx()
-        val bottomPx = BOTTOM_DEAD_ZONE_DP.dp.toPx()
+        val edgePx = Spacing.s24.toPx()
+        val bottomPx = Spacing.s32.toPx()
         detectDragGestures(
             onDragStart = { offset ->
                 mode = DragMode.UNDECIDED

@@ -22,6 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.download.DownloadQueue
 import kotlinx.coroutines.coroutineScope
@@ -52,14 +55,14 @@ fun DownloadQualityDialog(
     when (state) {
         is DownloadPickerState.Resolving -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Checking available sizes…") },
+            title = { Text(stringResource(R.string.detail_download_checking)) },
             text = {
-                Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
         )
         is DownloadPickerState.Options -> {
             val context = LocalContext.current
@@ -78,11 +81,11 @@ fun DownloadQualityDialog(
 
             ModalBottomSheet(onDismissRequest = onDismiss) {
                 Text(
-                    "Download quality",
+                    stringResource(R.string.detail_download_quality),
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                 )
-                LazyColumn(modifier = Modifier.padding(bottom = 16.dp)) {
+                LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
                     items(state.options, key = { it.formatId }) { option ->
                         val bytes = option.approxBytes ?: sizes[option.formatId]
                         val stillFetching = option.approxBytes == null && !sizes.containsKey(option.formatId)
@@ -101,9 +104,9 @@ fun DownloadQualityDialog(
         }
         is DownloadPickerState.Error -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Can't download this video") },
+            title = { Text(stringResource(R.string.detail_download_failed_title)) },
             text = { Text(state.message) },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
         )
     }
 }

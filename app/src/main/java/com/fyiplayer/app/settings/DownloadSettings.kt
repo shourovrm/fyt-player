@@ -1,14 +1,12 @@
 package com.fyiplayer.app.settings
-
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,9 +15,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 /**
@@ -44,28 +45,22 @@ fun DownloadSettings(prefs: Prefs) {
         scope.launch { prefs.setDownloadTreeUri(uri.toString()) }
     }
 
-    SettingsSection("Downloads") {
+    SettingsSection(stringResource(R.string.settings_downloads)) {
+        val appStorageLabel = stringResource(R.string.settings_download_folder_default)
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("Folder", style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    prettyTreeUri(treeUri),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            SettingsLabel(stringResource(R.string.settings_download_folder), prettyTreeUri(treeUri, appStorageLabel), Modifier.weight(1f))
             if (treeUri != null) {
-                TextButton(onClick = { scope.launch { prefs.setDownloadTreeUri(null) } }) { Text("Reset") }
+                TextButton(onClick = { scope.launch { prefs.setDownloadTreeUri(null) } }) { Text(stringResource(R.string.settings_reset)) }
             }
-            TextButton(onClick = { pickLauncher.launch(null) }) { Text("Change") }
+            TextButton(onClick = { pickLauncher.launch(null) }) { Text(stringResource(R.string.settings_change)) }
         }
     }
 }
 
-private fun prettyTreeUri(uri: String?): String {
-    if (uri == null) return "App storage (default)"
+private fun prettyTreeUri(uri: String?, defaultLabel: String): String {
+    if (uri == null) return defaultLabel
     return Uri.decode(Uri.parse(uri).lastPathSegment ?: uri)
 }

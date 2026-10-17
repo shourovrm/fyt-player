@@ -1,10 +1,6 @@
 package com.fyiplayer.app.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +10,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,27 +35,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.wrapContentHeight
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.SeekThumbnails
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
  * All the bottom chrome there is. Two states, one composable, so a drag can begin on the idle
  * bar without a tap first:
- *  - collapsed (controls hidden, portrait only): a 3dp progress line on the video's bottom edge
- *    with a 10dp dot -- the shorts bar's shape. Touching it reports scrubbing, which the caller
+ *  - collapsed (controls hidden, portrait only): a thin progress line on the video's bottom edge
+ *    with a dot -- the shorts bar's shape. Touching it reports scrubbing, which the caller
  *    turns into "show the controls" as the same gesture.
- *  - expanded: a bottom gradient, then in portrait the text row ABOVE the bar (time left;
- *    quality · speed · captions · fullscreen right) and the bar on the video's edge, full width
- *    (YouTube); in fullscreen the bar 24dp in from the screen sides with the row BELOW it
- *    (PipePipe -- the thumb otherwise sits under the rounded screen corner).
- * The thumb is 12dp idle and 20dp under the finger; the 40dp-tall touch target never changes.
+ *  - expanded: a bottom gradient, then in portrait the 48dp control row ABOVE the bar (time left;
+ *    More and fullscreen right) and the bar on the video's edge, full width (YouTube); in
+ *    fullscreen the bar 24dp in from the screen sides with the row BELOW it (PipePipe -- the
+ *    thumb otherwise sits under the rounded screen corner).
+ * Quality, speed, captions and loop sit behind More: five 48dp targets plus the time label do not
+ * fit a 360dp-wide row. The bar stays on its own full-width line so the thumb never shifts
+ * sideways when a drag on the idle line expands the chrome.
+ * The thumb is bigger under the finger; the 40dp-tall touch target never changes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +81,8 @@ internal fun ControlBar(
     looping: Boolean,
     onToggleLoop: () -> Unit,
     onScrubbingChange: (Boolean) -> Unit = {},
+    // Lets the caller keep the chrome up while the menu is open, same reason as onScrubbingChange.
+    onMoreMenuOpenChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Collected HERE, not by the caller (PlayerScreen) -- this is the one 500ms-ticking read in
@@ -82,17 +93,28 @@ internal fun ControlBar(
     var sliderWidthPx by remember { mutableStateOf(0) }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValueMs by remember { mutableStateOf(0L) }
+    var moreMenuOpen by remember { mutableStateOf(false) }
     val shownMs = if (isScrubbing) scrubValueMs else progress.positionMs
     val durationMs = progress.durationMs.coerceAtLeast(1L)
     val fraction = (shownMs.toFloat() / durationMs).coerceIn(0f, 1f)
-    val sideInset = if (fullscreen) 24.dp else 0.dp
+    val sideInset = if (fullscreen) Spacing.s24 else 0.dp
+    val extras = MaterialTheme.fyiExtras
+    val playedColor = MaterialTheme.colorScheme.primary
+
+    // The row is unmounted when the chrome hides; a menu left "open" would reappear with it.
+    LaunchedEffect(expanded) {
+        if (!expanded && moreMenuOpen) {
+            moreMenuOpen = false
+            onMoreMenuOpenChange(false)
+        }
+    }
 
     val slider: @Composable () -> Unit = {
         // Height pinned to the slider's own 40dp -- NOT left to wrap its children. The preview
         // is a sibling shown only while scrubbing; an unbounded Box would size itself to that
         // preview's natural height the instant a drag starts, shoving the slider up the screen
         // mid-drag so the thumb jumped out from under the finger (reported: several times).
-        Box(modifier = Modifier.fillMaxWidth().height(40.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().height(Spacing.s40)) {
             Slider(
                 value = shownMs.toFloat(),
                 valueRange = 0f..durationMs.toFloat(),
@@ -118,50 +140,55 @@ internal fun ControlBar(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(if (expanded) 2.5.dp else 3.dp)
+                            .height(if (expanded) Sizes.progressThin else Sizes.progressTrack)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(Color.White.copy(alpha = 0.3f)),
+                            .background(extras.onVideo.copy(alpha = 0.3f)),
                     ) {
                         Box(
                             Modifier
                                 .fillMaxHeight()
                                 .fillMaxWidth(fraction)
-                                .background(SEEK_RED),
+                                .background(playedColor),
                         )
                         // Over the fill, so a segment stays visible on the part already played.
                         SponsorMarkers(sponsorMarkers, durationMs, Modifier.matchParentSize())
                     }
                 },
                 thumb = {
-                    // 28dp box is the grab target; the dot inside is all that's drawn -- 10dp on
-                    // the idle line, 12dp with controls up (PipePipe's always-visible thumb was
-                    // the easiest to grab of the three apps compared), 20dp under the finger.
-                    Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                    // The 24dp box is the grab target; the dot inside is all that's drawn --
+                    // 10dp on the idle line, 16dp with controls up (an always-visible thumb was
+                    // the easiest to grab of the three apps compared), 24dp under the finger.
+                    val dotSize = when {
+                        isScrubbing -> Spacing.s24
+                        expanded -> Sizes.iconSmall
+                        else -> 10.dp
+                    }
+                    Box(Modifier.size(Spacing.s24), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
-                                .size(if (isScrubbing) 20.dp else if (expanded) 12.dp else 10.dp)
+                                .size(dotSize)
                                 .clip(CircleShape)
-                                .background(SEEK_RED),
+                                .background(playedColor),
                         )
                     }
                 },
                 modifier = Modifier
-                    .height(40.dp)
+                    .height(Spacing.s40)
                     .padding(horizontal = sideInset)
                     .onGloballyPositioned { sliderWidthPx = it.size.width },
             )
             if (isScrubbing) {
                 val density = LocalDensity.current
-                val previewWidth = if (fullscreen) SEEK_PREVIEW_WIDTH_FULLSCREEN else SEEK_PREVIEW_WIDTH_PORTRAIT
+                val previewWidth = Sizes.seekPreviewWidth
                 val previewWidthPx = with(density) { previewWidth.roundToPx() }
-                val gapPx = with(density) { SEEK_PREVIEW_GAP.roundToPx() }
+                val gapPx = with(density) { Spacing.s8.roundToPx() }
                 val insetPx = with(density) { sideInset.roundToPx() }
                 // Measured, not guessed: the card drops its thumbnail box when no image is
                 // available yet (see SeekThumbnailPreview), so its real height varies -- a fixed
                 // lift only fit one of the two cases. Seeded with a close estimate so the very
                 // first scrub frame doesn't visibly pop once the real measurement lands.
                 var previewHeightPx by remember {
-                    mutableStateOf(with(density) { (previewWidth * 9 / 16 + 40.dp).roundToPx() })
+                    mutableStateOf(with(density) { (Sizes.seekPreviewHeight + Spacing.s40).roundToPx() })
                 }
                 // Clamped to the slider's own width so the card never pokes past either edge
                 // instead of centering blindly on the thumb.
@@ -191,32 +218,76 @@ internal fun ControlBar(
 
     val row: @Composable () -> Unit = {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp + sideInset),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(Sizes.touchTarget)
+                .padding(horizontal = 10.dp + sideInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 formatPosition(progress.positionMs, progress.durationMs),
-                color = Color.White,
-                style = MaterialTheme.typography.labelMedium.copy(shadow = Shadow(Color.Black, blurRadius = 6f)),
+                color = extras.onVideo,
+                style = MaterialTheme.typography.labelMedium,
             )
             Box(modifier = Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box {
                 IconButton(
-                    onClick = onToggleLoop,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .semantics { contentDescription = if (looping) "Stop looping" else "Loop this video" },
+                    onClick = {
+                        moreMenuOpen = true
+                        onMoreMenuOpenChange(true)
+                    },
+                    modifier = Modifier.size(Sizes.touchTarget),
                 ) {
-                    RepeatGlyph(tint = if (looping) SEEK_RED else Color.White, size = 18.dp)
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.action_more),
+                        tint = extras.onVideo,
+                        modifier = Modifier.size(Sizes.icon),
+                    )
                 }
-                ChromeTextButton(qualityLabel, onClick = onOpenQuality)
-                ChromeTextButton(speedLabel, onClick = onOpenSpeed)
-                IconButton(onClick = onOpenCaptions, enabled = captionsAvailable, modifier = Modifier.size(32.dp)) {
-                    CaptionsGlyph(tint = Color.White, dim = !captionsAvailable, size = 16.dp)
+                val closeMenu = {
+                    moreMenuOpen = false
+                    onMoreMenuOpenChange(false)
                 }
-                IconButton(onClick = onToggleFullscreen, modifier = Modifier.size(32.dp)) {
-                    FullscreenGlyph(fullscreen = fullscreen, tint = Color.White, size = 16.dp)
+                DropdownMenu(expanded = moreMenuOpen, onDismissRequest = closeMenu) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.player_menu_quality)) },
+                        trailingIcon = { Text(qualityLabel, style = MaterialTheme.typography.labelLarge) },
+                        onClick = { closeMenu(); onOpenQuality() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.player_menu_speed)) },
+                        trailingIcon = { Text(speedLabel, style = MaterialTheme.typography.labelLarge) },
+                        onClick = { closeMenu(); onOpenSpeed() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.player_menu_captions)) },
+                        leadingIcon = { CaptionsGlyph(tint = MaterialTheme.colorScheme.onSurface, dim = !captionsAvailable, size = Sizes.icon) },
+                        enabled = captionsAvailable,
+                        onClick = { closeMenu(); onOpenCaptions() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (looping) R.string.player_loop_stop else R.string.player_loop)) },
+                        leadingIcon = {
+                            RepeatGlyph(
+                                tint = if (looping) playedColor else MaterialTheme.colorScheme.onSurface,
+                                size = Sizes.icon,
+                            )
+                        },
+                        onClick = { closeMenu(); onToggleLoop() },
+                    )
                 }
+            }
+            val fullscreenDescription = stringResource(
+                if (fullscreen) R.string.player_fullscreen_exit else R.string.player_fullscreen_enter,
+            )
+            IconButton(
+                onClick = onToggleFullscreen,
+                modifier = Modifier
+                    .size(Sizes.touchTarget)
+                    .semantics { contentDescription = fullscreenDescription },
+            ) {
+                FullscreenGlyph(fullscreen = fullscreen, tint = extras.onVideo, size = Sizes.icon)
             }
         }
     }
@@ -230,69 +301,54 @@ internal fun ControlBar(
         Modifier
             .fillMaxWidth()
             // Gradient, not a solid band: the bottom fifth of the video stays visible through it.
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
-            .padding(top = 24.dp)
+            .background(Brush.verticalGradient(listOf(Color.Transparent, extras.videoScrim)))
+            .padding(top = Spacing.s24)
     } else {
         Modifier.fillMaxWidth()
     }
     Column(modifier = modifier.then(chrome)) {
-        // Offset into the slider box's own (touch-only) top area so text sits ~10dp above the
-        // line instead of 34dp; the box below is the hit area, not drawn chrome.
-        if (expanded && !fullscreen) Box(Modifier.offset(y = 16.dp)) { row() }
-        // Portrait: pushed down so the line sits on the video's bottom edge, not 20dp above it;
-        // the touch box keeps its full 40dp, the overflow is only the invisible lower half of
-        // the thumb. Same push idle and expanded, so the bar never jumps when controls appear.
-        Box(Modifier.fillMaxWidth().height(40.dp).offset(y = if (fullscreen) 0.dp else 14.dp)) { slider() }
+        // Offset into the slider box's own (touch-only) top area so the row sits just above the
+        // line; the box below is the hit area, not drawn chrome.
+        if (expanded && !fullscreen) Box(Modifier.offset(y = Spacing.s16)) { row() }
+        // Portrait: pushed down so the line sits on the video's bottom edge; the touch box keeps
+        // its full 40dp, the overflow is only the invisible lower half of the thumb. Same push idle
+        // and expanded, so the bar never jumps when controls appear.
+        Box(Modifier.fillMaxWidth().height(Spacing.s40).offset(y = if (fullscreen) 0.dp else Spacing.s16)) { slider() }
         if (expanded && fullscreen) Box(Modifier.padding(bottom = 6.dp)) { row() }
     }
 }
 
-// YouTube's seek red: the theme's primary blue read as dim over video (user-reported).
-private val SEEK_RED = Color(0xFFFF0033)
-
-/** Quality ("720p") and speed ("1x") as plain text buttons in the bottom row -- both apps
- *  compared show them as text, and there is no glyph in material-icons-core for either. */
-@Composable
-private fun ChromeTextButton(label: String, onClick: () -> Unit, color: Color = Color.White) {
-    Text(
-        label,
-        color = color,
-        style = MaterialTheme.typography.labelMedium.copy(shadow = Shadow(Color.Black, blurRadius = 6f)),
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-    )
-}
-
-/** The centred 64dp play/pause control — the only play affordance now that the bottom row is
+/** The centred 64dp play/pause control -- the only play affordance now that the bottom row is
  *  scrub-track-only. [playing] false draws the play triangle, true the pause bars; [ended] wins
  *  over both and draws Replay. */
 @Composable
 internal fun CenterPlayButton(onClick: () -> Unit, playing: Boolean, ended: Boolean = false, modifier: Modifier = Modifier) {
+    val extras = MaterialTheme.fyiExtras
+    val description = stringResource(
+        when {
+            ended -> R.string.player_replay
+            playing -> R.string.player_pause
+            else -> R.string.action_play
+        },
+    )
     IconButton(
         onClick = onClick,
         modifier = modifier
-            .size(64.dp)
+            .size(Sizes.transportButton)
             .clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.5f))
-            .semantics {
-                contentDescription = when {
-                    ended -> "Replay"
-                    playing -> "Pause"
-                    else -> "Play"
-                }
-            },
+            .background(extras.videoScrimLight)
+            .semantics { contentDescription = description },
     ) {
         if (ended) {
-            Icon(Icons.Filled.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+            Icon(Icons.Filled.Refresh, contentDescription = null, tint = extras.onVideo, modifier = Modifier.size(Sizes.transportGlyph))
         } else if (playing) {
-            PauseGlyph(tint = Color.White, size = 28.dp)
+            PauseGlyph(tint = extras.onVideo, size = Sizes.iconLarge)
         } else {
-            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = extras.onVideo, modifier = Modifier.size(Sizes.transportGlyph))
         }
     }
 }
+
 
 /** [forceHours] widens m:ss to h:mm:ss even when this value's own hours digit is zero, so a
  *  position label stays the same width as its duration ("0:05:12 / 1:41:12") instead of the
@@ -309,7 +365,3 @@ internal fun formatPosition(positionMs: Long, durationMs: Long): String {
     val hasHours = durationMs / 1000 >= 3600
     return "${mmss(positionMs, forceHours = hasHours)} / ${mmss(durationMs)}"
 }
-
-/** Null when there's no queue at all — a single video has no position to show. */
-internal fun queuePositionLabel(queueSize: Int, index: Int): String? =
-    if (queueSize > 1) "${index + 1} of $queueSize" else null

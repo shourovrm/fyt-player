@@ -3,6 +3,7 @@ package com.fyiplayer.app.settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -17,8 +18,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.BuildConfig
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.update.UpdateCheck
 import com.fyiplayer.app.update.UpdateInfo
 import com.fyiplayer.app.update.downloadAndInstall
@@ -40,16 +45,13 @@ fun AppSettings() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var check by remember { mutableStateOf<CheckState>(CheckState.Idle) }
-    SettingsSection("App") {
+    val downloadingMessage = stringResource(R.string.settings_update_downloading)
+    SettingsSection(stringResource(R.string.settings_about)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "FYT Player ${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-            )
+            SettingsLabel(stringResource(R.string.settings_version), BuildConfig.VERSION_NAME, Modifier.weight(1f))
             OutlinedButton(
                 enabled = check != CheckState.Checking,
                 onClick = {
@@ -61,26 +63,25 @@ fun AppSettings() {
                         )
                     }
                 },
-            ) { Text("Check for updates") }
+            ) { Text(stringResource(R.string.settings_check_updates)) }
         }
         when (val c = check) {
             CheckState.Idle -> {}
-            CheckState.Checking -> InlineStatus("Checking for updates…")
-            CheckState.UpToDate -> InlineStatus("You're on the latest version")
-            CheckState.Failed -> InlineStatus("Couldn't check — are you online?")
+            CheckState.Checking -> InlineStatus(stringResource(R.string.settings_update_checking))
+            CheckState.UpToDate -> InlineStatus(stringResource(R.string.settings_update_current))
+            CheckState.Failed -> InlineStatus(stringResource(R.string.settings_update_failed))
             is CheckState.Found -> Row(
-                Modifier.padding(start = 16.dp),
+                Modifier.padding(start = Spacing.pageMargin),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Update available — v${c.info.version}",
+                    stringResource(R.string.settings_update_available, c.info.version),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
                 )
                 TextButton(onClick = {
                     downloadAndInstall(context, c.info.apkUrl, c.info.version)
-                    Toast.makeText(context, "Downloading update…", Toast.LENGTH_SHORT).show()
-                }) { Text("Get") }
+                    Toast.makeText(context, downloadingMessage, Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.settings_update_install)) }
             }
         }
     }
@@ -90,8 +91,8 @@ fun AppSettings() {
 private fun InlineStatus(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
     )
 }

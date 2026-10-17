@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -66,15 +67,21 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.SubscriptionRow
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -116,10 +123,10 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                         when (vm.tab) {
                             LibraryTab.LIKES -> {
                                 var menuOpen by remember { mutableStateOf(false) }
-                                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more)) }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                     DropdownMenuItem(
-                                        text = { Text("Add to queue") },
+                                        text = { Text(stringResource(R.string.action_add_to_queue)) },
                                         onClick = {
                                             menuOpen = false
                                             selectedInOrder(liked, vm.selection).forEach { PlaybackSession.enqueue(it) }
@@ -127,11 +134,11 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                                         },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Add to playlist") },
+                                        text = { Text(stringResource(R.string.action_add_to_playlist)) },
                                         onClick = { menuOpen = false; showAddToPlaylist = true },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Remove from likes") },
+                                        text = { Text(stringResource(R.string.action_unlike)) },
                                         onClick = {
                                             menuOpen = false
                                             val urls = vm.selection
@@ -142,17 +149,17 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                                 }
                             }
                             LibraryTab.CHANNELS -> IconButton(onClick = { showUnsubscribeConfirm = true }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Unsubscribe")
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_unsubscribe))
                             }
                             LibraryTab.PLAYLISTS -> IconButton(onClick = { showUnfollowConfirm = true }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Remove")
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_remove))
                             }
                             LibraryTab.HISTORY -> {}
                         }
                     },
                 )
             } else {
-                TopAppBar(title = { Text("Library") })
+                TopAppBar(title = { Text(stringResource(R.string.library_title)) })
             }
         },
         floatingActionButton = {
@@ -167,10 +174,10 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = vm.tab.ordinal) {
-                Tab(selected = vm.tab == LibraryTab.LIKES, onClick = { vm.selectTab(LibraryTab.LIKES) }, text = { Text("Likes") })
-                Tab(selected = vm.tab == LibraryTab.PLAYLISTS, onClick = { vm.selectTab(LibraryTab.PLAYLISTS) }, text = { Text("Playlists") })
-                Tab(selected = vm.tab == LibraryTab.HISTORY, onClick = { vm.selectTab(LibraryTab.HISTORY) }, text = { Text("History") })
-                Tab(selected = vm.tab == LibraryTab.CHANNELS, onClick = { vm.selectTab(LibraryTab.CHANNELS) }, text = { Text("Channels") })
+                Tab(selected = vm.tab == LibraryTab.LIKES, onClick = { vm.selectTab(LibraryTab.LIKES) }, text = { Text(stringResource(R.string.library_tab_likes)) })
+                Tab(selected = vm.tab == LibraryTab.PLAYLISTS, onClick = { vm.selectTab(LibraryTab.PLAYLISTS) }, text = { Text(stringResource(R.string.library_tab_playlists)) })
+                Tab(selected = vm.tab == LibraryTab.HISTORY, onClick = { vm.selectTab(LibraryTab.HISTORY) }, text = { Text(stringResource(R.string.library_tab_history)) })
+                Tab(selected = vm.tab == LibraryTab.CHANNELS, onClick = { vm.selectTab(LibraryTab.CHANNELS) }, text = { Text(stringResource(R.string.library_tab_channels)) })
             }
             when (vm.tab) {
                 LibraryTab.LIKES -> LikesTab(
@@ -214,8 +221,9 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     if (showUnsubscribeConfirm) {
         val count = vm.selection.size
         ConfirmDialog(
-            title = "Unsubscribe from $count channel${if (count == 1) "" else "s"}?",
-            confirmLabel = "Unsubscribe",
+            title = pluralStringResource(R.plurals.library_unsubscribe_title, count, count),
+            body = pluralStringResource(R.plurals.library_unsubscribe_body, count),
+            confirmLabel = stringResource(R.string.action_unsubscribe),
             onConfirm = {
                 val urls = vm.selection
                 vm.clearSelection()
@@ -228,8 +236,9 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     if (showUnfollowConfirm) {
         val count = vm.selection.size
         ConfirmDialog(
-            title = "Remove $count followed playlist${if (count == 1) "" else "s"}?",
-            confirmLabel = "Remove",
+            title = pluralStringResource(R.plurals.library_unfollow_title, count, count),
+            body = pluralStringResource(R.plurals.library_unfollow_body, count),
+            confirmLabel = stringResource(R.string.library_unfollow),
             onConfirm = {
                 val urls = vm.selection
                 vm.clearSelection()
@@ -246,13 +255,19 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
  *  choice is error-tinted text, not the filled/primary button, so it never reads as the default
  *  -- same non-default-destructive convention as DownloadsScreen's `RemoveConfirmDialog`. */
 @Composable
-internal fun ConfirmDialog(title: String, confirmLabel: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+internal fun ConfirmDialog(
+    title: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    body: String = "",
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = {},
+        text = { if (body.isNotEmpty()) Text(body) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel, color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 
@@ -266,10 +281,10 @@ private fun LikesTab(
     onUnlike: (String) -> Unit,
 ) {
     if (videos.isEmpty()) {
-        LibraryEmptyState("No likes yet", "")
+        LibraryEmptyState(stringResource(R.string.library_likes_empty), "")
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) 88.dp else 0.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) Sizes.fab + Spacing.s32 else 0.dp)) {
         items(videos, key = { it.pageUrl }) { ref ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
@@ -287,7 +302,7 @@ private fun LikesTab(
                 // Single-row unlike yields while selecting -- the top bar owns bulk remove.
                 if (!selecting) {
                     IconButton(onClick = { onUnlike(ref.pageUrl) }) {
-                        Icon(Icons.Filled.Favorite, contentDescription = "Unlike", tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Filled.Favorite, contentDescription = stringResource(R.string.action_unlike), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -308,20 +323,24 @@ private fun PlaylistsTab(
     val context = LocalContext.current
     val rows by vm.playlistRows.collectAsStateWithLifecycle(initialValue = null)
     var showCreate by remember { mutableStateOf(false) }
+    val renameFailedMessage = stringResource(R.string.library_rename_failed)
+    val createFailedMessage = stringResource(R.string.playlist_create_failed)
+    val defaultPlaylistTitle = stringResource(R.string.library_playlist_default_title)
 
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().clickable { showCreate = true }.padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().clickable { showCreate = true }
+                .heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text("New playlist", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 14.dp))
+            Text(stringResource(R.string.playlist_new), color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = Spacing.s16))
         }
         HorizontalDivider()
         val list = rows
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            list.isEmpty() -> LibraryEmptyState("No playlists yet", "Create one above, or follow one from a playlist page.")
+            list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_playlists_empty), stringResource(R.string.library_playlists_empty_hint))
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { it.key }) { row ->
                     when (row) {
@@ -331,7 +350,7 @@ private fun PlaylistsTab(
                             onRename = { name ->
                                 scope.launch {
                                     runCatching { vm.playlists.rename(row.card.id, name) }
-                                        .onFailure { showToast(context, "Couldn't rename -- that name may already be used") }
+                                        .onFailure { showToast(context, renameFailedMessage) }
                                 }
                             },
                             onDelete = { scope.launch { vm.playlists.delete(row.card.id) } },
@@ -347,7 +366,7 @@ private fun PlaylistsTab(
                             selected = row.listing.key in selection,
                             onClick = { if (selecting) onToggle(row.listing.key) else onOpenListing(row.listing) },
                             onLongPress = { onToggle(row.listing.key) },
-                            onShare = { sharePlaylist(context, row.listing.title.ifBlank { "Playlist" }, row.listing.key) },
+                            onShare = { sharePlaylist(context, row.listing.title.ifBlank { defaultPlaylistTitle }, row.listing.key) },
                             onUnfollow = { scope.launch { vm.followedPlaylists.unfollow(row.listing.key) } },
                         )
                     }
@@ -358,11 +377,12 @@ private fun PlaylistsTab(
 
     if (showCreate) {
         NamePromptDialog(
-            title = "New playlist",
+            title = stringResource(R.string.playlist_new),
+            confirmLabel = stringResource(R.string.playlist_create),
             onConfirm = { name ->
                 scope.launch {
                     runCatching { vm.playlists.create(name) }
-                        .onFailure { showToast(context, "Couldn't create -- that name may already be used") }
+                        .onFailure { showToast(context, createFailedMessage) }
                 }
                 showCreate = false
             },
@@ -391,10 +411,11 @@ private fun PlaylistRowItem(
             .fillMaxWidth()
             .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .heightIn(min = Sizes.listTwoLine)
+            .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(112.dp).height(63.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        Box(Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             // A followed row's thumbnail is the first video's, stored at follow time (or backfilled
             // lazily by LibraryViewModel) -- never a per-row fetch (rule 6). Null until either lands,
             // and the box stays a plain surface tint, same as an empty local cover.
@@ -402,13 +423,13 @@ private fun PlaylistRowItem(
                 AsyncImage(model = thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
             }
         }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.s16).weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 subtitle,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 3.dp),
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
         trailing()
@@ -423,38 +444,39 @@ private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: 
     PlaylistRowItem(
         thumbnailUrl = card.coverThumbnailUrl,
         title = card.name,
-        subtitle = if (card.itemCount == 1) "1 video" else "${card.itemCount} videos",
+        subtitle = pluralStringResource(R.plurals.library_video_count, card.itemCount, card.itemCount),
         selected = false, // local playlists have no multi-select here -- delete is per-row (menu below)
         onClick = onClick,
         onLongPress = {},
         trailing = {
             Box {
-                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more)) }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; onShare() })
-                    DropdownMenuItem(text = { Text("Rename") }, onClick = { menuOpen = false; renaming = true })
-                    DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; confirmingDelete = true })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuOpen = false; onShare() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.library_rename)) }, onClick = { menuOpen = false; renaming = true })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_delete)) }, onClick = { menuOpen = false; confirmingDelete = true })
                 }
             }
         },
     )
     if (confirmingDelete) {
         ConfirmDialog(
-            title = "Delete playlist \"${card.name}\"?",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.library_delete_playlist_title),
+            body = stringResource(R.string.library_delete_playlist_body, card.name),
+            confirmLabel = stringResource(R.string.action_delete),
             onConfirm = { confirmingDelete = false; onDelete() },
             onDismiss = { confirmingDelete = false },
         )
     }
     if (renaming) {
-        NamePromptDialog(title = "Rename playlist", initial = card.name, onConfirm = { onRename(it); renaming = false }, onDismiss = { renaming = false })
+        NamePromptDialog(title = stringResource(R.string.library_rename_title), initial = card.name, onConfirm = { onRename(it); renaming = false }, onDismiss = { renaming = false })
     }
 }
 
 /** A followed remote playlist: no stored count (unlike a local playlist's item count) -- "Followed"
  *  is the subtitle, and it's also the only tell a tap needs to route on (open the remote listing,
  *  not a local playlist id). Same ⋮ menu shape as [LocalPlaylistRow], minus Rename: it isn't the
- *  user's own playlist to rename, so Delete here means unfollow. */
+ *  user's own playlist to rename, so the menu offers Unfollow instead of Delete. */
 @Composable
 private fun FollowedPlaylistRow(
     listing: Listing,
@@ -468,16 +490,16 @@ private fun FollowedPlaylistRow(
     PlaylistRowItem(
         thumbnailUrl = listing.thumbnailUrl,
         title = listing.title,
-        subtitle = "Followed",
+        subtitle = stringResource(R.string.state_followed),
         selected = selected,
         onClick = onClick,
         onLongPress = onLongPress,
         trailing = {
             Box {
-                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more)) }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menuOpen = false; onShare() })
-                    DropdownMenuItem(text = { Text("Delete") }, onClick = { menuOpen = false; onUnfollow() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_share)) }, onClick = { menuOpen = false; onShare() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_unfollow_playlist)) }, onClick = { menuOpen = false; onUnfollow() })
                 }
             }
         },
@@ -494,7 +516,7 @@ private fun ChannelsTab(
     onToggleShowInFeed: (SubscriptionRow) -> Unit,
 ) {
     if (channels.isEmpty()) {
-        LibraryEmptyState("No subscriptions yet", "Subscribe from a channel page and it lands here.")
+        LibraryEmptyState(stringResource(R.string.library_channels_empty), stringResource(R.string.library_channels_empty_hint))
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
@@ -508,7 +530,8 @@ private fun ChannelsTab(
                         onClick = { if (selecting) onToggle(channel.key) else onOpen(channel) },
                         onLongClick = { onToggle(channel.key) },
                     )
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .heightIn(min = Sizes.listOneLine)
+                    .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Mockup: no banner, no toast, no subtitle -- a dim row + the eye glyph itself say
@@ -517,20 +540,23 @@ private fun ChannelsTab(
                     Modifier.weight(1f).alpha(if (row.showInFeed) 1f else 0.4f),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MonogramDisc(channel.title, size = 44.dp)
+                    MonogramDisc(channel.title, size = Spacing.s40)
                     Text(
                         channel.title.ifBlank { channel.key },
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 12.dp).weight(1f),
+                        modifier = Modifier.padding(start = Spacing.s16).weight(1f),
                     )
                 }
                 // The glyph itself stays full-opacity even when the row dims -- it's the tap target
                 // that un-hides the channel, so it needs to read clearly either way.
-                val feedToggleDescription =
-                    if (row.showInFeed) "Hide ${channel.title.ifBlank { "channel" }} from feed"
-                    else "Show ${channel.title.ifBlank { "channel" }} in feed"
+                val channelName = channel.title.ifBlank { stringResource(R.string.library_channel_word) }
+                val feedToggleDescription = if (row.showInFeed) {
+                    stringResource(R.string.library_hide_from_feed, channelName)
+                } else {
+                    stringResource(R.string.library_show_in_feed, channelName)
+                }
                 IconButton(
                     onClick = { onToggleShowInFeed(row) },
                     modifier = Modifier.semantics { contentDescription = feedToggleDescription },
@@ -546,7 +572,7 @@ private fun ChannelsTab(
  *  against this build's actual jar -- only ~50 icons ship in core, eye glyphs aren't among them).
  *  Drawn by hand the same way [DetailScreen.kt]'s SaveGlyph/DownloadTrayGlyph solve the same gap. */
 @Composable
-private fun EyeGlyph(tint: Color, slashed: Boolean, modifier: Modifier = Modifier, size: Dp = 22.dp) {
+private fun EyeGlyph(tint: Color, slashed: Boolean, modifier: Modifier = Modifier, size: Dp = Sizes.icon) {
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -594,22 +620,22 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         if (!recording) {
             Text(
-                "History recording is off in Settings. These are past entries -- new views won't be added.",
+                stringResource(R.string.library_history_off_notice),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(Spacing.pageMargin),
             )
         }
         val list = entries
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             list.isEmpty() -> LibraryEmptyState(
-                "No watch history",
-                if (recording) "Videos you open land here." else "History recording is off in Settings.",
+                stringResource(R.string.library_history_empty),
+                stringResource(if (recording) R.string.library_history_empty_hint else R.string.library_history_off_hint),
             )
             else -> {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { confirmingClear = true }) { Text("Clear history") }
+                Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.library_clear_history)) }
                 }
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(list, key = { it.pageUrl }) { ref -> ResultRow(ref, onClick = { onOpen(ref) }, onLongPress = { actionSheetRef = ref }) }
@@ -620,8 +646,9 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
 
     if (confirmingClear) {
         ConfirmDialog(
-            title = "Clear watch history?",
-            confirmLabel = "Clear",
+            title = stringResource(R.string.library_clear_history_title),
+            body = stringResource(R.string.library_clear_history_body),
+            confirmLabel = stringResource(R.string.action_clear),
             onConfirm = { confirmingClear = false; scope.launch { vm.history.clear() } },
             onDismiss = { confirmingClear = false },
         )
@@ -632,7 +659,7 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
 @Composable
 internal fun LibraryEmptyState(title: String, body: String) {
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 40.dp),
+        Modifier.fillMaxSize().padding(horizontal = Spacing.s40),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -649,16 +676,22 @@ internal fun LibraryEmptyState(title: String, body: String) {
 
 /** One inline name prompt, reused by "New playlist" and "Rename" here and by [PlaylistDetailScreen]. */
 @Composable
-internal fun NamePromptDialog(title: String, initial: String = "", onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun NamePromptDialog(
+    title: String,
+    initial: String = "",
+    confirmLabel: String = stringResource(R.string.action_save),
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true) },
         confirmButton = {
-            TextButton(onClick = { if (text.isNotBlank()) onConfirm(text.trim()) }, enabled = text.isNotBlank()) { Text("OK") }
+            TextButton(onClick = { if (text.isNotBlank()) onConfirm(text.trim()) }, enabled = text.isNotBlank()) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 

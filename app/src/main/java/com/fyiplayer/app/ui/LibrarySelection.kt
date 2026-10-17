@@ -13,6 +13,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 
@@ -70,7 +72,7 @@ internal fun sharePlaylist(context: Context, title: String, pageUrl: String?, vi
         putExtra(Intent.EXTRA_TEXT, text)
         putExtra(Intent.EXTRA_TITLE, title)
     }
-    context.startActivity(Intent.createChooser(send, "Share playlist"))
+    context.startActivity(Intent.createChooser(send, context.getString(R.string.library_share_chooser)))
 }
 
 /** Replaces the screen's own top bar while selecting: X · "N selected" · All · caller's actions. */
@@ -83,10 +85,10 @@ internal fun SelectionTopBar(
     actions: @Composable () -> Unit = {},
 ) {
     TopAppBar(
-        title = { Text("$count selected") },
-        navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Exit selection") } },
+        title = { Text(stringResource(R.string.library_selected_count, count)) },
+        navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_done)) } },
         actions = {
-            TextButton(onClick = onSelectAll) { Text("All") }
+            TextButton(onClick = onSelectAll) { Text(stringResource(R.string.library_select_all)) }
             actions()
         },
     )
@@ -98,6 +100,6 @@ internal fun PlaySelectionFab(count: Int, onClick: () -> Unit) {
     ExtendedFloatingActionButton(
         onClick = onClick,
         icon = { Icon(Icons.Filled.PlayArrow, contentDescription = null) },
-        text = { Text("Play $count") },
+        text = { Text(stringResource(R.string.library_play_count, count)) },
     )
 }

@@ -13,7 +13,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.VideoRef
 
@@ -120,25 +124,25 @@ internal fun LazyListScope.similarVideosSection(
     // banner above every result.
     when {
         loading && results.isEmpty() -> item {
-            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            Box(Modifier.fillMaxWidth().padding(Spacing.s24), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(Sizes.icon), strokeWidth = 2.dp)
             }
         }
         // Access wall -> honest unavailable state, no retry affordance (never implies a workaround).
         error != null -> item {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
                 Text(error.userMessage(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 if (retryEnabled) {
-                    TextButton(onClick = onRetry) { Text("Retry") }
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
                 }
             }
         }
         results.isEmpty() -> item {
             Text(
-                "No similar videos found.",
+                stringResource(R.string.detail_no_similar),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
             )
         }
         else -> {

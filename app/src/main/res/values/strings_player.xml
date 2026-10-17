@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Player screen, mini player, queue and sheets. Shared words live in strings.xml. Rules: docs/copy.md. -->
+<resources>
+    <!-- gesture feedback -->
+    <string name="player_brightness">Brightness</string>
+    <string name="player_volume">Volume</string>
+    <string name="player_fast_seek_forward">&gt;&gt; %1$ds</string>
+    <string name="player_fast_seek_backward">&lt;&lt; %1$ds</string>
+
+    <!-- states -->
+    <string name="player_nothing_playing">Nothing playing</string>
+    <string name="player_error_cannot_play">Cannot play this video yet.</string>
+
+    <!-- transport and top bar -->
+    <string name="player_pause">Pause</string>
+    <string name="player_replay">Replay</string>
+    <string name="player_minimize">Minimize</string>
+    <string name="player_fullscreen_enter">Full screen</string>
+    <string name="player_fullscreen_exit">Exit full screen</string>
+
+    <!-- more menu in the control row -->
+    <string name="player_menu_quality">Quality</string>
+    <string name="player_menu_speed">Speed</string>
+    <string name="player_menu_captions">Captions</string>
+    <string name="player_loop">Loop video</string>
+    <string name="player_loop_stop">Stop looping</string>
+
+    <!-- sheet rows -->
+    <string name="player_quality_auto">Auto</string>
+    <string name="player_quality_height">%1$dp</string>
+    <string name="player_speed_value">%1$sx</string>
+    <string name="player_captions_off">Off</string>
+
+    <!-- mini player -->
+    <string name="player_open">Open player</string>
+    <string name="player_next_video">Next video</string>
+    <string name="player_stop">Stop playback</string>
+
+    <!-- queue -->
+    <string name="player_queue_position">%1$d of %2$d</string>
+    <string name="player_queue_title">Queue (%1$d of %2$d)</string>
+    <string name="player_queue_show">Show queue</string>
+    <string name="player_queue_clear">Clear queue</string>
+    <string name="player_queue_shuffle">Shuffle</string>
+    <string name="player_queue_shuffle_on">Shuffle on</string>
+    <string name="player_queue_move_up">Move up</string>
+    <string name="player_queue_move_down">Move down</string>
+
+    <!-- sponsored segment skip button -->
+    <string name="player_skip">Skip %1$s</string>
+    <string name="player_skip_sponsor">sponsor</string>
+    <string name="player_skip_intro">intro</string>
+    <string name="player_skip_credits">credits</string>
+    <string name="player_skip_reminder">reminder</string>
+    <string name="player_skip_promotion">promotion</string>
+    <string name="player_skip_non_music">non-music part</string>
+    <string name="player_skip_recap">recap</string>
+    <string name="player_skip_filler">filler</string>
+</resources>

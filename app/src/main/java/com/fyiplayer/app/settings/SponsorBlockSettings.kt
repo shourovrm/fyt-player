@@ -1,5 +1,4 @@
 package com.fyiplayer.app.settings
-
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,11 +14,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.SponsorCategory
 import com.fyiplayer.app.core.SponsorMode
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 /** The SponsorBlock master switch and one mode per category. Channel exceptions are set from the
@@ -33,19 +35,20 @@ fun SponsorBlockSettings(prefs: Prefs) {
         initialValue = SponsorCategory.entries.associateWith { it.defaultMode },
     )
 
-    SettingsSection("SponsorBlock") {
+    SettingsSection(stringResource(R.string.settings_sponsorblock)) {
         SettingsSwitchRow(
-            label = "Use SponsorBlock — sends a 4-character hash prefix of each YouTube video id to sponsor.ajay.app",
+            label = stringResource(R.string.settings_sponsorblock_skip),
+            hint = stringResource(R.string.settings_sponsorblock_skip_hint),
             checked = enabled,
             onCheckedChange = { scope.launch { prefs.setSponsorBlock(it) } },
         )
         if (enabled) {
             SponsorCategory.entries.forEach { category ->
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp)) {
                     Text(category.label, style = MaterialTheme.typography.bodyMedium)
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
                     ) {
                         SponsorMode.entries.forEach { mode ->
                             FilterChip(

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -33,6 +34,8 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.text.KeyboardActions
@@ -51,7 +54,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.ChannelTab
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
 
@@ -60,7 +67,7 @@ import com.fyiplayer.app.player.PlaybackSession
  * feeds plus in-channel search, a playlist has one). Each tab loads on first selection and is
  * then cached in [ChannelViewModel] for the screen's lifetime; switching tabs never refetches.
  * Courses/Live start visible and silently drop out of the tab row the first time they come back
- * tab-unavailable -- probing all five up front would be five slow engine calls before anything
+ * tab-unavailable -- probing all five up front would be five slow calls before anything
  * renders.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,11 +132,11 @@ fun ChannelScreen(
                         IconButton(onClick = {
                             if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0)
                             selection = emptySet()
-                        }) { Icon(Icons.Filled.PlayArrow, contentDescription = "Play all") }
+                        }) { Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all)) }
                         IconButton(onClick = {
                             selectedInOrder(currentVideos, selection).forEach { PlaybackSession.enqueue(it) }
                             selection = emptySet()
-                        }) { Icon(Icons.Filled.Add, contentDescription = "Add selected to queue") }
+                        }) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add_to_queue)) }
                     },
                 )
             } else {
@@ -181,39 +188,40 @@ private fun ChannelTopBar(
     onToggleSubscribe: () -> Unit,
 ) {
     TopAppBar(
-        title = { Text(title.ifBlank { "Channel" }, maxLines = 1) },
-        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
+        title = { Text(title.ifBlank { stringResource(R.string.channel_title_fallback) }, maxLines = 1) },
+        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } },
         actions = {
             if (videos.isNotEmpty()) {
                 IconButton(onClick = { PlaybackSession.play(videos, 0) }) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Play all")
+                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                 }
             }
             // Filled vs outlined makes the two states unmistakable without a second icon.
             if (subscribed) {
-                OutlinedButton(onClick = onToggleSubscribe) { Text("Subscribed") }
+                OutlinedButton(onClick = onToggleSubscribe) { Text(stringResource(R.string.action_unsubscribe)) }
             } else {
-                Button(onClick = onToggleSubscribe) { Text("Subscribe") }
+                Button(onClick = onToggleSubscribe) { Text(stringResource(R.string.action_subscribe)) }
             }
         },
     )
 }
 
-private fun ChannelTab.label(): String = when (this) {
-    ChannelTab.VIDEOS -> "Videos"
-    ChannelTab.SHORTS -> "Shorts"
-    ChannelTab.PLAYLISTS -> "Playlists"
-    ChannelTab.COURSES -> "Courses"
-    ChannelTab.LIVE -> "Live"
+@StringRes
+private fun ChannelTab.labelRes(): Int = when (this) {
+    ChannelTab.VIDEOS -> R.string.channel_tab_videos
+    ChannelTab.SHORTS -> R.string.channel_tab_shorts
+    ChannelTab.PLAYLISTS -> R.string.channel_tab_playlists
+    ChannelTab.COURSES -> R.string.channel_tab_courses
+    ChannelTab.LIVE -> R.string.state_live
 }
 
 @Composable
 private fun ChannelTabRow(available: List<ChannelTab>, selected: ChannelUiTab, onSelect: (ChannelUiTab) -> Unit) {
     val uiTabs: List<ChannelUiTab> = available.map { ChannelUiTab.Content(it) } + ChannelUiTab.Search
     val index = uiTabs.indexOf(selected).coerceAtLeast(0)
-    ScrollableTabRow(selectedTabIndex = index, edgePadding = 12.dp) {
+    ScrollableTabRow(selectedTabIndex = index, edgePadding = Spacing.s16) {
         uiTabs.forEach { tab ->
-            val label = if (tab is ChannelUiTab.Content) tab.tab.label() else "Search"
+            val label = stringResource(if (tab is ChannelUiTab.Content) tab.tab.labelRes() else R.string.channel_tab_search)
             Tab(selected = tab == selected, onClick = { onSelect(tab) }, text = { Text(label) })
         }
     }
@@ -266,16 +274,17 @@ private fun VideoTabBody(
 ) {
     if (state.items.isEmpty() && state.loading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.state_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
     // A finished load with nothing in it and no error is a real empty tab, not a blank screen.
     if (state.loaded && state.items.isEmpty() && state.error == null) {
-        EmptyStateScreen("No videos", "This channel has no videos here.")
+        EmptyStateScreen(stringResource(R.string.channel_empty_videos_title), stringResource(R.string.channel_empty_videos_message))
         return
     }
-    val errors = state.error?.let { listOf(ErrorRow("Channel", it, onRetry = if (state.blocked) null else onRetry)) } ?: emptyList()
+    val channelErrorName = stringResource(R.string.channel_error_source)
+    val errors = state.error?.let { listOf(ErrorRow(channelErrorName, it, onRetry = if (state.blocked) null else onRetry)) } ?: emptyList()
     SelectableVideoList(
         items = state.items, errors = errors, hasMore = state.nextPage != null, isLoadingMore = state.loading && state.items.isNotEmpty(),
         onLoadMore = onLoadMore, selection = selection, onTap = onTap, onToggle = onToggle,
@@ -291,6 +300,7 @@ private fun ContainerTabBody(
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    val channelErrorName = stringResource(R.string.channel_error_source)
     when {
         state.items.isEmpty() && state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
@@ -298,21 +308,21 @@ private fun ContainerTabBody(
         // A failed first page: same error row (with Retry, unless an access wall stopped it) as
         // every other list, instead of bare text with no way forward.
         state.error != null && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            ErrorRowView(ErrorRow("Channel", state.error, onRetry = if (state.blocked) null else onRetry))
+            ErrorRowView(ErrorRow(channelErrorName, state.error, onRetry = if (state.blocked) null else onRetry))
         }
         state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing here yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.channel_empty_container), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
             items(state.items, key = { it.key }) { item ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { onOpen(item) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().heightIn(min = Sizes.listTwoLine).clickable { onOpen(item) }.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Same idiom as ResultsList.kt's ResultRow: grey placeholder box when the
                     // source didn't publish a thumbnail, never a blank gap.
                     Box(
-                        Modifier.size(64.dp).clip(RoundedCornerShape(8.dp))
+                        Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                     ) {
                         if (item.thumbnailUrl != null) {
@@ -320,17 +330,17 @@ private fun ContainerTabBody(
                         }
                     }
                     Text(
-                        item.title.ifBlank { "Untitled" },
-                        modifier = Modifier.padding(start = 12.dp),
+                        item.title.ifBlank { stringResource(R.string.state_untitled) },
+                        modifier = Modifier.padding(start = Spacing.s16),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
             }
             if (state.error != null) {
                 // A later page failed: no auto-reload, Retry continues from that page.
-                item { ErrorRowView(ErrorRow("Channel", state.error, onRetry = if (state.blocked) null else onRetry)) }
+                item { ErrorRowView(ErrorRow(channelErrorName, state.error, onRetry = if (state.blocked) null else onRetry)) }
             } else if (state.nextPage != null) {
-                item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(12.dp)) { Text("Load more") } }
+                item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(Spacing.s16)) { Text(stringResource(R.string.results_load_more)) } }
             }
         }
     }
@@ -353,26 +363,25 @@ private fun ChannelSearchBody(
         OutlinedTextField(
             value = input,
             onValueChange = { input = it },
-            label = { Text("Search in \"${listing.title.ifBlank { "this channel" }}\"") },
+            label = { Text(stringResource(R.string.channel_search_label)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { vm.runChannelSearch(listing, input) }),
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(Spacing.pageMargin),
         )
+        val searchErrorName = stringResource(R.string.channel_tab_search)
         when {
             state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-            !state.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Search this channel's videos", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            !state.loaded -> Unit
             state.items.isEmpty() && state.error == null -> EmptyStateScreen(
-                "No results for \"${vm.searchQuery}\"",
-                "Nothing in this channel matches that search.",
+                stringResource(R.string.channel_search_empty_title, vm.searchQuery),
+                stringResource(R.string.channel_search_empty_message),
             )
             else -> {
                 val errors = state.error?.let {
-                    listOf(ErrorRow("Search", it, onRetry = if (state.blocked) null else { { vm.retrySearch(listing) } }))
+                    listOf(ErrorRow(searchErrorName, it, onRetry = if (state.blocked) null else { { vm.retrySearch(listing) } }))
                 } ?: emptyList()
                 // Same shape as global search (HomeScreen): shorts pulled into a shelf above the rows.
                 val (shortsItems, longformItems) = partitionShorts(state.items)

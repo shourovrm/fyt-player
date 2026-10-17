@@ -12,7 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
@@ -27,7 +27,7 @@ fun EmptyStateScreen(title: String, message: String) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(start = 32.dp, top = 160.dp, end = 32.dp, bottom = 32.dp),
+            .padding(start = Spacing.s32, top = Spacing.s64 * 2, end = Spacing.s32, bottom = Spacing.s32),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
@@ -36,7 +36,7 @@ fun EmptyStateScreen(title: String, message: String) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.fyiExtras.ink3,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier.padding(top = Spacing.s8),
         )
     }
 }

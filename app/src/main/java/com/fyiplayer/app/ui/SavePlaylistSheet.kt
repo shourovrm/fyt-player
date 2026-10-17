@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
@@ -26,6 +28,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PlaylistRepository
@@ -50,9 +56,14 @@ fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDis
     val context = LocalContext.current
     val existing by playlists.observePlaylists().collectAsStateWithLifecycle(initialValue = emptyList())
     var showCreate by remember { mutableStateOf(false) }
+    val createFailedMessage = stringResource(R.string.playlist_create_failed)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text("Add to playlist", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        Text(
+            stringResource(R.string.action_add_to_playlist),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
+        )
         Column {
             existing.forEach { playlist ->
                 Text(
@@ -64,17 +75,19 @@ fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDis
                             scope.launch { refs.forEach { playlists.addItem(playlist.id, it) } }
                             onDismiss()
                         }
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .heightIn(min = Sizes.touchTarget)
+                        .padding(horizontal = Spacing.pageMargin)
+                        .wrapContentHeight(Alignment.CenterVertically),
                 )
             }
             Row(
-                Modifier.fillMaxWidth().clickable { showCreate = true }.padding(horizontal = 20.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().clickable { showCreate = true }.heightIn(min = Sizes.touchTarget).padding(horizontal = Spacing.pageMargin),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("New playlist", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 14.dp), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.playlist_new), color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = Spacing.s16), style = MaterialTheme.typography.bodyLarge)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
         }
     }
 
@@ -82,7 +95,7 @@ fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDis
         var text by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showCreate = false },
-            title = { Text("New playlist") },
+            title = { Text(stringResource(R.string.playlist_new)) },
             text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true) },
             confirmButton = {
                 TextButton(
@@ -91,16 +104,16 @@ fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDis
                         val name = text.trim()
                         scope.launch {
                             val id = runCatching { playlists.create(name) }
-                                .onFailure { showToast(context, "Couldn't create -- that name may already be used") }
+                                .onFailure { showToast(context, createFailedMessage) }
                                 .getOrNull()
                             if (id != null) refs.forEach { playlists.addItem(id, it) }
                         }
                         showCreate = false
                         onDismiss()
                     },
-                ) { Text("OK") }
+                ) { Text(stringResource(R.string.playlist_create)) }
             },
-            dismissButton = { TextButton(onClick = { showCreate = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showCreate = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }

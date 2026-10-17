@@ -44,7 +44,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -57,13 +63,16 @@ import kotlin.math.roundToInt
 fun GestureHud(percent: Int, isBrightness: Boolean, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .background(MaterialTheme.fyiExtras.videoScrim, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.s16, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (isBrightness) "Brightness" else "Volume", color = Color.White)
-        Spacer(Modifier.width(8.dp))
-        Text("$percent%", color = Color.White)
+        Text(
+            stringResource(if (isBrightness) R.string.player_brightness else R.string.player_volume),
+            color = MaterialTheme.fyiExtras.onVideo,
+        )
+        Spacer(Modifier.width(Spacing.s8))
+        Text("$percent%", color = MaterialTheme.fyiExtras.onVideo)
     }
 }
 
@@ -72,20 +81,13 @@ fun GestureHud(percent: Int, isBrightness: Boolean, modifier: Modifier = Modifie
 fun SeekPreviewHud(previewText: String, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .background(MaterialTheme.fyiExtras.videoScrim, RoundedCornerShape(Radius.s))
+            .padding(horizontal = Spacing.s16, vertical = Spacing.s8),
     ) {
-        Text(previewText, color = Color.White)
+        Text(previewText, color = MaterialTheme.fyiExtras.onVideo)
     }
 }
 
-// 140dp ≈ NewPipe's scrub-card footprint; height floats with the tile aspect (see
-// SeekThumbnailPreview), HEIGHT below is just the 16:9 default/floor.
-internal val SEEK_PREVIEW_WIDTH = 140.dp
-internal val SEEK_PREVIEW_HEIGHT = 79.dp
-internal val SEEK_PREVIEW_GAP = 8.dp
-internal val SEEK_PREVIEW_WIDTH_PORTRAIT = 160.dp
-internal val SEEK_PREVIEW_WIDTH_FULLSCREEN = 200.dp
 internal const val MIN_PREVIEW_TILE_PX = 45
 
 /**
@@ -103,7 +105,7 @@ fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier:
         modifier = modifier
             .size(width, height)
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.DarkGray),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         when (image) {
             null -> {}
@@ -158,7 +160,7 @@ fun SeekThumbnailPreview(
     image: SeekPreviewImage?,
     timestampText: String,
     modifier: Modifier = Modifier,
-    width: Dp = SEEK_PREVIEW_WIDTH,
+    width: Dp = Sizes.seekPreviewWidth,
 ) {
     // A tile under MIN_PREVIEW_TILE_PX wide (YouTube's 25x45 shorts level, seen live) is pure
     // blur at card size -- the pill alone reads better than a smeared frame.
@@ -168,11 +170,11 @@ fun SeekThumbnailPreview(
         // frame, and the number must be readable at arm's length without looking under the card.
         Text(
             timestampText,
-            color = Color.White,
+            color = MaterialTheme.fyiExtras.onVideo,
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier
-                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(6.dp))
-                .padding(horizontal = 10.dp, vertical = 3.dp),
+                .background(MaterialTheme.fyiExtras.videoScrim, RoundedCornerShape(6.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
         )
         if (shown != null) {
             Spacer(Modifier.height(6.dp))
@@ -180,7 +182,7 @@ fun SeekThumbnailPreview(
                 is SeekPreviewImage.Tile -> {
                     val aspect = shown.sheet.tileWidth.toFloat() /
                         shown.sheet.tileHeight.coerceAtLeast(1).toFloat()
-                    (width / aspect).coerceIn(width * 9 / 16, 280.dp)
+                    (width / aspect).coerceIn(width * 9 / 16, width * 16 / 9)
                 }
                 else -> width * 9 / 16
             }
@@ -194,17 +196,24 @@ fun SeekThumbnailPreview(
 fun FastSeekOverlay(totalSeconds: Int, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(50))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .background(MaterialTheme.fyiExtras.videoScrimLight, RoundedCornerShape(50))
+            .padding(horizontal = Spacing.s16, vertical = 10.dp),
     ) {
-        Text(if (totalSeconds >= 0) ">> ${totalSeconds}s" else "<< ${-totalSeconds}s", color = Color.White)
+        Text(
+            if (totalSeconds >= 0) {
+                stringResource(R.string.player_fast_seek_forward, totalSeconds)
+            } else {
+                stringResource(R.string.player_fast_seek_backward, -totalSeconds)
+            },
+            color = MaterialTheme.fyiExtras.onVideo,
+        )
     }
 }
 
 /** Two bars — `material-icons-core` (the only icons dependency here) has no Pause glyph. [size] is
  *  a parameter because the centred play/pause control draws it larger than a bar icon. */
 @Composable
-fun PauseGlyph(tint: Color, size: Dp = 24.dp, modifier: Modifier = Modifier) {
+fun PauseGlyph(tint: Color, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
     Row(modifier = modifier.size(size), horizontalArrangement = Arrangement.spacedBy(size / 6)) {
         Spacer(Modifier.weight(1f).fillMaxHeight().background(tint))
         Spacer(Modifier.weight(1f).fillMaxHeight().background(tint))
@@ -214,7 +223,7 @@ fun PauseGlyph(tint: Color, size: Dp = 24.dp, modifier: Modifier = Modifier) {
 /** Triangle + bar — `material-icons-core` has no SkipNext/SkipPrevious glyph either, so this draws
  *  its own rather than adding an icons dependency for two shapes. [forward] mirrors it horizontally. */
 @Composable
-fun SkipGlyph(forward: Boolean, tint: Color, size: Dp = 24.dp, modifier: Modifier = Modifier) {
+fun SkipGlyph(forward: Boolean, tint: Color, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
         val h = this.size.height
@@ -240,9 +249,9 @@ fun SkipGlyph(forward: Boolean, tint: Color, size: Dp = 24.dp, modifier: Modifie
  *  [fullscreen] false draws brackets at the corners with arms pointing inward (enter fullscreen);
  *  true draws them near the centre with arms pointing outward (exit fullscreen). [size] is a
  *  parameter (like [PauseGlyph]/[SkipGlyph]) so the slimmer control-bar icon cluster can draw it
- *  smaller than the original 20dp. */
+ *  smaller than the default. */
 @Composable
-fun FullscreenGlyph(fullscreen: Boolean, tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+fun FullscreenGlyph(fullscreen: Boolean, tint: Color, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.size(size)) {
         // this.size (DrawScope's own canvas-px Size), not the outer Dp parameter -- same name,
         // shadowed, so it must be qualified (matches SkipGlyph/PauseGlyph just above).
@@ -269,17 +278,17 @@ fun FullscreenGlyph(fullscreen: Boolean, tint: Color, size: Dp = 20.dp, modifier
  *  this app's classpath, and there is no built-in "CC" glyph either way. [dim] is the disabled
  *  look the control bar uses when the current item has no caption tracks at all. */
 @Composable
-fun CaptionsGlyph(tint: Color, dim: Boolean = false, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+fun CaptionsGlyph(tint: Color, dim: Boolean = false, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
     val color = if (dim) tint.copy(alpha = 0.4f) else tint
     Box(
         modifier = modifier
             .size(width = size, height = size * 0.72f)
-            .border(1.5.dp, color, RoundedCornerShape(3.dp)),
+            .border(2.dp, color, RoundedCornerShape(4.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(size * 0.12f)) {
-            Spacer(Modifier.width(size * 0.26f).height(1.5.dp).background(color))
-            Spacer(Modifier.width(size * 0.26f).height(1.5.dp).background(color))
+            Spacer(Modifier.width(size * 0.26f).height(1.dp).background(color))
+            Spacer(Modifier.width(size * 0.26f).height(1.dp).background(color))
         }
     }
 }
@@ -287,14 +296,14 @@ fun CaptionsGlyph(tint: Color, dim: Boolean = false, size: Dp = 20.dp, modifier:
 /** 2x2 grid of rounded squares — plain [Box]es, not a hand-drawn [Canvas] path, since four squares
  *  need no path math. Opens the storyboard preview grid ([JumpGridSheet]) from the control bar. */
 @Composable
-fun PreviewGridGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+fun PreviewGridGlyph(tint: Color, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
     val cell = size * 0.42f
     val gap = size * 0.16f
     Column(modifier = modifier.size(size), verticalArrangement = Arrangement.spacedBy(gap)) {
         repeat(2) {
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 repeat(2) {
-                    Spacer(Modifier.size(cell).background(tint, RoundedCornerShape(1.5.dp)))
+                    Spacer(Modifier.size(cell).background(tint, RoundedCornerShape(1.dp)))
                 }
             }
         }
@@ -318,9 +327,9 @@ fun JumpGridSheet(
     val times = storyboardTimes(durationSeconds)
     val activeIndex = storyboardIndexAt(positionSeconds, durationSeconds)
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(Spacing.s16)) {
             times.chunked(3).forEachIndexed { rowIndex, row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
                     row.forEachIndexed { colIndex, t ->
                         val tileIndex = rowIndex * 3 + colIndex
                         val outline = if (tileIndex == activeIndex) {
@@ -329,11 +338,11 @@ fun JumpGridSheet(
                             Modifier
                         }
                         Box(outline.clip(RoundedCornerShape(6.dp)).clickable { onJump(t) }) {
-                            SeekThumbnailTile(seekThumbs.imageFor(t), width = 96.dp, height = 54.dp)
+                            SeekThumbnailTile(seekThumbs.imageFor(t), width = Sizes.miniThumbWidth, height = Sizes.miniThumbHeight)
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Spacing.s8))
             }
         }
     }

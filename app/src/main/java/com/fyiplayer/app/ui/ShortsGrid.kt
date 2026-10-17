@@ -31,12 +31,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
  * The Shorts tab lands here first: a portrait thumbnail grid, not an immediately-playing pager.
@@ -81,8 +86,8 @@ internal fun ShortsGrid(
         }
         if (loadingMore) {
             item(key = "loadingMore", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(24.dp))
+                Box(Modifier.fillMaxWidth().padding(Spacing.s16), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(Sizes.icon))
                 }
             }
         }
@@ -90,9 +95,9 @@ internal fun ShortsGrid(
         if (exhausted) {
             item(key = "exhausted", span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    "You're all caught up — no more Shorts from your subscriptions.",
+                    stringResource(R.string.shorts_grid_end),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(Spacing.s24),
                     textAlign = TextAlign.Center,
                 )
             }
@@ -105,7 +110,7 @@ private fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
     Box(
         Modifier
             .aspectRatio(9f / 16f)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(Radius.xs))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
@@ -115,12 +120,12 @@ private fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f))),
+                .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to MaterialTheme.fyiExtras.videoScrim)),
         )
         Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
             Text(
                 ref.title,
-                color = Color.White,
+                color = MaterialTheme.fyiExtras.onVideo,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.labelSmall,
@@ -132,10 +137,10 @@ private fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
             if (meta.isNotBlank()) {
                 Text(
                     meta,
-                    color = Color.White.copy(alpha = 0.8f),
+                    color = MaterialTheme.fyiExtras.onVideoDim,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }

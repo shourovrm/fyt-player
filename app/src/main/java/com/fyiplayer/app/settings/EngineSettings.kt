@@ -28,25 +28,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.getSystemService
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.CrashLog
 import com.fyiplayer.app.DiagLog
+import com.fyiplayer.app.R
 import com.fyiplayer.app.engine.EngineChannel
 import com.fyiplayer.app.engine.EngineUpdater
 import com.fyiplayer.app.engine.UpdateResult
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
-// Bump together with the composite build / libs.versions.toml `newpipeExtractor` -- YouTube runs
-// on this extractor, so its version ships with the app, not via the yt-dlp updater below.
-private const val YOUTUBE_ENGINE = "PipePipeExtractor v5.2.5 · YouTube"
-
-/** Extraction-engine version, update channel and the explicit "Update engine" action. Extractors
- *  rot within weeks (CLAUDE.md), so this is the user's only recourse -- nothing here runs unless
- *  tapped. */
+/** Site support: version, update channel and the explicit "Update site support" action. Sites
+ *  change their pages within weeks (CLAUDE.md), so this is the user's only recourse -- nothing
+ *  here runs unless tapped. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EngineSettings() {
@@ -60,6 +60,8 @@ fun EngineSettings() {
     var showCrash by remember { mutableStateOf(false) }
     var playbackLog by remember { mutableStateOf<String?>(null) }
     var showPlaybackLog by remember { mutableStateOf(false) }
+    val updatedMessage = stringResource(R.string.settings_site_support_updated)
+    val alreadyCurrentMessage = stringResource(R.string.settings_site_support_current)
     // remember: lastChecked(context) builds a fresh Flow each call -- without this key,
     // collectAsStateWithLifecycle would see a new upstream and restart collection every recomposition.
     val lastCheckedFlow = remember(context) { EngineUpdater.lastChecked(context) }
@@ -73,143 +75,149 @@ fun EngineSettings() {
         playbackLog = DiagLog.read(context)
     }
 
-    SettingsSection("Video engine") {
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            // yt-dlp rows below say "yt-dlp" explicitly, so this line needs no disclaimer: the
-            // extractor version ships with the APK and the updater never touches it.
-            Text(YOUTUBE_ENGINE, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "yt-dlp version: ${version ?: "bundled with the app"}",
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 12.dp),
-            )
+    SettingsSection(stringResource(R.string.settings_site_support)) {
+        SettingsInfoRow(
+            label = stringResource(R.string.settings_version),
+            hint = version ?: stringResource(R.string.settings_site_support_bundled),
+        )
+        Column(Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
+            Text(stringResource(R.string.settings_update_channel), style = MaterialTheme.typography.bodyMedium)
             Row(
-                Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.padding(top = Spacing.s8),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
             ) {
-                Text(
-                    "yt-dlp update channel",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    enabled = !updating,
-                    onClick = {
-                        updating = true
-                        result = null
-                        scope.launch {
-                            when (val r = EngineUpdater.update(context, channel)) {
-                                is UpdateResult.Updated -> {
-                                    version = r.version ?: version
-                                    result = "Updated."
-                                }
-                                is UpdateResult.AlreadyCurrent -> result = "Already up to date."
-                                is UpdateResult.Failed -> result = r.reason
-                            }
-                            updating = false
-                        }
-                    },
-                ) { Text("Update yt-dlp") }
-                if (updating) {
-                    CircularProgressIndicator(modifier = Modifier.padding(start = 8.dp).size(16.dp))
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 EngineChannel.entries.forEach { c ->
                     FilterChip(selected = c == channel, onClick = { channel = c }, label = { Text(c.label) })
                 }
             }
-            result?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                enabled = !updating,
+                onClick = {
+                    updating = true
+                    result = null
+                    scope.launch {
+                        when (val r = EngineUpdater.update(context, channel)) {
+                            is UpdateResult.Updated -> {
+                                version = r.version ?: version
+                                result = updatedMessage
+                            }
+                            is UpdateResult.AlreadyCurrent -> result = alreadyCurrentMessage
+                            is UpdateResult.Failed -> result = r.reason
+                        }
+                        updating = false
+                    }
+                },
+            ) { Text(stringResource(R.string.settings_site_support_update)) }
+            if (updating) {
+                CircularProgressIndicator(modifier = Modifier.padding(start = Spacing.s8).size(Sizes.iconSmall))
             }
-            lastChecked?.let {
-                Text(
-                    "Last checked: ${DateFormat.getDateTimeInstance().format(Date(it))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            if (crash != null) {
-                Row(
-                    Modifier.padding(top = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Last crash", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { showCrash = true }) { Text("View") }
-                }
-            }
-            if (playbackLog != null) {
-                Row(
-                    Modifier.padding(top = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Playback log (recent timings and error types, no links)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = { showPlaybackLog = true }) { Text("View") }
-                }
-            }
+        }
+        result?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
+            )
+        }
+        lastChecked?.let {
+            Text(
+                stringResource(R.string.settings_site_support_last_checked, DateFormat.getDateTimeInstance().format(Date(it))),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
+            )
+        }
+        if (crash != null) {
+            SettingsInfoRow(
+                label = stringResource(R.string.settings_crash_report),
+                hint = null,
+                actionLabel = stringResource(R.string.settings_view),
+                onAction = { showCrash = true },
+            )
+        }
+        if (playbackLog != null) {
+            SettingsInfoRow(
+                label = stringResource(R.string.settings_playback_report),
+                hint = stringResource(R.string.settings_playback_report_hint),
+                actionLabel = stringResource(R.string.settings_view),
+                onAction = { showPlaybackLog = true },
+            )
         }
     }
 
     if (showPlaybackLog) {
         val text = playbackLog.orEmpty()
-        AlertDialog(
-            onDismissRequest = { showPlaybackLog = false },
-            title = { Text("Playback log") },
-            text = {
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
-                )
+        val clipLabel = stringResource(R.string.settings_playback_report)
+        ReportDialog(
+            title = clipLabel,
+            text = text,
+            onCopy = {
+                context.getSystemService<ClipboardManager>()?.setPrimaryClip(ClipData.newPlainText(clipLabel, text))
+                showPlaybackLog = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    context.getSystemService<ClipboardManager>()
-                        ?.setPrimaryClip(ClipData.newPlainText("Playback log", text))
-                    showPlaybackLog = false
-                }) { Text("Copy") }
+            onClear = {
+                DiagLog.clear(context)
+                playbackLog = null
+                showPlaybackLog = false
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    DiagLog.clear(context)
-                    playbackLog = null
-                    showPlaybackLog = false
-                }) { Text("Clear") }
-            },
+            onDismiss = { showPlaybackLog = false },
         )
     }
 
     if (showCrash) {
         val text = crash.orEmpty()
-        AlertDialog(
-            onDismissRequest = { showCrash = false },
-            title = { Text("Last crash") },
-            text = {
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
-                )
+        val clipLabel = stringResource(R.string.settings_crash_report)
+        ReportDialog(
+            title = clipLabel,
+            text = text,
+            onCopy = {
+                context.getSystemService<ClipboardManager>()?.setPrimaryClip(ClipData.newPlainText(clipLabel, text))
+                showCrash = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    context.getSystemService<ClipboardManager>()
-                        ?.setPrimaryClip(ClipData.newPlainText("Crash log", text))
-                    showCrash = false
-                }) { Text("Copy") }
+            onClear = {
+                CrashLog.clear(context)
+                crash = null
+                showCrash = false
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    CrashLog.clear(context)
-                    crash = null
-                    showCrash = false
-                }) { Text("Clear") }
-            },
+            onDismiss = { showCrash = false },
         )
     }
+}
+
+/** One settings row with an optional hint and an optional trailing text action. */
+@Composable
+private fun SettingsInfoRow(label: String, hint: String?, actionLabel: String? = null, onAction: () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SettingsLabel(label, hint, Modifier.weight(1f))
+        if (actionLabel != null) {
+            TextButton(onClick = onAction) { Text(actionLabel) }
+        }
+    }
+}
+
+/** A scrollable plain-text report with Copy and Clear. */
+@Composable
+private fun ReportDialog(title: String, text: String, onCopy: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall,
+                // No height token fits a text pane; the sheet width token is the closest 320 dp.
+                modifier = Modifier.heightIn(max = Sizes.sheetMaxWidth).verticalScroll(rememberScrollState()),
+            )
+        },
+        confirmButton = { TextButton(onClick = onCopy) { Text(stringResource(R.string.settings_copy)) } },
+        dismissButton = { TextButton(onClick = onClear) { Text(stringResource(R.string.action_clear)) } },
+    )
 }

@@ -27,17 +27,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.Sizes
 import androidx.media3.ui.AspectRatioFrameLayout
 import com.fyiplayer.app.core.VideoRef
-
-private val MINI_BAR_HEIGHT = 66.dp
-private val MINI_THUMB_WIDTH = 106.dp
-private val MINI_THUMB_HEIGHT = 60.dp
-private val MINI_PROGRESS_HEIGHT: Dp = 2.dp
 
 /**
  * The docked mini player: the live shared surface (moved here, not rebuilt — see
@@ -53,29 +50,33 @@ fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
     val state by PlaybackSession.state.collectAsState()
     val ref = state.current ?: return
 
-    val position = queuePositionLabel(state.queueSize, state.index)
+    val position = if (state.queueSize > 1) {
+        stringResource(R.string.player_queue_position, state.index + 1, state.queueSize)
+    } else {
+        null
+    }
     val sourceLabel = ref.sourceId.uppercase()
 
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 3.dp, modifier = modifier.fillMaxWidth()) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 4.dp, modifier = modifier.fillMaxWidth()) {
         Box {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(MINI_BAR_HEIGHT)
-                    .clickable(onClickLabel = "Open player") { onOpen(ref) }
+                    .height(Sizes.miniPlayer)
+                    .clickable(onClickLabel = stringResource(R.string.player_open)) { onOpen(ref) }
                     .padding(end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     Modifier
-                        .padding(3.dp)
-                        .size(MINI_THUMB_WIDTH, MINI_THUMB_HEIGHT)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Black),
+                        .padding(4.dp)
+                        .size(Sizes.miniThumbWidth, Sizes.miniThumbHeight)
+                        .clip(RoundedCornerShape(Radius.xs))
+                        .background(MaterialTheme.colorScheme.scrim),
                 ) {
                     SharedVideoSurface(
                         player = PlaybackSession.exoPlayer,
-                        // ZOOM, not FIT: a 106x60 box with letterbox bars either side reads as
+                        // ZOOM, not FIT: a 96x54 box with letterbox bars either side reads as
                         // broken, and the thumb is a glance target, not a viewing surface.
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
                         modifier = Modifier.fillMaxSize(),
@@ -85,21 +86,21 @@ fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
                     Text(ref.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     MiniPlayerSubtitle(position, sourceLabel)
                 }
-                IconButton(onClick = { PlaybackSession.togglePlayPause() }, modifier = Modifier.size(48.dp)) {
+                IconButton(onClick = { PlaybackSession.togglePlayPause() }, modifier = Modifier.size(Sizes.touchTarget)) {
                     if (state.isPlaying) {
-                        PauseGlyph(tint = MaterialTheme.colorScheme.onSurface, size = 20.dp)
+                        PauseGlyph(tint = MaterialTheme.colorScheme.onSurface, size = Sizes.icon)
                     } else {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play")
+                        Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.action_play))
                     }
                 }
                 // Skip-next only exists when there is somewhere to skip to.
                 if (state.queueSize > 1) {
-                    IconButton(onClick = { PlaybackSession.skipNext() }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "Next in queue")
+                    IconButton(onClick = { PlaybackSession.skipNext() }, modifier = Modifier.size(Sizes.touchTarget)) {
+                        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.player_next_video))
                     }
                 }
-                IconButton(onClick = { PlaybackSession.clear() }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Stop playback")
+                IconButton(onClick = { PlaybackSession.clear() }, modifier = Modifier.size(Sizes.touchTarget)) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.player_stop))
                 }
             }
             MiniPlayerProgressBar(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth())
@@ -130,7 +131,7 @@ private fun MiniPlayerProgressBar(modifier: Modifier = Modifier) {
     val fraction = if (progress.durationMs > 0) (progress.positionMs.toFloat() / progress.durationMs).coerceIn(0f, 1f) else 0f
     Box(
         modifier
-            .height(MINI_PROGRESS_HEIGHT)
+            .height(Sizes.progressThin)
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(MaterialTheme.colorScheme.primary))

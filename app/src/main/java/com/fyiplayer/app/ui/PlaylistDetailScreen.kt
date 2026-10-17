@@ -39,6 +39,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PlaylistRepository
@@ -56,7 +61,7 @@ import kotlinx.coroutines.launch
 fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: () -> Unit = {}) {
     val playlistId = remember(id) { id.toLongOrNull() }
     if (playlistId == null) {
-        LibraryEmptyState("Playlist not found", "No playlist id $id.")
+        LibraryEmptyState(stringResource(R.string.playlist_not_found), stringResource(R.string.playlist_not_found_hint))
         return
     }
 
@@ -64,6 +69,8 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
     val context = LocalContext.current
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val scope = rememberCoroutineScope()
+    val defaultTitle = stringResource(R.string.library_playlist_default_title)
+    val renameFailedMessage = stringResource(R.string.library_rename_failed)
 
     // One-shot fetch: the route carries only the id, so unlike the other screens' nav args this
     // title isn't already on hand. Kept up to date locally after a rename instead of re-querying.
@@ -92,7 +99,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                             selection = emptySet()
                             scope.launch { urls.forEach { playlists.removeItem(playlistId, it) } }
                         }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Remove from playlist", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.playlist_remove_item), tint = MaterialTheme.colorScheme.error)
                         }
                     },
                 )
@@ -101,23 +108,23 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                 // one to, and a tappable icon that does nothing would be worse than none. System
                 // back/gesture already pops this destination via Navigation-Compose's own handling.
                 TopAppBar(
-                    title = { Text(name ?: "Playlist", maxLines = 1) },
+                    title = { Text(name ?: defaultTitle, maxLines = 1) },
                     actions = {
                         Box {
-                            IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                            IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more)) }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
                                     // No remote URL for a locally created playlist -- share its
                                     // title plus one canonical video page URL per line instead.
-                                    text = { Text("Share") },
-                                    onClick = { menuOpen = false; sharePlaylist(context, name ?: "Playlist", pageUrl = null, videoUrls = videos.map { it.pageUrl }) },
+                                    text = { Text(stringResource(R.string.action_share)) },
+                                    onClick = { menuOpen = false; sharePlaylist(context, name ?: defaultTitle, pageUrl = null, videoUrls = videos.map { it.pageUrl }) },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Rename") },
+                                    text = { Text(stringResource(R.string.library_rename)) },
                                     onClick = { menuOpen = false; renaming = true },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Delete playlist") },
+                                    text = { Text(stringResource(R.string.library_delete_playlist_title)) },
                                     onClick = { menuOpen = false; confirmingDelete = true },
                                 )
                             }
@@ -139,27 +146,27 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (!selecting && videos.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "${videos.size} videos",
+                        pluralStringResource(R.plurals.library_video_count, videos.size, videos.size),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(onClick = { PlaybackSession.play(videos, 0) }, contentPadding = PaddingValues(horizontal = 14.dp)) { Text("Play all") }
+                    Button(onClick = { PlaybackSession.play(videos, 0) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
                     OutlinedButton(
                         onClick = { PlaybackSession.play(videos.shuffled(), 0) },
-                        contentPadding = PaddingValues(horizontal = 14.dp),
-                        modifier = Modifier.padding(start = 8.dp),
-                    ) { Text("Shuffle") }
+                        contentPadding = PaddingValues(horizontal = Spacing.s16),
+                        modifier = Modifier.padding(start = Spacing.s8),
+                    ) { Text(stringResource(R.string.playlist_shuffle)) }
                 }
             }
             when {
                 items == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                videos.isEmpty() -> LibraryEmptyState("No videos in this playlist yet", "Add one from a video's long-press menu.")
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) 88.dp else 0.dp)) {
+                videos.isEmpty() -> LibraryEmptyState(stringResource(R.string.playlist_empty), stringResource(R.string.playlist_empty_hint))
+                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) Sizes.fab + Spacing.s32 else 0.dp)) {
                     itemsIndexed(videos, key = { _, ref -> ref.pageUrl }) { index, ref ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
@@ -179,11 +186,11 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                                     IconButton(
                                         onClick = { scope.launch { reorder(playlists, playlistId, videos, index, -1) } },
                                         enabled = index > 0,
-                                    ) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move up") }
+                                    ) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.playlist_move_up)) }
                                     IconButton(
                                         onClick = { scope.launch { reorder(playlists, playlistId, videos, index, 1) } },
                                         enabled = index < videos.lastIndex,
-                                    ) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move down") }
+                                    ) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.playlist_move_down)) }
                                 }
                             }
                         }
@@ -195,13 +202,13 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
 
     if (renaming) {
         NamePromptDialog(
-            title = "Rename playlist",
+            title = stringResource(R.string.library_rename_title),
             initial = name.orEmpty(),
             onConfirm = { newName ->
                 scope.launch {
                     runCatching { playlists.rename(playlistId, newName) }
                         .onSuccess { name = newName }
-                        .onFailure { showToast(context, "Couldn't rename -- that name may already be used") }
+                        .onFailure { showToast(context, renameFailedMessage) }
                 }
                 renaming = false
             },
@@ -210,8 +217,9 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
     }
     if (confirmingDelete) {
         ConfirmDialog(
-            title = "Delete playlist \"${name ?: "Playlist"}\"?",
-            confirmLabel = "Delete",
+            title = stringResource(R.string.library_delete_playlist_title),
+            body = stringResource(R.string.library_delete_playlist_body, name ?: defaultTitle),
+            confirmLabel = stringResource(R.string.action_delete),
             onConfirm = {
                 confirmingDelete = false
                 scope.launch {

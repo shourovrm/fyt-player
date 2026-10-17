@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.ui.theme.Sizes
 
 /** Each arrow is two polylines (shaft, then head); points are (x, y) fractions of the square. */
 private val UPPER_ARROW = listOf(
@@ -25,7 +26,7 @@ private val LOWER_ARROW = listOf(
 /** Two arrows chasing each other round a rectangle (the usual "repeat" mark). Hand-drawn because
  *  material-icons-core has no Repeat glyph. */
 @Composable
-fun RepeatGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
+fun RepeatGlyph(tint: Color, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.size(size)) {
         val side = this.size.width
         val path = Path()
@@ -34,6 +35,6 @@ fun RepeatGlyph(tint: Color, size: Dp = 20.dp, modifier: Modifier = Modifier) {
                 if (index == 0) path.moveTo(x * side, y * side) else path.lineTo(x * side, y * side)
             }
         }
-        drawPath(path, tint, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(path, tint, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }

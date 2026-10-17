@@ -15,6 +15,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.player.PlaybackSession
@@ -54,26 +56,28 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                         IconButton(onClick = {
                             selectedInOrder(vm.items, selection).forEach { PlaybackSession.enqueue(it) }
                             selection = emptySet()
-                        }) { Icon(Icons.Filled.Add, contentDescription = "Add selected to queue") }
+                        }) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add_to_queue)) }
                     },
                 )
             } else {
                 val context = LocalContext.current
+                val titleFallback = stringResource(R.string.listing_title_fallback)
+                val followedMessage = stringResource(R.string.listing_followed)
                 TopAppBar(
-                    title = { Text(listing.title.ifBlank { vm.resolvedTitle ?: "Listing" }, maxLines = 1) },
-                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
+                    title = { Text(listing.title.ifBlank { vm.resolvedTitle ?: titleFallback }, maxLines = 1) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } },
                     actions = {
                         if (listing.kind == Listing.Kind.PLAYLIST) {
-                            IconButton(onClick = { sharePlaylist(context, listing.title.ifBlank { vm.resolvedTitle ?: "Playlist" }, listing.key) }) {
-                                Icon(Icons.Filled.Share, contentDescription = "Share playlist")
+                            IconButton(onClick = { sharePlaylist(context, listing.title.ifBlank { vm.resolvedTitle ?: titleFallback }, listing.key) }) {
+                                Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.listing_share_playlist))
                             }
-                            IconButton(onClick = { vm.follow(listing); showToast(context, "Added to playlists") }) {
-                                Icon(Icons.Filled.Add, contentDescription = "Add to playlists")
+                            IconButton(onClick = { vm.follow(listing); showToast(context, followedMessage) }) {
+                                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_follow_playlist))
                             }
                         }
                         if (vm.items.isNotEmpty()) {
                             IconButton(onClick = { PlaybackSession.play(vm.items, 0) }) {
-                                Icon(Icons.Filled.PlayArrow, contentDescription = "Play all")
+                                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                             }
                         }
                     },
@@ -92,11 +96,11 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
     ) { padding ->
         if (vm.items.isEmpty() && vm.loading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.state_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else if (vm.items.isEmpty() && vm.error == null) {
             // Loaded fine, nothing in it: say so instead of a blank screen.
-            Box(Modifier.fillMaxSize().padding(padding)) { EmptyStateScreen("No videos", "This playlist has no videos.") }
+            Box(Modifier.fillMaxSize().padding(padding)) { EmptyStateScreen(stringResource(R.string.channel_empty_videos_title), stringResource(R.string.listing_empty_message)) }
         } else {
             val errors = vm.error?.let {
                 listOf(ErrorRow(listing.title, it, onRetry = if (vm.blocked) null else { { vm.retry(listing) } }))

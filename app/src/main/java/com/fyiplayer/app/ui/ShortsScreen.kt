@@ -9,7 +9,10 @@ import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.res.stringResource
+import com.fyiplayer.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -83,8 +85,8 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
     val feed = vm.feed
     when {
         sources.isEmpty() -> EmptyStateScreen(
-            title = "Shorts",
-            message = "Enable a source in Settings to start browsing.",
+            title = stringResource(R.string.shorts_title),
+            message = stringResource(R.string.home_no_sources),
         )
         // Items first: the pager is the ONLY branch that may reach ShortsPager, so it can never be
         // composed with an empty list (rememberPagerState would coerce into an empty range).
@@ -129,22 +131,21 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
         }
         // Onboarding, not an error: nothing has gone wrong, there's just nothing to build a feed from yet.
         feed.loaded && !feed.hasSubscriptions -> EmptyStateScreen(
-            title = "Shorts",
-            message = "Your Shorts feed is built from the channels you subscribe to. Subscribe to a channel to see its shorts here.",
+            title = stringResource(R.string.shorts_title),
+            message = stringResource(R.string.shorts_empty_no_subscriptions),
         )
         // A fetch failure is NOT evidence that a channel posts no shorts — say which happened.
         feed.loaded && feed.items.isEmpty() && feed.failedChannels > 0 -> EmptyStateScreen(
-            title = "Shorts",
+            title = stringResource(R.string.shorts_title),
             message = if (feed.channelsWithoutShorts == 0) {
-                "Couldn't load shorts from your subscriptions. Check your connection and try again."
+                stringResource(R.string.shorts_failed_all)
             } else {
-                "Couldn't load shorts from ${feed.failedChannels} of your subscriptions. " +
-                    "The rest post no shorts."
+                stringResource(R.string.shorts_failed_some, feed.failedChannels)
             },
         )
         else -> EmptyStateScreen(
-            title = "Shorts",
-            message = "None of your subscribed channels post Shorts.",
+            title = stringResource(R.string.shorts_title),
+            message = stringResource(R.string.shorts_empty_none_posted),
         )
     }
 
@@ -244,7 +245,7 @@ internal fun ShortsPager(
     // dropped its queued frames -- the ~0.5s black gap between clips. Pages are overlays now:
     // the active page is transparent so the video shows through, inactive pages draw their
     // thumbnail over it and slide across during the swipe.
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim)) {
         SharedVideoSurface(
             player = PlaybackSession.exoPlayer,
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,

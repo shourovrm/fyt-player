@@ -111,7 +111,7 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
     private fun loadSimilar(source: VideoSource?, ref: VideoRef, related: List<VideoRef>) {
         similarJob?.cancel()
         if (source == null) {
-            similarError = ExtractionError.Unsupported("No source for this video")
+            similarError = ExtractionError.Unsupported("This site is not supported yet.")
             similarLoadedFor = null
             return
         }
@@ -162,7 +162,7 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
                 similarBlocked = e is ExtractionError.AccessChallenge
                 similarLoadedFor = null // retry must actually refetch
             } catch (e: Exception) {
-                similarError = ExtractionError.Unsupported("Search failed")
+                similarError = ExtractionError.Unsupported("Similar videos failed to load. Try again.")
                 similarLoadedFor = null
             }
             similarLoading = false
@@ -179,7 +179,7 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
     private fun loadComments(source: VideoSource?, ref: VideoRef) {
         commentsJob?.cancel()
         if (source == null || !source.providesComments) {
-            commentsError = ExtractionError.Unsupported("No comments for this source")
+            commentsError = ExtractionError.Unsupported("This site has no comments.")
             commentsLoadedFor = null
             return
         }
@@ -199,7 +199,7 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
                 commentsBlocked = e is ExtractionError.AccessChallenge
                 commentsLoadedFor = null
             } catch (e: Exception) {
-                commentsError = ExtractionError.Unsupported("comment loading failed")
+                commentsError = ExtractionError.Unsupported("Comments failed to load. Try again.")
                 commentsLoadedFor = null
             }
             commentsLoading = false

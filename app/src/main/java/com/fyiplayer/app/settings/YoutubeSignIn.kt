@@ -1,22 +1,24 @@
 package com.fyiplayer.app.settings
-
 import android.content.Intent
 import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.R
 import com.fyiplayer.app.YoutubeLoginActivity
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
+import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
  * Returns a function that opens the YouTube sign-in screen and calls [onSignedIn] once a session
@@ -47,10 +49,12 @@ fun rememberYoutubeSignIn(onSignedIn: () -> Unit): (fresh: Boolean) -> Unit {
 fun WallSignInButton(onSignedIn: () -> Unit, modifier: Modifier = Modifier) {
     val loggedIn by YoutubeAuth.isLoggedIn.collectAsState()
     val signIn = rememberYoutubeSignIn(onSignedIn)
+    // Sits over the player, so it is onVideo on the scrim rather than a theme surface colour.
+    val extras = MaterialTheme.fyiExtras
     OutlinedButton(
         onClick = { signIn(loggedIn) },
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.onVideo),
+        border = BorderStroke(1.dp, extras.onVideoDim),
         modifier = modifier,
-    ) { Text(if (loggedIn) "Sign in again" else "Sign in") }
+    ) { Text(stringResource(if (loggedIn) R.string.settings_sign_in_again else R.string.settings_sign_in)) }
 }
