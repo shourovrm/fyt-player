@@ -6,7 +6,7 @@
 rootProject.name only. applicationId stays `com.fyiplayer.app` (a new id = a new app on Android,
 no in-place update, all local data lost). README.md added; repo public at github.com/shourovrm/fyt-player.
 
-Signed arm64-v8a release APK builds; 203 JVM unit tests green. Compose + Material 3, single Activity.
+Signed arm64-v8a release APK builds; 495 JVM unit tests green (v0.2.26). Compose + Material 3, single Activity.
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only

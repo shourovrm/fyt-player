@@ -12,6 +12,9 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- v0.2.26 (Material 3 rebuild, every string moved to resources) released UNverified on device:
+  no device was attached. First device run: install clean, walk Home/Detail/player More menu/
+  Downloads/Settings at font scale 1.0 and 1.3; see ui.md newest entry for what changed.
 - Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
 - v0.2.25 (segment-start resume) is RELEASED and installed on the A059 but its new path has
@@ -23,6 +26,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - Device-unverified backlog (v0.2.2 / v0.2.3 items, shorts "all caught up" footer, SponsorBlock skip): build.md, shorts.md, playback.md "Open items".
 
 ## Gotchas (cross-cutting)
+- UI spec = `docs/design-system.md`, copy = `docs/copy.md`; gate tests fail on raw dp/sp/colour
+  and on string literals in composables. System JDK is corrupt: `JAVA_HOME=~/.gradle/jdks/temurin-21`.
 - Switching the extractor checkout's branch does NOT invalidate Gradle's composite-build output:
   incremental builds kept the old jar (false green on v5.3.1). Always `./gradlew clean` after it.
 - Release verification = `adb uninstall` then `adb install`; `install -r` over old data skips yt-dlp python unzip and hides R8 first-run crashes.
