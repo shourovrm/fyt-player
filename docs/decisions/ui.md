@@ -2,6 +2,10 @@
 
 ## Current state
 
+2026-10-18: `docs/design-system.md` (Material 3) is the UI spec; audit found 446 raw dp /
+54 distinct values, 5 raw sp, ~190 Kotlin string literals, icon buttons at 32-44 dp. Gate test,
+copy pass (`docs/copy.md`) and per-page rebuild NOT started: run `/design-system spec`.
+
 2026-10-07 DEVICE-VERIFIED (v0.2.24): Settings has SponsorBlock (8 categories x 3 modes),
 Video page (dislike opt-in), Downloads without "File format", "Clear watch and search
 history", Playback log row. Search: type chips work (Channels returns channels), sort chips
