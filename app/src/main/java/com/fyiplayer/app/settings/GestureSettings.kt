@@ -19,13 +19,11 @@ fun GestureSettings(prefs: Prefs) {
     SettingsSection(stringResource(R.string.settings_gestures)) {
         SettingsSwitchRow(
             label = stringResource(R.string.settings_gesture_brightness),
-            hint = stringResource(R.string.settings_gesture_brightness_hint),
             checked = brightness,
             onCheckedChange = { scope.launch { prefs.setGestureBrightness(it) } },
         )
         SettingsSwitchRow(
             label = stringResource(R.string.settings_gesture_volume),
-            hint = stringResource(R.string.settings_gesture_volume_hint),
             checked = volume,
             onCheckedChange = { scope.launch { prefs.setGestureVolume(it) } },
         )

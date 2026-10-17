@@ -23,8 +23,8 @@ android {
         applicationId = "com.fyiplayer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.2.26"
+        versionCode = 29
+        versionName = "0.2.27"
         // single sideload APK: arm64-v8a only, keeps the python/ffmpeg payload from tripling size
         ndk { abiFilters += "arm64-v8a" }
     }

@@ -46,7 +46,7 @@ fun AppSettings() {
     val context = LocalContext.current
     var check by remember { mutableStateOf<CheckState>(CheckState.Idle) }
     val downloadingMessage = stringResource(R.string.settings_update_downloading)
-    SettingsSection(stringResource(R.string.settings_about)) {
+    SettingsSection(null) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin),
             verticalAlignment = Alignment.CenterVertically,

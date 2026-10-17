@@ -222,7 +222,6 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
         val count = vm.selection.size
         ConfirmDialog(
             title = pluralStringResource(R.plurals.library_unsubscribe_title, count, count),
-            body = pluralStringResource(R.plurals.library_unsubscribe_body, count),
             confirmLabel = stringResource(R.string.action_unsubscribe),
             onConfirm = {
                 val urls = vm.selection
@@ -237,7 +236,6 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
         val count = vm.selection.size
         ConfirmDialog(
             title = pluralStringResource(R.plurals.library_unfollow_title, count, count),
-            body = pluralStringResource(R.plurals.library_unfollow_body, count),
             confirmLabel = stringResource(R.string.library_unfollow),
             onConfirm = {
                 val urls = vm.selection
@@ -265,7 +263,7 @@ internal fun ConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { if (body.isNotEmpty()) Text(body) },
+        text = if (body.isNotEmpty()) ({ Text(body) }) else null,
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel, color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
@@ -340,7 +338,7 @@ private fun PlaylistsTab(
         val list = rows
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_playlists_empty), stringResource(R.string.library_playlists_empty_hint))
+            list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_playlists_empty))
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { it.key }) { row ->
                     when (row) {
@@ -462,7 +460,6 @@ private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: 
     if (confirmingDelete) {
         ConfirmDialog(
             title = stringResource(R.string.library_delete_playlist_title),
-            body = stringResource(R.string.library_delete_playlist_body, card.name),
             confirmLabel = stringResource(R.string.action_delete),
             onConfirm = { confirmingDelete = false; onDelete() },
             onDismiss = { confirmingDelete = false },
@@ -516,7 +513,7 @@ private fun ChannelsTab(
     onToggleShowInFeed: (SubscriptionRow) -> Unit,
 ) {
     if (channels.isEmpty()) {
-        LibraryEmptyState(stringResource(R.string.library_channels_empty), stringResource(R.string.library_channels_empty_hint))
+        LibraryEmptyState(stringResource(R.string.library_channels_empty))
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
@@ -629,10 +626,7 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
         val list = entries
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            list.isEmpty() -> LibraryEmptyState(
-                stringResource(R.string.library_history_empty),
-                stringResource(if (recording) R.string.library_history_empty_hint else R.string.library_history_off_hint),
-            )
+            list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_history_empty))
             else -> {
                 Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.library_clear_history)) }
@@ -657,7 +651,7 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
 }
 
 @Composable
-internal fun LibraryEmptyState(title: String, body: String) {
+internal fun LibraryEmptyState(title: String, body: String = "") {
     Column(
         Modifier.fillMaxSize().padding(horizontal = Spacing.s40),
         horizontalAlignment = Alignment.CenterHorizontally,

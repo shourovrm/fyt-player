@@ -44,7 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -178,21 +177,13 @@ private fun DownloadsEmptyState() {
         }
         Spacer(Modifier.height(Spacing.s16))
         Text(stringResource(R.string.downloads_empty_title), style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(Spacing.s8))
-        Text(
-            stringResource(R.string.downloads_empty_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
 @Composable
 private fun removeBody(totalBytes: Long, fileCount: Int): String {
-    val choices = pluralStringResource(R.plurals.downloads_remove_body, fileCount)
-    if (totalBytes <= 0) return choices
-    return choices + " " + stringResource(R.string.downloads_remove_frees, formatBytes(totalBytes))
+    if (totalBytes <= 0) return pluralStringResource(R.plurals.downloads_remove_body, fileCount)
+    return stringResource(R.string.downloads_remove_frees, formatBytes(totalBytes))
 }
 
 /**

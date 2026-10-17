@@ -131,21 +131,18 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
         }
         // Onboarding, not an error: nothing has gone wrong, there's just nothing to build a feed from yet.
         feed.loaded && !feed.hasSubscriptions -> EmptyStateScreen(
-            title = stringResource(R.string.shorts_title),
-            message = stringResource(R.string.shorts_empty_no_subscriptions),
+            title = stringResource(R.string.shorts_empty_no_subscriptions),
         )
         // A fetch failure is NOT evidence that a channel posts no shorts — say which happened.
         feed.loaded && feed.items.isEmpty() && feed.failedChannels > 0 -> EmptyStateScreen(
-            title = stringResource(R.string.shorts_title),
-            message = if (feed.channelsWithoutShorts == 0) {
+            title = if (feed.channelsWithoutShorts == 0) {
                 stringResource(R.string.shorts_failed_all)
             } else {
                 stringResource(R.string.shorts_failed_some, feed.failedChannels)
             },
         )
         else -> EmptyStateScreen(
-            title = stringResource(R.string.shorts_title),
-            message = stringResource(R.string.shorts_empty_none_posted),
+            title = stringResource(R.string.shorts_empty_no_subscriptions),
         )
     }
 

@@ -45,7 +45,7 @@ fun DownloadSettings(prefs: Prefs) {
         scope.launch { prefs.setDownloadTreeUri(uri.toString()) }
     }
 
-    SettingsSection(stringResource(R.string.settings_downloads)) {
+    SettingsSection(null) {
         val appStorageLabel = stringResource(R.string.settings_download_folder_default)
         Row(
             Modifier.fillMaxWidth().heightIn(min = Sizes.listOneLine).padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
@@ -60,7 +60,7 @@ fun DownloadSettings(prefs: Prefs) {
     }
 }
 
-private fun prettyTreeUri(uri: String?, defaultLabel: String): String {
+internal fun prettyTreeUri(uri: String?, defaultLabel: String): String {
     if (uri == null) return defaultLabel
     return Uri.decode(Uri.parse(uri).lastPathSegment ?: uri)
 }

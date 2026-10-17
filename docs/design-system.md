@@ -63,9 +63,15 @@ Comments) of 72 dp rows. Primary action: Download.
 
 ## Layout of the Settings page
 
-Sections of 56 dp one-line rows (bodyMedium label, bodySmall hint beneath only where the label
-is not enough, switch trailing). Section header labelLarge in primary with 16 dp margin.
-Destructive rows (clear history, sign out) use error text and a confirm dialog.
+Hub and spoke. The hub is eight 72 dp two-line rows (leading icon 24 dp, headline bodyLarge,
+supporting bodySmall = the current value in words, trailing chevron): Account, Content, Playback,
+Skipping, Downloads, History, Backup, About. Each opens its own page under a 64 dp top app bar
+with a back arrow and titleLarge title; the bottom nav stays. On a page: 56 dp one-line rows
+(bodyMedium label, switch or value trailing), sub-groups under a labelLarge header in primary
+only where a page joins more than one concern. A choice of up to three values is a trailing
+value that opens a menu; a choice from a list is a value row that opens a radio dialog; chips
+are for filters on content pages, never for settings. Destructive rows use error text and a
+confirm dialog.
 
 ## Layout of the Player chrome
 

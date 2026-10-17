@@ -75,7 +75,7 @@ fun BackupSettings() {
         }
     }
 
-    SettingsSection(stringResource(R.string.settings_backup)) {
+    SettingsSection(null) {
         Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp)) {
             TextButton(onClick = { exportLauncher.launch("fyt-player-backup.html") }) { Text(stringResource(R.string.settings_backup_export)) }
             TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.settings_backup_import)) }

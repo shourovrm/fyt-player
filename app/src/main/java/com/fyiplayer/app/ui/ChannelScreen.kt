@@ -280,7 +280,7 @@ private fun VideoTabBody(
     }
     // A finished load with nothing in it and no error is a real empty tab, not a blank screen.
     if (state.loaded && state.items.isEmpty() && state.error == null) {
-        EmptyStateScreen(stringResource(R.string.channel_empty_videos_title), stringResource(R.string.channel_empty_videos_message))
+        EmptyStateScreen(stringResource(R.string.channel_empty_videos_title))
         return
     }
     val channelErrorName = stringResource(R.string.channel_error_source)
@@ -375,10 +375,7 @@ private fun ChannelSearchBody(
                 CircularProgressIndicator()
             }
             !state.loaded -> Unit
-            state.items.isEmpty() && state.error == null -> EmptyStateScreen(
-                stringResource(R.string.channel_search_empty_title, vm.searchQuery),
-                stringResource(R.string.channel_search_empty_message),
-            )
+            state.items.isEmpty() && state.error == null -> EmptyStateScreen(stringResource(R.string.channel_search_empty_title, vm.searchQuery))
             else -> {
                 val errors = state.error?.let {
                     listOf(ErrorRow(searchErrorName, it, onRetry = if (state.blocked) null else { { vm.retrySearch(listing) } }))

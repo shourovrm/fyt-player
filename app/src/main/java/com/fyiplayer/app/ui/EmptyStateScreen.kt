@@ -21,7 +21,7 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  * rows — filler boxes read as broken loading, not as emptiness.
  */
 @Composable
-fun EmptyStateScreen(title: String, message: String) {
+fun EmptyStateScreen(title: String, message: String = "") {
     Column(
         Modifier
             .fillMaxSize()
@@ -31,7 +31,7 @@ fun EmptyStateScreen(title: String, message: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
-        Text(
+        if (message.isNotEmpty()) Text(
             message,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.fyiExtras.ink3,
