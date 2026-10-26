@@ -62,7 +62,7 @@ class ShortsFeedTest {
         assertEquals(ChannelFetchOutcome.Failed, result)
     }
 
-    // Uncapped on purpose: the ViewModel shows FEED_ITEMS_PER_CHANNEL and buffers the rest, so a
+    // Uncapped on purpose: the ViewModel shows SHORTS_ITEMS_PER_CHANNEL and buffers the rest, so a
     // cap here would silently throw away the channel's first page beyond the first round.
     @Test fun `fetchChannelShorts excludes watched, keeps the rest and the continuation`() = runBlocking {
         val page = SearchPage(items = (1..(FEED_ITEMS_PER_CHANNEL + 5)).map { ref("s$it") }, nextPage = "tok")
@@ -71,6 +71,29 @@ class ShortsFeedTest {
         assertEquals(FEED_ITEMS_PER_CHANNEL + 4, result.items.size)
         assertTrue(result.items.none { it.pageUrl == ref("s1").pageUrl })
         assertEquals("tok", result.nextPage)
+    }
+
+    @Test fun `shuffledPool keeps every clip once and drops duplicates`() {
+        val a = listOf(ref("a1"), ref("a2"), ref("a3"), ref("a4"))
+        val b = listOf(ref("a1"), ref("b1"))
+        val pool = shuffledPool(listOf(a, b), HashMap(), kotlin.random.Random(7))
+        assertEquals(setOf("a1", "a2", "a3", "a4", "b1").map { ref(it).pageUrl }.toSet(), pool.map { it.pageUrl }.toSet())
+        assertEquals(5, pool.size)
+    }
+
+    @Test fun `shuffledPool is not channel-ordered`() {
+        val channels = (1..6).map { c -> (1..4).map { ref("c${c}_$it") } }
+        val pool = shuffledPool(channels, HashMap(), kotlin.random.Random(3))
+        assertTrue(pool != channels.flatten())
+        assertTrue(pool != interleave(channels))
+    }
+
+    @Test fun `shuffledPool keeps shown clips in order when more channels arrive`() {
+        val keys = HashMap<String, Double>()
+        val random = kotlin.random.Random(11)
+        val first = shuffledPool(listOf((1..4).map { ref("x$it") }), keys, random)
+        val grown = shuffledPool(listOf((1..4).map { ref("x$it") }, (1..4).map { ref("y$it") }), keys, random)
+        assertEquals(first, grown.filter { it in first })
     }
 
     private fun cursor(buffer: List<VideoRef> = emptyList(), nextPage: String? = null, exhausted: Boolean = false) =

@@ -10,8 +10,7 @@ import kotlinx.coroutines.CancellationException
  * The Shorts feed is the union of the shorts tabs of the channels a user subscribes to -- YouTube
  * publishes no global shorts feed (source/youtube/YoutubeSource.kt), so this composes one here at
  * the UI layer exactly like [HomeFeed.kt] composes Home's feed from watch history.
- * interleave/excludeWatched/FEED_ITEMS_PER_CHANNEL already live in HomeFeed.kt (same
- * package) and are reused as-is rather than duplicated.
+ * excludeWatched already lives in HomeFeed.kt (same package) and is reused as-is.
  */
 
 /** [loading] true while at least one channel's fetch is still in flight -- items fill in
@@ -39,7 +38,7 @@ internal data class ShortsFeedState(
 
 /**
  * Where one channel's shorts tab paging stands. [buffer] holds fetched-but-not-yet-shown items
- * (a tab page is ~48 clips; the feed serves [FEED_ITEMS_PER_CHANNEL] per round so every channel
+ * (a tab page is ~48 clips; the feed serves [SHORTS_ITEMS_PER_CHANNEL] per round so every channel
  * keeps its round-robin slot). [nextPage] null with [exhausted] false = first page not fetched yet.
  */
 internal data class ChannelShortsCursor(
@@ -51,6 +50,22 @@ internal data class ChannelShortsCursor(
 ) {
     val hasMore: Boolean get() = buffer.isNotEmpty() || !exhausted
 }
+
+/** Clips per channel per round. The Shorts tab lists newest first but carries no upload date
+ *  (YoutubeShortsInfoItemExtractor returns null), so "recent" can only mean "top of the tab". */
+internal const val SHORTS_ITEMS_PER_CHANNEL = 4
+
+/**
+ * Merges channels' batches into one randomly ordered list. Each clip's sort key is drawn once and
+ * kept in [keys], so re-running as more channels arrive never reorders clips already shown -- new
+ * ones only slot in among them. Duplicates (same pageUrl) keep the first occurrence.
+ */
+internal fun shuffledPool(
+    bySource: List<List<VideoRef>>,
+    keys: MutableMap<String, Double>,
+    random: kotlin.random.Random = kotlin.random.Random.Default,
+): List<VideoRef> =
+    bySource.flatten().distinctBy { it.pageUrl }.sortedBy { keys.getOrPut(it.pageUrl) { random.nextDouble() } }
 
 /** Refills per round: watched-exclusion can empty a whole page, so one retry -- never a storm. */
 internal const val MAX_REFILLS_PER_ROUND = 2
@@ -89,7 +104,7 @@ internal suspend fun ChannelShortsCursor.next(
 
 /**
  * One channel's shorts tab first page, already-watched excluded -- NOT capped: the caller shows
- * [FEED_ITEMS_PER_CHANNEL] and buffers the rest in a [ChannelShortsCursor]. Neither failure mode
+ * [SHORTS_ITEMS_PER_CHANNEL] and buffers the rest in a [ChannelShortsCursor]. Neither failure mode
  * fails the whole feed, but they are reported apart: only a genuine tab-unavailable means "this
  * channel posts no shorts". [fetch] is injected so this stays a pure, network-free unit under test.
  */

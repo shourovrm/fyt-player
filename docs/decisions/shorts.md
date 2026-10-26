@@ -2,6 +2,14 @@
 
 ## Current state
 
+2026-10-26 (v0.2.27 + shuffle, DEVICE-VERIFIED order only): feed = 4 clips per channel
+(`SHORTS_ITEMS_PER_CHANNEL`), all channels pooled and shuffled per refresh (app start /
+pull-to-refresh, never on tab return) via `shuffledPool`; per-clip random keys are kept so clips
+already shown never reorder while more channels arrive; load-more rounds are shuffled + appended.
+Why: subscription-order round-robin put Squat University (~20th of 22) below the first screen.
+Shorts-tab items carry NO upload date (YoutubeShortsInfoItemExtractor returns null), so "recent" =
+top of each channel's tab (tab sorts newest first, unverified). Two relaunches gave different orders.
+
 2026-10-06 (tests green, device-UNverified): pager maps page <-> session item by pageUrl
 (`sessionIndexForPage`, `pageForSessionIndex`, `sessionHoldsFeed`,
 `feedItemsMissingFromSession` in ShortsNav) -- position-based mapping drifted when the feed

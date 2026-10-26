@@ -42,6 +42,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
     private var cursors: List<ChannelShortsCursor> = emptyList()
     private var watched: Set<String> = emptySet()
     private var sourcesById: Map<String, VideoSource> = emptyMap()
+    private val shuffleKeys = HashMap<String, Double>()
 
     /** Which page the pager last settled on -- restored as the pager's `initialPage` so leaving
      *  and returning to the tab doesn't snap back to the first clip, and also what a grid tap
@@ -75,6 +76,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         val byId = sources.associateBy { it.id }
         sourcesById = byId
         cursors = emptyList()
+        shuffleKeys.clear() // new random order per refresh (app start / pull-to-refresh only)
         feed = ShortsFeedState(loading = true)
         feedJob = viewModelScope.launch {
             // Every subscription, same as Home: the old newest-8 cap silently left older
@@ -108,7 +110,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                     // Append as each channel returns rather than waiting for the slowest one.
-                    feed = feed.copy(items = interleave(outcomes.map { itemsOf(it).take(FEED_ITEMS_PER_CHANNEL) }))
+                    feed = feed.copy(items = shuffledPool(outcomes.map { itemsOf(it).take(SHORTS_ITEMS_PER_CHANNEL) }, shuffleKeys))
                 }
             }
             jobs.joinAll()
@@ -117,7 +119,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                 val ok = outcomes[i] as? ChannelFetchOutcome.Ok
                 ChannelShortsCursor(
                     sourceId = channel.sourceId, key = channel.key,
-                    buffer = ok?.items?.drop(FEED_ITEMS_PER_CHANNEL).orEmpty(),
+                    buffer = ok?.items?.drop(SHORTS_ITEMS_PER_CHANNEL).orEmpty(),
                     nextPage = ok?.nextPage, exhausted = ok?.nextPage == null,
                 )
             }
@@ -132,7 +134,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** One more round: [FEED_ITEMS_PER_CHANNEL] per channel that still has any, interleaved and
+    /** One more round: [SHORTS_ITEMS_PER_CHANNEL] per channel that still has any, shuffled and
      *  APPENDED -- never re-merged over what's already shown, a reshuffle under the pager would
      *  move the clip the user is watching. */
     fun loadMore() {
@@ -146,13 +148,13 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                     val src = sourcesById[cursor.sourceId]
                     if (src == null || !cursor.hasMore) emptyList<VideoRef>() to cursor.copy(exhausted = true)
                     else gate.withPermit {
-                        cursor.next(FEED_ITEMS_PER_CHANNEL, watched) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
+                        cursor.next(SHORTS_ITEMS_PER_CHANNEL, watched) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
                     }
                 }
             }.awaitAll()
             cursors = rounds.map { it.second }
             val seen = feed.items.mapTo(HashSet()) { it.pageUrl }
-            val fresh = interleave(rounds.map { it.first }).filter { seen.add(it.pageUrl) }
+            val fresh = shuffledPool(rounds.map { it.first }, shuffleKeys).filter { seen.add(it.pageUrl) }
             feed = feed.copy(items = feed.items + fresh, loadingMore = false, hasMore = cursors.any { it.hasMore })
         }
     }
