@@ -85,8 +85,8 @@ playing with the screen off. It is distributed as a sideloaded APK; there is no 
 |---|---|
 | YouTube | Everything above. Optional sign-in for age-restricted and members-only content (currently not working). |
 | Facebook | Play and download a video or reel from a shared link. No search and no page browsing: Facebook offers no public listing API, and the upstream extractor is intermittent on some videos. |
-| TikTok | Play a clip from a shared link in the vertical pager. No search and no feed. TikTok rate-limits by IP; after a batch of clips it answers 403 for a while, and the app shows that as unavailable. |
-| X / Twitter | Play a video from a shared link. |
+| TikTok | Works only some of the time. A shared clip plays in the vertical pager, with no search and no feed. TikTok blocks by IP address: in a test on 2026-10-28, 2 of 6 sample links played and the other 4 were refused as "IP address is blocked". After a batch of clips it also answers 403 for a while. The app shows a refused clip as unavailable. |
+| X / Twitter | Probably does not work now. X keeps closing anonymous access, so a shared link may show as unavailable. In a desktop yt-dlp test on 2026-10-28, public posts with video still played, but this release has not been tested on a phone. |
 
 ## What it refuses to do
 
