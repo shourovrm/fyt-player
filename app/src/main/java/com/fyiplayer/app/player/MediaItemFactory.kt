@@ -24,7 +24,16 @@ import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.player.sabr.SabrDashMediaSource
+import com.fyiplayer.app.player.sabr.SabrSessionHelper
+import com.fyiplayer.app.player.sabr.SabrSources
+import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import org.schabi.newpipe.extractor.exceptions.ExtractionException
+import org.schabi.newpipe.extractor.services.youtube.sabr.YoutubeSabrInfo
+import org.schabi.newpipe.extractor.stream.DeliveryMethod
 
 /**
  * [FormatSelection] -> a media3 [MediaSource]. One shared [OkHttpClient]: headers vary per
@@ -84,7 +93,31 @@ object MediaItemFactory {
         .setArtworkUri(ref?.thumbnailUrl?.let(Uri::parse))
         .build()
 
+    /** SABR selection -> [SabrDashMediaSource]. The constructor opens the SABR session (network
+     *  I/O), so callers must not be on the main thread: see [createOnIo]. */
+    private fun sabrSourceFor(format: MediaFormat, metadata: MediaMetadata): MediaSource {
+        val context = appContext ?: throw IllegalStateException("MediaItemFactory.init not called")
+        val videoId = SabrSources.videoIdOf(format.url)
+            ?: throw IllegalStateException("SABR format has no sabr:// url")
+        val streamInfo = SabrSources.get(videoId)
+            ?: throw IllegalStateException("SABR stream info is gone for this video; resolve again")
+        val sabrStream = (streamInfo.videoStreams.orEmpty() + streamInfo.videoOnlyStreams.orEmpty()).firstOrNull {
+            it.deliveryMethod == DeliveryMethod.SABR && it.itag.toString() == format.formatId
+        } ?: throw IllegalStateException("No SABR stream with itag ${format.formatId} in stream info")
+        val sabrInfo = sabrStream.deliveryMethodInfo as YoutubeSabrInfo
+        try {
+            val spec = SabrSessionHelper.createSourceSpec(context, videoId, sabrStream.itag, streamInfo.audioStreams, sabrInfo)
+            val item = MediaItem.Builder().setUri(Uri.parse("sabr://$videoId")).setMediaMetadata(metadata).build()
+            return SabrDashMediaSource(context, item, spec, 0L)
+        } catch (e: ExtractionException) {
+            throw IllegalStateException("SABR source setup failed: ${e::class.simpleName}", e)
+        } catch (e: IOException) {
+            throw IllegalStateException("SABR source setup failed: ${e::class.simpleName}", e)
+        }
+    }
+
     private fun sourceFor(format: MediaFormat, metadata: MediaMetadata): MediaSource {
+        if (format.protocol == Protocol.SABR) return sabrSourceFor(format, metadata)
         val item = MediaItem.Builder().setUri(format.url).setMediaMetadata(metadata).build()
         val dsFactory = dataSourceFactory(format.headers)
         return when (format.protocol) {
@@ -96,6 +129,7 @@ object MediaItemFactory {
                 .createMediaSource(item)
             // The dash dependency is now present, but no resolver emits a Protocol.DASH format
             // (the DASH path below is built from PROGRESSIVE pairs), so this stays unsupported.
+            Protocol.SABR -> throw IllegalStateException("handled above")
             Protocol.DASH -> throw UnsupportedOperationException("DASH playback not wired up yet")
         }
     }
@@ -224,11 +258,25 @@ object MediaItemFactory {
      *  in by hand here. [ref] is the queue entry this selection came from -- null only where no
      *  ref exists to describe the source (there is always one in practice); its
      *  title/uploader/thumbnail become the notification and lockscreen metadata. */
+    /** [create] on [Dispatchers.IO]: a SABR source opens its session in the constructor, which
+     *  blocks on the network. The result is handed back to the caller's context, so
+     *  `player.setMediaSource` stays on main. */
+    suspend fun createOnIo(
+        selection: FormatSelection,
+        ref: VideoRef? = null,
+        captions: List<CaptionTrack> = emptyList(),
+    ): MediaSource = withContext(Dispatchers.IO) { create(selection, ref, captions) }
+
     fun create(selection: FormatSelection, ref: VideoRef? = null, captions: List<CaptionTrack> = emptyList()): MediaSource {
         val metadata = metadataOf(ref)
         val base = when (selection) {
             is FormatSelection.Single -> {
-                DiagLog.log("Playback", "source=${if (selection.format.protocol == Protocol.HLS) "hls" else "progressive"}")
+                val label = when (selection.format.protocol) {
+                    Protocol.HLS -> "hls"
+                    Protocol.SABR -> "sabr"
+                    else -> "progressive"
+                }
+                DiagLog.log("Playback", "source=$label")
                 sourceFor(selection.format, metadata)
             }
             is FormatSelection.Paired -> pairedSource(selection.video, selection.audio, metadata)

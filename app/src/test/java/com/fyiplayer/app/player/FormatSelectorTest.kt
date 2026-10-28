@@ -127,4 +127,33 @@ class MuxedWithoutHeightTest {
         val result = FormatSelector.select(listOf(v, a, muxed), maxHeight = 1080)
         assertEquals(FormatSelection.Paired(v, a), result.selection)
     }
+
+    @Test fun `tallest SABR format under the ceiling is selected`() {
+        val formats = listOf(144, 360, 720, 1080).map {
+            fmt("sabr$it", height = it, video = "avc1", audio = "mp4a", protocol = Protocol.SABR)
+        }
+        val result = FormatSelector.select(formats, maxHeight = 720)
+        val single = result.selection as FormatSelection.Single
+        assertEquals(720, single.format.height)
+        assertEquals(Protocol.SABR, single.format.protocol)
+    }
+
+    @Test fun `SABR taller than the progressive muxed stream wins`() {
+        val formats = listOf(
+            fmt("18", height = 360, video = "avc1", audio = "mp4a"),
+            fmt("sabr360", height = 360, video = "avc1", audio = "mp4a", protocol = Protocol.SABR),
+            fmt("sabr1080", height = 1080, video = "avc1", audio = "mp4a", protocol = Protocol.SABR),
+        )
+        val single = FormatSelector.select(formats, maxHeight = 1080).selection as FormatSelection.Single
+        assertEquals("sabr1080", single.format.formatId)
+    }
+
+    @Test fun `progressive muxed stream wins when SABR is not taller`() {
+        val formats = listOf(
+            fmt("18", height = 360, video = "avc1", audio = "mp4a"),
+            fmt("sabr360", height = 360, video = "avc1", audio = "mp4a", protocol = Protocol.SABR),
+        )
+        val single = FormatSelector.select(formats, maxHeight = 1080).selection as FormatSelection.Single
+        assertEquals("18", single.format.formatId)
+    }
 }

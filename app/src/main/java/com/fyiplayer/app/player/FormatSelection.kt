@@ -51,7 +51,9 @@ fun audioTrackIdOf(selection: FormatSelection): String? = when (selection) {
  * an acceptable simplification.
  */
 object FormatSelector {
-    private fun MediaFormat.isManifest() = protocol == Protocol.HLS || protocol == Protocol.DASH
+    // SABR formats are self-contained (the SABR source muxes audio itself), so they rank like HLS.
+    private fun MediaFormat.isManifest() =
+        protocol == Protocol.HLS || protocol == Protocol.DASH || protocol == Protocol.SABR
     private fun MediaFormat.fitsCeiling(ceiling: Int) = height == null || height <= ceiling
 
     private fun bestVideoOnly(formats: List<MediaFormat>, ceiling: Int) =
@@ -95,6 +97,19 @@ object FormatSelector {
         // HLS start costs master + variant playlist round trips before the first media byte and
         // bypasses ChunkedRangeDataSource; device-measured 2026-08-23: tap-to-audio 4.5s -> 3.2s
         // cold, 3.5s -> 2.2s warm. Fixed quality under the user's cap, same as PipePipe.
+        // Exception: SABR is never a fallback. When YouTube only offers a muxed 360p over visionos
+        // the SABR formats are the quality ladder, so a SABR format strictly taller than the best
+        // progressive candidate wins.
+        val bestProgressiveHeight = maxOf(
+            if (video != null && audio != null) video.height ?: 0 else -1,
+            if (muxed == null) -1 else muxed.height ?: 0,
+        )
+        val sabr = formats
+            .filter { it.protocol == Protocol.SABR && it.fitsCeiling(maxHeight) }
+            .maxByOrNull { it.height ?: 0 }
+        if (sabr != null && (sabr.height ?: 0) > bestProgressiveHeight) {
+            return SelectionResult(FormatSelection.Single(sabr))
+        }
         if ((video == null || audio == null) && muxed == null) {
             bestManifest(formats, maxHeight)?.let { return SelectionResult(FormatSelection.Single(it)) }
         }

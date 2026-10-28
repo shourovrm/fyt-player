@@ -105,6 +105,8 @@ class FyiApp : Application() {
         // competes with first-frame rendering and the first ciphered video pays nothing for it.
         val jsDecoder = WebViewJsDecoder(this, newPipeHttpClient)
         org.schabi.newpipe.extractor.services.youtube.YoutubeApiDecoder.setLocalDecoder(jsDecoder)
+        // PO-token minter for SABR playback; registers the resolver, mints lazily.
+        com.fyiplayer.app.source.newpipe.SabrRuntime.initialize(this)
         registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             private var scheduled = false
             override fun onActivityResumed(activity: android.app.Activity) {

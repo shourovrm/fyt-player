@@ -2,6 +2,12 @@
 
 ## Current state
 
+2026-10-28: vendored extractor bumped to PipePipeExtractor v5.5.0 (1a09d20e; TubePipe's pin), two
+patches re-ported (search patch shrank to the reelShelfRenderer branch: upstream now walks
+gridShelfViewModel itself). App-side API change: `CommentsInfoItem.getCommentText()` returns a
+`Description` (`.content`). Builds; NOT device-verified -- the v5.3.1 progressive-403 cause was never
+found, so the first device run must check progressive playback, downloads and quality-sheet sizes.
+
 2026-10-06 PipePipe-port (tests green, device-UNverified). FINDING: the v5.2.5 fork defaults
 `StreamingService.fetchDislike = true`, so every video open had been sending its id to
 returnyoutubedislikeapi.com. `NewPipeInit` now latches it OFF; Settings > Video page has the
@@ -141,35 +147,36 @@ Paging via PageToken (JSON-serialized NewPipe Page).
   it is the only known route to >360p for made-for-kids videos (visionos gets itag 18 only).
 - Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
   (playback rides HLS manifests now) — verify when a progressive-only video shows up.
-- Made-for-kids videos >360p (study 2026-10-28, read-only, nothing built): visionos returns only
-  muxed itag 18 for kids content (Peppa Pig TTx0EHaSMgc, Cocomelon 020g-0hhCAU); mweb returns
-  SABR-only 144p-1080p, which `NewPipeResolver.toResolved` drops (PROGRESSIVE/HLS filter) and
-  `MediaItemFactory` cannot play. TubePipe (~/repos/tubepipe, read-only) solves it as: detect
-  360p-only by height (`LowQualityOffer`: no HLS master and max height <= 360; no kids flag exists
-  in any extractor) -> re-extract with mweb -> `SabrDashMediaSource` (Media3 port of PipePipeClient's
-  SABR player, 1.6k lines) + PO token minted by BotGuard JS in the shared WebView
-  (`LocalDomPoTokenProvider` 554 + `YoutubePageAttestationBootstrap` 251 + `sabr_po_token.js` 265,
-  all "Ported from PipePipeClient") registered via `NewPipe.setYoutubePoTokenResolver`. Attestation
-  retry 3, reload 2/session, 30 s backoff; TubePipe box-tested a kids video offering 1080-144 but
-  recorded no full-length run and has no attestation UI. Port plan, in order:
-  1. Extractor bump 5.2.5 -> 5.5.0 (TubePipe pins stock PipePipeExtractor 1a09d20e, NO extractor
-     patch; our vendored 5.2.5 has the OLDER SABR API: `SabrPoTokenProvider` /
-     `setYoutubeSessionPoTokenProvider`, no `YoutubePoTokenResult`, `SabrInfoReloader`,
-     `YoutubeSabrResponse`, `YoutubeSabrRequestHelper`, `fetchSabrInfoForReload`). Re-apply the 2
-     patches, `./gradlew clean`, device-verify progressive + HLS + downloads first (v5.3.1 403 cause
-     is still unknown). This step is independently due and is the risky one.
-  2. Port TubePipe's `core/player/sabr/*` + `youtube/*` (Media3 1.11.1; every media3 import is a
-     class present in 1.9.4, compile unverified) and the PO-token trio. `SharedWebViewRuntime`
-     already exists here (same PipePipeClient origin as `WebViewJsDecoder`); reuse it.
-  3. Glue: a `Protocol.SABR` MediaFormat carrying the in-memory `YoutubeSabrInfo` handle (never
-     persisted), a `MediaItemFactory` branch, and a one-shot mweb retry on 360p-only results via the
-     existing `NewPipeInit.withSignedInPlayerClient` pattern (TubePipe flips the process-wide client,
-     which races concurrent resolves). Downloads stay 360p (SABR download is a separate 1k-line port).
-  Constraints: PO tokens are bound to visitorData (session) or video id (content) and identify —
-  memory only, redacted from DiagLog; the hard-coded `x-goog-api-key` is YouTube's public web key,
-  not a secret. Interim UI: label 360p-only results honestly (~100 lines).
+- Made-for-kids videos >360p: IMPLEMENTED 2026-10-28, builds + 598 unit tests green, NOT device-
+  verified (no APK installed by this session). Shape: `LowQualityOffer` (no HLS master and max
+  height <= 360) -> `NewPipeResolver.withSabrIfLowQuality` retries once on mweb via
+  `NewPipeInit.withPlayerClient("mweb")`, keeps visionos 360p on any failure -> SABR streams map
+  to `Protocol.SABR` MediaFormats (url `sabr://<videoId>`, one per itag, audioCodec "mp4a" since
+  the SABR source muxes audio) and `SabrSources` holds the live StreamInfo (memory, LRU 20) ->
+  `MediaItemFactory.sabrSourceFor` builds `SabrDashMediaSource` (TubePipe's Media3 port of
+  PipePipeClient, `player/sabr/`) on Dispatchers.IO (`createOnIo`; the constructor opens the
+  session = network) -> PO token minted by `LocalDomPoTokenProvider` (BotGuard JS in
+  `SharedWebViewRuntime`, `assets/sabr_po_token.js`) registered by `SabrRuntime` in FyiApp.
+  `FormatSelector`: a SABR format strictly taller than the best progressive candidate wins;
+  equal height keeps progressive. Downloads exclude SABR (kids downloads stay 360p).
+  Device checklist: Peppa Pig TTx0EHaSMgc and Cocomelon 020g-0hhCAU play above 360p to the end;
+  quality sheet lists 144-1080 and switching works; a normal video still starts on visionos HLS
+  (no mweb retry in the trace); an old genuinely-360p upload retries mweb once and still plays;
+  PO-token mint time (first play after cold start, DiagLog) is acceptable; signed-in session.
+  Known gaps: no max-video-size cap on track selection, so a SABR spec may adapt above the chosen
+  itag; a dub pick on a SABR video is ignored (SABR picks audio itself); a SABR prefetch dropped as
+  stale never releases its session; `SabrSources` eviction after 20 videos makes a late play of an
+  old queue item throw "stream info is gone" (re-resolve fixes it).
 
 ## Gotchas
+
+- Media3 1.9.4's `MediaPeriod` lacks `setUsesStreamPrerollFlags`/`setEndPositionUs` (1.10+); the
+  two delegating overrides were dropped from `SabrDashMediaSource` -- re-add on a media3 bump.
+- The mweb retry fires for EVERY 360p-only, HLS-less result, not just kids videos: a genuinely
+  360p upload pays one extra extraction (plus a PO-token mint on first use) before playing.
+- PO tokens bind to visitorData (session) or the video id (content) and identify the device:
+  memory only, never DiagLog. `LocalDomPoTokenProvider` bootstraps from www.youtube.com through
+  `NewPipe.getDownloader()`, so a signed-in session's cookie rides that GET (TubePipe's did not).
 
 - The "no access-control bypass" rule was removed from CLAUDE.md/DESIGN.md on 2026-10-28. Lines in
   this file and LOG.md that cite it record why something was rejected at the time, not a live ban.

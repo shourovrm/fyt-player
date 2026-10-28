@@ -683,7 +683,9 @@ internal fun deriveDownloadOptions(formats: List<MediaFormat>, includeManifests:
     // StreamDownloader writes bytes to a file, so a manifest "format" would save an .m3u8
     // playlist as the finished video (seen live with visionos HLS). The engine path keeps
     // manifests: yt-dlp fetches segments itself, and some non-YouTube sites are HLS-only.
-    val pool = if (includeManifests) formats else formats.filter { it.protocol == Protocol.PROGRESSIVE }
+    // A sabr:// sentinel URL can never be downloaded, so SABR formats never become options.
+    val downloadable = formats.filter { it.protocol != Protocol.SABR }
+    val pool = if (includeManifests) downloadable else downloadable.filter { it.protocol == Protocol.PROGRESSIVE }
     val heights = pool.mapNotNull { it.height }.filter { it > 0 }.distinct().sortedDescending()
     val seenSelectors = mutableSetOf<String>()
     val videoOptions = heights.mapNotNull { ceiling ->

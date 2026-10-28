@@ -27,6 +27,7 @@ import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
+import com.fyiplayer.app.core.Protocol
 import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.SponsorPolicy
 import com.fyiplayer.app.core.SponsorSegment
@@ -196,6 +197,7 @@ object PlaybackSession {
     // -- see MediaItemFactory.create's doc for why the merge has to happen on every rebuild.
     private var currentCaptions: List<CaptionTrack> = emptyList()
     private var loadJob: Job? = null
+    private var rebuildJob: Job? = null // SABR quality/dub rebuild in flight (see rebuildCurrent)
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
     // One re-resolve attempt per item after an expired URL or a transport failure. Re-armed on item
@@ -686,10 +688,27 @@ object PlaybackSession {
         val wasPlayWhenReady = player.playWhenReady
         prepared = null
         window = listOf(index)
-        player.setMediaSource(MediaItemFactory.create(selection, queue.getOrNull(index), currentCaptions))
-        player.prepare()
-        player.seekTo(resumeAt)
-        player.playWhenReady = wasPlayWhenReady
+        val rebuildRef = queue.getOrNull(index)
+        val rebuildCaptions = currentCaptions
+        val sabrSelected = selection is FormatSelection.Single && selection.format.protocol == Protocol.SABR
+        if (sabrSelected) {
+            // A SABR source opens its session (network) in its constructor, so it is built off the
+            // main thread; the player calls below stay on main. Until it lands the old source plays on.
+            rebuildJob?.cancel()
+            rebuildJob = scope.launch {
+                val source = MediaItemFactory.createOnIo(selection, rebuildRef, rebuildCaptions)
+                player.setMediaSource(source)
+                player.prepare()
+                player.seekTo(resumeAt)
+                player.playWhenReady = wasPlayWhenReady
+            }
+        } else {
+            rebuildJob?.cancel()
+            player.setMediaSource(MediaItemFactory.create(selection, rebuildRef, rebuildCaptions))
+            player.prepare()
+            player.seekTo(resumeAt)
+            player.playWhenReady = wasPlayWhenReady
+        }
         val newHeight = when (selection) {
             is FormatSelection.Single -> selection.format.height
             is FormatSelection.Paired -> selection.video.height
@@ -808,7 +827,7 @@ object PlaybackSession {
     fun clear() {
         ensureInit()
         persistPosition() // before the player is emptied below
-        loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
+        loadJob?.cancel(); rebuildJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
         autoplayJob?.cancel(); autoplayJob = null
         loadedRef = null
         queue = emptyList(); order = null; index = -1
@@ -825,7 +844,7 @@ object PlaybackSession {
     }
 
     fun release() {
-        loadJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel(); sponsorFetchJob?.cancel()
+        loadJob?.cancel(); rebuildJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel(); sponsorFetchJob?.cancel()
         autoplayJob?.cancel(); autoplayJob = null
         if (::player.isInitialized) player.release()
     }
@@ -851,7 +870,7 @@ object PlaybackSession {
      *  the expiry re-resolve path (onPlayerError) where this is the same item continuing, not a
      *  genuinely new one starting at 0. */
     private fun startAt(i: Int, resumeAtMs: Long? = null) {
-        loadJob?.cancel()
+        loadJob?.cancel(); rebuildJob?.cancel()
         prefetchJob?.cancel()
         // Whatever the user picks here supersedes a pending "play a related video" lookup.
         autoplayJob?.cancel()
@@ -882,7 +901,7 @@ object PlaybackSession {
                 null
             }
             val item = resolveItem(i, ref) ?: return@launch
-            val source = MediaItemFactory.create(item.selection, ref, item.resolved.captions)
+            val source = MediaItemFactory.createOnIo(item.selection, ref, item.resolved.captions)
             // The source starts AT the resume point. Seeking after prepare() let playback begin
             // from 0 first (audible blip, wasted first segment fetch) before jumping.
             val resume = (resumeAtMs ?: savedPositionLookup?.await())?.let { segmentStartFor(item.selection, it) }
@@ -1064,9 +1083,12 @@ object PlaybackSession {
             val item = resolveItem(n, ref) ?: return@launch
             // the queue may have moved on while this was resolving
             if (index != startedAt || window.size != 1 || window[0] != index) return@launch
+            val source = MediaItemFactory.createOnIo(item.selection, ref, item.resolved.captions)
+            // the queue may have moved on while a SABR source was opening its session
+            if (index != startedAt || window.size != 1 || window[0] != index) return@launch
             prepared = item
             window = window + n
-            player.addMediaSource(MediaItemFactory.create(item.selection, ref, item.resolved.captions))
+            player.addMediaSource(source)
         }
     }
 

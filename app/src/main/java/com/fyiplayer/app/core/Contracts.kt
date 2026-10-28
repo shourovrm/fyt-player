@@ -59,6 +59,8 @@ data class SearchPage(
 /** A playable stream variant. [headers] must be applied verbatim or the CDN rejects the request. */
 data class MediaFormat(
     val formatId: String,
+    /** Signed media URL; for [Protocol.SABR] it is the sentinel "sabr://<videoId>" (nothing to fetch,
+     *  the SABR source muxes audio itself and finds its session through SabrSources). */
     val url: String,
     val container: String,
     val protocol: Protocol,
@@ -109,7 +111,8 @@ data class SegmentIndexInfo(
     val audioChannels: Int? = null,
 )
 
-enum class Protocol { PROGRESSIVE, HLS, DASH }
+/** [SABR]: YouTube server-driven adaptive streaming; the stream has no fetchable URL, see [MediaFormat.url]. */
+enum class Protocol { PROGRESSIVE, HLS, DASH, SABR }
 
 /** Result of resolution. [resolvedAtMillis] is why we re-resolve instead of trusting a stored copy. */
 data class Resolved(

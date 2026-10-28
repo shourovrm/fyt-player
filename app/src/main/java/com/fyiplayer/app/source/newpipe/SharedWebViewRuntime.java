@@ -1,5 +1,7 @@
 package com.fyiplayer.app.source.newpipe;
 
+// Ported from PipePipeClient (GPL-3.0, PipePipe and NewPipe contributors); package and Media3 changes only.
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -8,7 +10,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
+import android.webkit.ConsoleMessage;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -16,29 +21,44 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.annotation.NonNull;
+import com.fyiplayer.app.BuildConfig;
 import androidx.annotation.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Single headless WebView used as a JavaScript runtime for the local sig/n decoder.
+ * Single headless WebView used by local JavaScript services.
  *
- * <p>Ported from PipePipe's SharedWebViewRuntime (GPLv3, same license family as the bundled
- * PipePipeExtractor), trimmed to what {@link WebViewJsDecoder} needs: one blank first-party page
- * kept alive for the process, network loads blocked, and blocking JS evaluation. The SABR/poToken
- * bridge callbacks of the original are not ported -- nothing here uses them.</p>
+ * <p>The runtime loads one blank first-party page, keeps it alive for the app process, and exposes
+ * a stable JavaScript bridge. Callers keep their own JS namespaces and serialize their public entry
+ * points on the caller side.</p>
  */
 public final class SharedWebViewRuntime {
+    public interface SabrLocalDomCallbacks {
+        void onJsInitializationError(@NonNull String error);
+
+        void onRunBotguardResult(@NonNull String botguardResponse);
+
+        void onMinterReady();
+
+        void onObtainPoTokenResult(@NonNull String identifier, @NonNull String poTokenU8);
+
+        void onObtainPoTokenError(@NonNull String identifier, @NonNull String error);
+    }
 
     public static final String BRIDGE_NAME = "PipePipeWebViewBridge";
 
     private static final String TAG = "SharedWebViewRuntime";
+    // Gated on the debug build so release builds neither enable WebView debugging nor log JS console output.
+    private static final boolean DEBUG_LOGGING = BuildConfig.DEBUG;
     private static final long DEFAULT_TIMEOUT_MS = 30_000L;
     private static final long READY_CALLBACK_ATTEMPT_TIMEOUT_MS = 5_000L;
     private static final int MAX_READY_CALLBACK_ATTEMPTS = 2;
@@ -50,6 +70,8 @@ public final class SharedWebViewRuntime {
     private final Context webViewContext;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Object initLock = new Object();
+    private final ConcurrentHashMap<String, SabrLocalDomCallbacks> sabrLocalDomCallbacks =
+            new ConcurrentHashMap<>();
 
     @Nullable
     private CountDownLatch initLatch;
@@ -64,6 +86,8 @@ public final class SharedWebViewRuntime {
 
     private SharedWebViewRuntime(final Context context) {
         appContext = context.getApplicationContext();
+        // A WebView's first creation can overwrite the app Resources configuration (locale, night
+        // mode on some OEMs), so it gets a private copy instead of the application context itself.
         final Configuration configuration =
                 new Configuration(appContext.getResources().getConfiguration());
         webViewContext = appContext.createConfigurationContext(configuration);
@@ -82,6 +106,47 @@ public final class SharedWebViewRuntime {
             }
         }
         return runtime;
+    }
+
+    public static void warmUp(final Context context) {
+        get(context).warmUp();
+    }
+
+    public void warmUp() {
+        synchronized (initLock) {
+            if (ready || initLatch != null) {
+                return;
+            }
+            startInitializationLocked();
+        }
+    }
+
+    /**
+     * Returns the failure that prevented the runtime from becoming ready, or {@code null} if the
+     * runtime is ready, still initializing or not started yet.
+     */
+    @Nullable
+    public Throwable getInitializationFailure() {
+        final AtomicReference<Throwable> error;
+        synchronized (initLock) {
+            error = initError;
+        }
+        return error == null ? null : error.get();
+    }
+
+    /**
+     * Clears a failed initialization so that {@link #warmUp()} or {@link #ensureReady(long,
+     * String)} can try again. Does nothing while the runtime is ready or still initializing.
+     */
+    public void resetFailedInitialization() {
+        synchronized (initLock) {
+            if (ready || initError == null || initError.get() == null) {
+                return;
+            }
+            initLatch = null;
+            initError = null;
+            activeInitializationAttempt = null;
+        }
     }
 
     public void ensureReady(final long timeoutMs, @NonNull final String operation)
@@ -152,6 +217,32 @@ public final class SharedWebViewRuntime {
         return result.get();
     }
 
+    public boolean evaluateJavascript(@NonNull final String script,
+                                      @Nullable final ValueCallback<String> callback,
+                                      @Nullable final ValueCallback<Throwable> errorCallback) {
+        try {
+            ensureReady(DEFAULT_TIMEOUT_MS, "async JavaScript evaluation");
+        } catch (final Throwable throwable) {
+            if (errorCallback != null) {
+                errorCallback.onReceiveValue(throwable);
+            }
+            return false;
+        }
+        return mainHandler.post(() -> {
+            try {
+                final WebView view = webView;
+                if (view == null) {
+                    throw new IllegalStateException("WebView runtime is not initialized");
+                }
+                view.evaluateJavascript(script, callback);
+            } catch (final Throwable throwable) {
+                if (errorCallback != null) {
+                    errorCallback.onReceiveValue(throwable);
+                }
+            }
+        });
+    }
+
     @NonNull
     public String loadAsset(@NonNull final String path) {
         try (InputStream in = appContext.getAssets().open(path);
@@ -165,6 +256,17 @@ public final class SharedWebViewRuntime {
         } catch (final Exception e) {
             throw new IllegalStateException("Could not load asset " + path, e);
         }
+    }
+
+    @NonNull
+    public String registerSabrLocalDomCallbacks(@NonNull final SabrLocalDomCallbacks callbacks) {
+        final String id = UUID.randomUUID().toString();
+        sabrLocalDomCallbacks.put(id, callbacks);
+        return id;
+    }
+
+    public void unregisterSabrLocalDomCallbacks(@NonNull final String id) {
+        sabrLocalDomCallbacks.remove(id);
     }
 
     private void startInitializationLocked() {
@@ -190,19 +292,49 @@ public final class SharedWebViewRuntime {
             return;
         }
         try {
+            Log.i(TAG, "creating WebView attempt=" + attempt.number + " elapsedMs="
+                    + attempt.elapsedMs());
             final WebView view = new WebView(webViewContext);
             attempt.view = view;
+            Log.i(TAG, "created WebView attempt=" + attempt.number + " elapsedMs="
+                    + attempt.elapsedMs());
             if (!isActiveInitializationAttempt(attempt)) {
                 destroyWebView(view);
                 return;
+            }
+            if (DEBUG_LOGGING) {
+                WebView.setWebContentsDebuggingEnabled(true);
             }
             final WebSettings settings = view.getSettings();
             settings.setJavaScriptEnabled(true);
             settings.setDomStorageEnabled(false);
             settings.setUserAgentString(USER_AGENT);
             settings.setBlockNetworkLoads(true);
+            // Safe Browsing lookups would send page URLs to Google; the setting exists from API 26.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                settings.setSafeBrowsingEnabled(false);
+            }
             view.addJavascriptInterface(new Bridge(), BRIDGE_NAME);
+            view.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onConsoleMessage(final ConsoleMessage message) {
+                    if (DEBUG_LOGGING) {
+                        Log.d(TAG, "console " + message.messageLevel() + ' '
+                                + message.message() + " @" + message.sourceId()
+                                + ':' + message.lineNumber());
+                    }
+                    return true;
+                }
+            });
             view.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(final WebView view, final String url) {
+                    // WebView 44/83 occasionally misses this callback for a headless local page.
+                    // Readiness is therefore determined only by the local document's bridge call.
+                    Log.i(TAG, "page finished url=" + url + " attempt=" + attempt.number
+                            + " elapsedMs=" + attempt.elapsedMs());
+                }
+
                 @Override
                 public void onReceivedError(final WebView view, final WebResourceRequest request,
                                             final WebResourceError webError) {
@@ -214,11 +346,11 @@ public final class SharedWebViewRuntime {
                     }
                 }
             });
-            // Readiness is signalled only by the local document's bridge call: WebView 44/83
-            // occasionally misses onPageFinished for a headless local page.
             view.loadDataWithBaseURL("https://www.youtube.com/",
                     runtimeDocument(attempt.id),
                     "text/html", "UTF-8", null);
+            Log.i(TAG, "load dispatched attempt=" + attempt.number + " elapsedMs="
+                    + attempt.elapsedMs());
             mainHandler.postDelayed(() -> retryOrFail(attempt, new IllegalStateException(
                     "WebView runtime ready callback timed out after "
                             + READY_CALLBACK_ATTEMPT_TIMEOUT_MS + " ms")),
@@ -231,7 +363,7 @@ public final class SharedWebViewRuntime {
     @NonNull
     private static String runtimeDocument(final long attemptId) {
         return "<!doctype html><html><head><script>"
-                + BRIDGE_NAME + ".onRuntimeDocumentReady('" + attemptId + "');"
+                + "PipePipeWebViewBridge.onRuntimeDocumentReady('" + attemptId + "');"
                 + "</script><title></title></head><body></body></html>";
     }
 
@@ -252,6 +384,9 @@ public final class SharedWebViewRuntime {
             destroyWebView(attempt.view);
             return;
         }
+        Log.i(TAG, "ready source=bridge attempt=" + attempt.number + " elapsedMs="
+                + attempt.elapsedMs() + " mainThread="
+                + (Looper.myLooper() == Looper.getMainLooper()));
         attempt.latch.countDown();
     }
 
@@ -275,7 +410,8 @@ public final class SharedWebViewRuntime {
                         attempt.number + 1, attempt.latch, attempt.error);
                 activeInitializationAttempt = retry;
             }
-            Log.w(TAG, "retrying WebView runtime init after attempt " + attempt.number);
+            Log.w(TAG, "retrying WebView runtime ready callback after attempt " + attempt.number
+                    + " elapsedMs=" + attempt.elapsedMs(), throwable);
             if (!mainHandler.post(() -> createWebView(retry))) {
                 retryOrFail(retry, new IllegalStateException("Could not post WebView retry"));
             }
@@ -288,7 +424,8 @@ public final class SharedWebViewRuntime {
             activeInitializationAttempt = null;
             attempt.error.compareAndSet(null, throwable);
         }
-        Log.e(TAG, "WebView runtime init failed attempt=" + attempt.number);
+        Log.e(TAG, "WebView runtime ready callback failed attempt=" + attempt.number
+                + " elapsedMs=" + attempt.elapsedMs(), throwable);
         attempt.latch.countDown();
     }
 
@@ -307,7 +444,7 @@ public final class SharedWebViewRuntime {
             view.stopLoading();
             view.destroy();
         } catch (final Throwable throwable) {
-            Log.w(TAG, "Could not destroy failed WebView initialization attempt");
+            Log.w(TAG, "Could not destroy failed WebView initialization attempt", throwable);
         }
     }
 
@@ -328,10 +465,14 @@ public final class SharedWebViewRuntime {
             this.latch = latch;
             this.error = error;
         }
+
+        private long elapsedMs() {
+            return SystemClock.elapsedRealtime() - startedAtMs;
+        }
     }
 
     private final class Bridge {
-        @android.webkit.JavascriptInterface
+        @JavascriptInterface
         public void onRuntimeDocumentReady(final String attemptId) {
             mainHandler.post(() -> {
                 final InitializationAttempt attempt;
@@ -343,6 +484,54 @@ public final class SharedWebViewRuntime {
                 }
                 completeInitialization(attempt);
             });
+        }
+
+        @JavascriptInterface
+        public void onSabrLocalDomJsInitializationError(final String sessionId,
+                                                        final String error) {
+            final SabrLocalDomCallbacks callbacks = sabrLocalDomCallbacks.get(sessionId);
+            if (callbacks != null) {
+                callbacks.onJsInitializationError(error == null ? "" : error);
+            }
+        }
+
+        @JavascriptInterface
+        public void onSabrLocalDomRunBotguardResult(final String sessionId,
+                                                    final String botguardResponse) {
+            final SabrLocalDomCallbacks callbacks = sabrLocalDomCallbacks.get(sessionId);
+            if (callbacks != null) {
+                callbacks.onRunBotguardResult(botguardResponse == null ? "" : botguardResponse);
+            }
+        }
+
+        @JavascriptInterface
+        public void onSabrLocalDomMinterReady(final String sessionId) {
+            final SabrLocalDomCallbacks callbacks = sabrLocalDomCallbacks.get(sessionId);
+            if (callbacks != null) {
+                callbacks.onMinterReady();
+            }
+        }
+
+        @JavascriptInterface
+        public void onSabrLocalDomObtainPoTokenResult(final String sessionId,
+                                                      final String identifier,
+                                                      final String poTokenU8) {
+            final SabrLocalDomCallbacks callbacks = sabrLocalDomCallbacks.get(sessionId);
+            if (callbacks != null) {
+                callbacks.onObtainPoTokenResult(identifier == null ? "" : identifier,
+                        poTokenU8 == null ? "" : poTokenU8);
+            }
+        }
+
+        @JavascriptInterface
+        public void onSabrLocalDomObtainPoTokenError(final String sessionId,
+                                                     final String identifier,
+                                                     final String error) {
+            final SabrLocalDomCallbacks callbacks = sabrLocalDomCallbacks.get(sessionId);
+            if (callbacks != null) {
+                callbacks.onObtainPoTokenError(identifier == null ? "" : identifier,
+                        error == null ? "" : error);
+            }
         }
     }
 }

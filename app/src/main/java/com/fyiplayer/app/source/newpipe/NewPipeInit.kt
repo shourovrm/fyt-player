@@ -68,20 +68,24 @@ internal object NewPipeInit {
         NewPipe.setYoutubePlayerClient("visionos")
     }
 
-    // Guards withSignedInPlayerClient; suspend, unlike the `synchronized` it replaced, since the
-    // block now awaits StreamInfoCache.get (a suspend fetch), not a bare blocking call.
+    // Guards withPlayerClient; suspend, unlike the `synchronized` it replaced, since the
+    // block awaits StreamInfoCache.get (a suspend fetch), not a bare blocking call.
     private val playerClientLock = Mutex()
 
-    /** Runs [block] with the signed-in TVHTML5 player client, restoring visionos after. Only
-     *  worth calling when a session exists -- anonymous tv_downgraded gains nothing. The client
-     *  field is process-global in the fork, so this serializes on this object to keep a parallel
-     *  prefetch resolve from riding the swapped client. */
-    suspend fun <T> withSignedInPlayerClient(block: suspend () -> T): T = playerClientLock.withLock {
-        NewPipe.setYoutubePlayerClient("tv_downgraded")
+    /** Runs [block] with the extractor's YouTube player client set to [client], restoring visionos
+     *  after. The client field is process-global in the fork, so this serializes on a mutex to keep
+     *  a parallel prefetch resolve from riding the swapped client. Used for the signed-in
+     *  `tv_downgraded` age-wall retry and the `mweb` (SABR) retry for 360p-only videos. */
+    suspend fun <T> withPlayerClient(client: String, block: suspend () -> T): T = playerClientLock.withLock {
+        NewPipe.setYoutubePlayerClient(client)
         try {
             block()
         } finally {
             NewPipe.setYoutubePlayerClient("visionos")
         }
     }
+
+    /** [withPlayerClient] with the signed-in TVHTML5 client. Only worth calling when a session
+     *  exists -- anonymous tv_downgraded gains nothing. */
+    suspend fun <T> withSignedInPlayerClient(block: suspend () -> T): T = withPlayerClient("tv_downgraded", block)
 }

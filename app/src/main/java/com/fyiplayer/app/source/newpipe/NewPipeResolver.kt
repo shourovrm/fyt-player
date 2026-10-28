@@ -9,6 +9,7 @@ import com.fyiplayer.app.core.Resolved
 import com.fyiplayer.app.core.SegmentIndexInfo
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.engine.UrlScopedResolver
+import com.fyiplayer.app.player.sabr.SabrSources
 import java.net.URI
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.schabi.newpipe.extractor.MediaFormat as NpMediaFormat
 import org.schabi.newpipe.extractor.services.youtube.ItagItem
+import org.schabi.newpipe.extractor.services.youtube.sabr.YoutubeSabrInfo
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -90,7 +92,37 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
             if (wallReason != null) DiagLog.log(TAG, "signed-in retry skipped: allowed=$retryAllowed")
             throw mapped
         }
-        toResolved(ref, info)
+        toResolved(ref, withSabrIfLowQuality(ref, info))
+    }
+
+    /** Made-for-kids videos answer visionos with one muxed 360p stream while mweb serves SABR from
+     *  144p to 1080p. Retries once on mweb and returns that info only if it really carries SABR
+     *  video; every other outcome returns [visionosInfo], since 360p beats an error. force=true may
+     *  evict the cache entry, so a failed mweb fetch can leave the cache empty for this page: the
+     *  next detail()/seekThumbnails() simply refetches. */
+    private suspend fun withSabrIfLowQuality(ref: VideoRef, visionosInfo: StreamInfo): StreamInfo {
+        if (!LowQualityOffer.isLowQualityOnly(visionosInfo)) return visionosInfo
+        DiagLog.log(TAG, "360p-only on visionos, retrying mweb")
+        val startedAt = System.currentTimeMillis()
+        return try {
+            val mwebInfo = NewPipeInit.withPlayerClient("mweb") { StreamInfoCache.get(ref.pageUrl, force = true) }
+            val elapsed = System.currentTimeMillis() - startedAt
+            if (sabrVideoStreams(mwebInfo).isNotEmpty()) {
+                DiagLog.log(TAG, "mweb retry ok in ${elapsed}ms: sabr streams")
+                mwebInfo
+            } else {
+                DiagLog.log(TAG, "mweb retry in ${elapsed}ms had no sabr streams, keeping visionos")
+                visionosInfo
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DiagLog.log(
+                TAG,
+                "mweb retry failed in ${System.currentTimeMillis() - startedAt}ms: ${e::class.simpleName}, keeping visionos",
+            )
+            visionosInfo
+        }
     }
 
     /** Drops the shared StreamInfo entry too -- a stale one would re-feed the same expired URL to
@@ -100,8 +132,20 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
     }
 }
 
+/** Video streams (muxed or video-only) delivered over SABR with a usable [YoutubeSabrInfo]. */
+private fun sabrVideoStreams(info: StreamInfo): List<VideoStream> =
+    (info.videoStreams.orEmpty() + info.videoOnlyStreams.orEmpty()).filter {
+        it.deliveryMethod == DeliveryMethod.SABR && it.deliveryMethodInfo is YoutubeSabrInfo
+    }
+
 private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
+    val sabrFormats = sabrVideoStreams(info)
+        .distinctBy { it.itag }
+        .map { sabrFormat(info.id, it) }
+    // The sentinel URL carries only the id; the player finds the live StreamInfo through this.
+    if (sabrFormats.isNotEmpty()) SabrSources.register(info.id, info)
     val formats = buildList {
+        addAll(sabrFormats)
         info.videoOnlyStreams.orEmpty()
             .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
             .forEach { add(videoOnlyFormat(it)) }
@@ -122,7 +166,7 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
     val captions = info.subtitles.orEmpty().mapNotNull { it.toCaptionTrack() }
     // Param NAMES only, never values -- a signed URL must not reach the log. Diagnoses 403s:
     // an unreplaced SIGNATURE_PLACEHOLDER or a missing sig/pot param names the broken stage.
-    formats.firstOrNull { it.url.contains("/videoplayback") }?.let { f ->
+    formats.firstOrNull { it.protocol != Protocol.SABR && it.url.contains("/videoplayback") }?.let { f ->
         try {
             val names = android.net.Uri.parse(f.url).queryParameterNames.sorted().joinToString(",")
             val placeholder = f.url.contains("SIGNATURE_PLACEHOLDER")
@@ -228,6 +272,32 @@ internal fun segmentIndexOf(itag: ItagItem?, codec: String?, isAudio: Boolean): 
         audioChannels = if (isAudio) itag.audioChannels.takeIf { it > 0 } else null,
     )
 }
+
+/** The SABR source muxes audio itself, so to FormatSelector this is a self-contained stream. */
+private fun sabrFormat(videoId: String, stream: VideoStream): MediaFormat {
+    val sabrInfo = stream.deliveryMethodInfo as YoutubeSabrInfo
+    val sabrFormat = sabrInfo.formats.firstOrNull { it.itag == stream.itag }
+    val mimeType = sabrFormat?.mimeType
+    return MediaFormat(
+        formatId = stream.itag.toString(),
+        url = "sabr://$videoId",
+        container = containerOfMime(mimeType),
+        protocol = Protocol.SABR,
+        height = (sabrFormat?.height ?: stream.height).takeIf { it > 0 },
+        videoCodec = videoCodecOfMime(mimeType) ?: "avc1",
+        audioCodec = "mp4a",
+        bitrate = (sabrFormat?.bitrate ?: stream.bitrate).takeIf { it > 0 }?.toLong(),
+    )
+}
+
+/** "video/mp4; codecs=\"avc1.4d401e\"" -> "mp4"; empty when there is no mime type. */
+internal fun containerOfMime(mimeType: String?): String =
+    mimeType?.substringBefore(';')?.substringAfter('/')?.trim().orEmpty()
+
+/** First codec of a mime type's codecs= part ("avc1.4d401e"), or null when it names none. */
+internal fun videoCodecOfMime(mimeType: String?): String? =
+    mimeType?.let { Regex("""codecs="?([^",;]+)""").find(it)?.groupValues?.get(1)?.trim() }
+        ?.takeIf { it.isNotEmpty() }
 
 private fun hlsFormat(url: String) = MediaFormat(
     formatId = "hls",
