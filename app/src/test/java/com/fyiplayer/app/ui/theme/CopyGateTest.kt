@@ -20,6 +20,10 @@ class CopyGateTest {
         "index", "R8", "codec", "mux", "segment index", "PATH",
     ).map { Regex("""(?<![\w-])${Regex.escape(it)}(?![\w-])""", RegexOption.IGNORE_CASE) }
 
+    // Owner-approved exceptions to the implementation-word rule, by string name. The About page's
+    // Site support group header names yt-dlp because its channel and version rows belong to yt-dlp.
+    private val implementationWordExceptions = setOf("settings_site_support_group")
+
     private val literalToText = Regex("""(?:\bText\(\s*|\b(?:contentDescription|label|placeholder|title|text|headline|supporting)\s*=\s*|showSnackbar\(\s*)"[^"$]{2,}"""")
 
     @Test fun `visible strings are resources not Kotlin literals`() {
@@ -41,7 +45,9 @@ class CopyGateTest {
                 entry.findAll(file.readText()).mapNotNull { match ->
                     val (name, value) = match.destructured
                     val problems = buildList {
-                        bannedWords.filter { it.containsMatchIn(value) }.forEach { add("implementation word ${it.pattern}") }
+                        if (name !in implementationWordExceptions) {
+                            bannedWords.filter { it.containsMatchIn(value) }.forEach { add("implementation word ${it.pattern}") }
+                        }
                         if ("!" in value) add("exclamation mark")
                         if ("—" in value || "–" in value) add("dash")
                         if (value.trim().endsWith("?")) add("question")

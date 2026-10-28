@@ -32,7 +32,7 @@ internal fun AboutSiteSupport(
     lastChecked: Long?,
 ) {
     var channelMenuOpen by remember { mutableStateOf(false) }
-    SettingsSection(stringResource(R.string.settings_site_support)) {
+    SettingsSection(stringResource(R.string.settings_site_support_group)) {
         SettingsReadOnlyRow(
             label = stringResource(R.string.settings_version),
             value = installedVersion ?: stringResource(R.string.settings_site_support_bundled),

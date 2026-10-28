@@ -149,6 +149,7 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Settings | PipePipeExtractor v5.2.5 · YouTube | deleted | implementation word and version |
 | Settings | yt-dlp version: bundled with the app | Version / Bundled with the app | implementation word |
 | Settings | yt-dlp update channel / Update yt-dlp | Update channel / Update site support | implementation word |
+| Settings | Site support (About, group header) | Site support (yt-dlp) | 2026-10-28, owner decision: the channel and version rows under it belong to yt-dlp, so the header names it in brackets; the round button caption and every other place stay "Site support" |
 | Settings | Updated. / Already up to date. | Site support updated. / Site support is up to date. | names the subject |
 | Settings | Last crash / Crash log | Crash report | vocabulary |
 | Settings | Playback log (recent timings and error types, no links) | Playback report / Recent timings and error types, with no links. | label and hint split |

@@ -40,6 +40,7 @@
     <string name="settings_gestures">Gestures</string>
     <string name="settings_video_page">Video page</string>
     <string name="settings_site_support">Site support</string>
+    <string name="settings_site_support_group">Site support (yt-dlp)</string>
     <string name="settings_reports">Reports</string>
 
     <!-- content -->
