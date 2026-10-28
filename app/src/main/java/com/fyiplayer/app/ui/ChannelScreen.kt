@@ -22,18 +22,28 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -214,41 +224,75 @@ private fun ChannelTopBar(
 }
 
 /**
- * Channel name, avatar and subscribe control, under the app bar (the bar keeps only back, title and
- * play-all). The avatar is drawn only when the listing already carried one; no lookup is made for it.
- * Subscribed is a tonal button with a check, and a tap unsubscribes at once, as it did in the bar.
+ * Channel name, avatar and a heart that toggles the subscription, under the app bar (the bar keeps
+ * only back, title and play-all). The avatar is drawn only when the listing already carried one;
+ * no lookup is made for it. A tap shows "Subscribed" or "Unsubscribed" in a pill under the heart,
+ * the same overlay the video page uses, so the pill takes no layout space and the tabs stay put.
+ * The Box has zIndex so the pill is drawn over the tab row below it.
  */
 @Composable
 private fun ChannelHeader(listing: Listing, subscribed: Boolean, onToggleSubscribe: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        listing.thumbnailUrl?.let { avatarUrl ->
-            AsyncImage(
-                model = avatarUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(Sizes.channelAvatar).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+    val subscribedMessage = stringResource(R.string.channel_subscribed)
+    val unsubscribedMessage = stringResource(R.string.channel_unsubscribed)
+    val heartTint = if (subscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    var message by remember { mutableStateOf<ActionMessage?>(null) }
+    var messageVisible by remember { mutableStateOf(false) }
+    var heartBottomPx by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(message) {
+        if (message == null) return@LaunchedEffect
+        messageVisible = true
+        delay(ACTION_MESSAGE_MILLIS)
+        messageVisible = false
+    }
+
+    Box(Modifier.fillMaxWidth().zIndex(1f)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listing.thumbnailUrl?.let { avatarUrl ->
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(Sizes.channelAvatar).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+                Spacer(Modifier.width(Spacing.s16))
+            }
+            Text(
+                listing.title.ifBlank { stringResource(R.string.channel_title_fallback) },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.width(Spacing.s16))
-        }
-        Text(
-            listing.title.ifBlank { stringResource(R.string.channel_title_fallback) },
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.width(Spacing.s16))
-        if (subscribed) {
-            FilledTonalButton(onClick = onToggleSubscribe) {
-                Icon(Icons.Filled.Check, contentDescription = null)
-                Spacer(Modifier.width(Spacing.s8))
-                Text(stringResource(R.string.channel_subscribed))
+            IconButton(
+                onClick = {
+                    message = ActionMessage(if (subscribed) unsubscribedMessage else subscribedMessage)
+                    onToggleSubscribe()
+                },
+                modifier = Modifier.onGloballyPositioned { heartBottomPx = it.boundsInParent().bottom },
+            ) {
+                Icon(
+                    if (subscribed) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = stringResource(if (subscribed) R.string.action_unsubscribe else R.string.action_subscribe),
+                    tint = heartTint,
+                    modifier = Modifier.size(Sizes.icon),
+                )
             }
-        } else {
-            Button(onClick = onToggleSubscribe) { Text(stringResource(R.string.action_subscribe)) }
+        }
+        // Takes no layout space: it is placed at the heart's bottom edge and does not size the Box.
+        AnimatedVisibility(
+            visible = messageVisible,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(horizontal = Spacing.pageMargin)
+                .offset { IntOffset(0, heartBottomPx.roundToInt()) },
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            ActionMessagePill(message?.text.orEmpty())
         }
     }
 }

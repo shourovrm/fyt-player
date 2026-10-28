@@ -467,15 +467,15 @@ private fun VideoActionRow(
 
 /** One message on screen. A plain class, not a data class: each tap makes a new instance, so a
  *  repeat of the same words still changes the state and restarts the timer. */
-private class ActionMessage(val text: String)
+internal class ActionMessage(val text: String)
 
 /** Long enough to read a four-word message, short enough not to linger over the tabs. */
-private const val ACTION_MESSAGE_MILLIS = 2000L
+internal const val ACTION_MESSAGE_MILLIS = 2000L
 
 /** The short confirmation under the action row. Inverse colours make it read as a passing
  *  message rather than page content; [liveRegion] makes TalkBack read each new text aloud. */
 @Composable
-private fun ActionMessagePill(text: String) {
+internal fun ActionMessagePill(text: String) {
     Surface(
         shape = RoundedCornerShape(Radius.s),
         color = MaterialTheme.colorScheme.inverseSurface,

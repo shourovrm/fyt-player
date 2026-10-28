@@ -2,4 +2,5 @@
 <!-- Channel page header under the app bar. Rules: docs/copy.md. -->
 <resources>
     <string name="channel_subscribed">Subscribed</string>
+    <string name="channel_unsubscribed">Unsubscribed</string>
 </resources>
