@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -290,6 +291,27 @@ fun CaptionsGlyph(tint: Color, dim: Boolean = false, size: Dp = Sizes.icon, modi
             Spacer(Modifier.width(size * 0.26f).height(1.dp).background(color))
             Spacer(Modifier.width(size * 0.26f).height(1.dp).background(color))
         }
+    }
+}
+
+/** Outline circle, a vertical ellipse for the meridian and an equator line. Hand-drawn because
+ *  `material-icons-core` has no Language or Globe glyph. */
+@Composable
+fun GlobeGlyph(tint: Color, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(size)) {
+        // Stroke is centred on the path, so the outline is pulled in by half its width to stay
+        // inside the square instead of being clipped at the edge.
+        val strokeWidth = 2.dp.toPx()
+        val side = this.size.minDimension
+        val inset = strokeWidth / 2
+        drawCircle(tint, radius = side / 2 - inset, center = center, style = Stroke(width = strokeWidth))
+        drawOval(
+            tint,
+            topLeft = Offset(side * 0.28f, inset),
+            size = Size(side * 0.44f, side - strokeWidth),
+            style = Stroke(width = strokeWidth),
+        )
+        drawLine(tint, Offset(inset, side / 2), Offset(side - inset, side / 2), strokeWidth = strokeWidth)
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.text.TextRenderer
 import androidx.media3.exoplayer.text.TextOutput
 import com.fyiplayer.app.DiagLog
+import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.CaptionTrack
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.MediaFormat
@@ -75,6 +76,11 @@ data class PlayerState(
     // disables the text renderer to match) -- null means Off, same as [CaptionSheet]'s own model.
     val availableCaptions: List<CaptionTrack> = emptyList(),
     val selectedCaptionLanguage: String? = null,
+    /** Dub choices for the current item. Empty unless the item publishes more than one audio
+     *  language track; the dub button is shown only when this has more than one row. */
+    val availableAudioTracks: List<AudioTrackOption> = emptyList(),
+    /** Track id of the audio actually playing (the original until the user switches). */
+    val selectedAudioTrackId: String? = null,
     val speed: Float = 1f,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val shuffled: Boolean = false,
@@ -161,6 +167,12 @@ object PlaybackSession {
 
     private val _progress = MutableStateFlow(PlaybackProgress())
     val progress: StateFlow<PlaybackProgress> = _progress.asStateFlow()
+
+    private val _chapterSource = MutableStateFlow(PageChapters(pageUrl = "", chapters = emptyList()))
+    /** Chapters the detail page loaded last. Read through [chaptersForPage], never directly: it
+     *  holds another page's chapters until that page plays, which is what keeps this free of a
+     *  clear-on-item-change hook. */
+    val chapterSource: StateFlow<PageChapters> = _chapterSource.asStateFlow()
 
     val exoPlayer: ExoPlayer get() = player
 
@@ -643,11 +655,25 @@ object PlaybackSession {
      *  from [currentFormats], so this can never offer a height the item has no format for. */
     fun selectQuality(height: Int?) {
         ensureInit()
+        // The dub pick must survive a quality change, so it is passed back in, not reset.
+        rebuildCurrent(height ?: maxHeight(), _state.value.selectedAudioTrackId)
+    }
+
+    /** Switches the audio language of the current item, keeping its height. [trackId] must be one
+     *  of [PlayerState.availableAudioTracks]. Same rebuild as [selectQuality], no re-resolve. */
+    fun selectAudioTrack(trackId: String) {
+        ensureInit()
+        rebuildCurrent(_state.value.selectedHeight ?: maxHeight(), trackId)
+    }
+
+    /** Rebuilds the current item's source from [currentFormats] at [height] with [audioTrackId],
+     *  keeping position and play state. The chosen ids are read back from the selection itself. */
+    private fun rebuildCurrent(height: Int, audioTrackId: String?) {
         if (currentFormats.isEmpty()) return
-        val result = FormatSelector.select(currentFormats, height ?: maxHeight())
+        val result = FormatSelector.select(currentFormats, height, audioTrackId = audioTrackId)
         val selection = result.selection ?: return
         val resumeAt = player.currentPosition
-        // A quality change must not start playback the user had paused.
+        // A quality or dub change must not start playback the user had paused.
         val wasPlayWhenReady = player.playWhenReady
         prepared = null
         window = listOf(index)
@@ -663,7 +689,13 @@ object PlaybackSession {
         // unlike every other reload path below, which starts a genuinely different item at Off.
         val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = true)
         applyCaptionSelection(language)
-        _state.update { it.copy(selectedHeight = newHeight, selectedCaptionLanguage = language) }
+        _state.update {
+            it.copy(
+                selectedHeight = newHeight,
+                selectedCaptionLanguage = language,
+                selectedAudioTrackId = audioTrackIdOf(selection),
+            )
+        }
         prefetchNext()
     }
 
@@ -756,6 +788,12 @@ object PlaybackSession {
         if (queue.getOrNull(i)?.pageUrl != ref.pageUrl) return
         queue = queue.toMutableList().also { it[i] = ref }
         _state.update { st -> if (st.current?.pageUrl == ref.pageUrl) st.copy(current = ref, queue = queue) else st }
+    }
+
+    /** Called by the detail screen when its video's chapters load. Takes no player state, so it is
+     *  safe to call before the video is playing. */
+    fun setChapters(pageUrl: String, chapters: List<Chapter>) {
+        _chapterSource.value = PageChapters(pageUrl = pageUrl, chapters = chapters)
     }
 
     fun clear() {
@@ -864,6 +902,8 @@ object PlaybackSession {
                     current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
                     selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                     availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
+                    availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
+                    selectedAudioTrackId = audioTrackIdOf(item.selection),
                     isPlaying = player.isPlaying,
                     // A new item's size is unknown until its own first frame; fullscreen orientation
                     // reads these and would briefly lock to the previous item's shape. The same-item
@@ -982,6 +1022,7 @@ object PlaybackSession {
             it.copy(
                 current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
                 error = error, availableHeights = emptyList(), availableCaptions = emptyList(),
+                availableAudioTracks = emptyList(), selectedAudioTrackId = null,
             )
         }
     }
@@ -1047,6 +1088,8 @@ object PlaybackSession {
                 current = ref, firstFrameRendered = if (resetFirstFrame) false else it.firstFrameRendered, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
                 selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
                 availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
+                availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
+                selectedAudioTrackId = audioTrackIdOf(item.selection),
                 // seed from the player: an advance between two already-playing items never fires
                 // onIsPlayingChanged, so a value left at the previous default would stick.
                 isPlaying = player.isPlaying,

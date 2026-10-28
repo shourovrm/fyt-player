@@ -1,6 +1,7 @@
 package com.fyiplayer.app.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +15,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,11 +37,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -57,12 +57,18 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  *    with a dot -- the shorts bar's shape. Touching it reports scrubbing, which the caller
  *    turns into "show the controls" as the same gesture.
  *  - expanded: a bottom gradient, then in portrait the 48dp control row ABOVE the bar (time left;
- *    More and fullscreen right) and the bar on the video's edge, full width (YouTube); in
- *    fullscreen the bar 24dp in from the screen sides with the row BELOW it (PipePipe -- the
- *    thumb otherwise sits under the rounded screen corner).
- * Quality, speed, captions and loop sit behind More: five 48dp targets plus the time label do not
- * fit a 360dp-wide row. The bar stays on its own full-width line so the thumb never shifts
- * sideways when a drag on the idle line expands the chrome.
+ *    icon buttons right) and the bar on the video's edge, full width (YouTube); in fullscreen the
+ *    bar 24dp in from the screen sides with the row BELOW it (PipePipe -- the thumb otherwise sits
+ *    under the rounded screen corner).
+ * The row is the time label, then five icon-only 40dp targets: Captions, Speed, Quality, Loop,
+ * Fullscreen. Speed draws its current value as text; Quality draws a fixed "HD" mark, not the
+ * chosen height (the quality sheet shows that). Five 40dp targets and the label fit a 360dp-wide
+ * row at the default font scale: 200dp of targets plus a label of about 105dp (an hour-long
+ * "1:02:03 / 1:41:12") leaves about 35dp of the 340dp between the 10dp side paddings. Fullscreen
+ * drops that 10dp gutter (the 24dp inset is already there): a portrait video keeps a portrait
+ * fullscreen, and at 360dp the 10dp gutter on top of the inset left only 292dp for the same row. The bar stays
+ * on its own full-width line so the thumb never shifts sideways when a drag on the idle line
+ * expands the chrome.
  * The thumb is bigger under the finger; the 40dp-tall touch target never changes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,15 +80,13 @@ internal fun ControlBar(
     onToggleFullscreen: () -> Unit,
     captionsAvailable: Boolean,
     onOpenCaptions: () -> Unit,
-    qualityLabel: String,
     onOpenQuality: () -> Unit,
     speedLabel: String,
     onOpenSpeed: () -> Unit,
     looping: Boolean,
     onToggleLoop: () -> Unit,
+    chapters: List<Chapter>,
     onScrubbingChange: (Boolean) -> Unit = {},
-    // Lets the caller keep the chrome up while the menu is open, same reason as onScrubbingChange.
-    onMoreMenuOpenChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Collected HERE, not by the caller (PlayerScreen) -- this is the one 500ms-ticking read in
@@ -93,21 +97,16 @@ internal fun ControlBar(
     var sliderWidthPx by remember { mutableStateOf(0) }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValueMs by remember { mutableStateOf(0L) }
-    var moreMenuOpen by remember { mutableStateOf(false) }
     val shownMs = if (isScrubbing) scrubValueMs else progress.positionMs
     val durationMs = progress.durationMs.coerceAtLeast(1L)
     val fraction = (shownMs.toFloat() / durationMs).coerceIn(0f, 1f)
     val sideInset = if (fullscreen) Spacing.s24 else 0.dp
     val extras = MaterialTheme.fyiExtras
     val playedColor = MaterialTheme.colorScheme.primary
-
-    // The row is unmounted when the chrome hides; a menu left "open" would reappear with it.
-    LaunchedEffect(expanded) {
-        if (!expanded && moreMenuOpen) {
-            moreMenuOpen = false
-            onMoreMenuOpenChange(false)
-        }
-    }
+    val currentChapterTitle: String = chapterAt(chapters, shownMs)?.title ?: ""
+    // Fullscreen already sits 24dp in for the rounded corners. The 10dp portrait gutter on top of
+    // that is what runs a 360dp fullscreen row out of room, so fullscreen drops it.
+    val rowGutter = if (fullscreen) 0.dp else 10.dp
 
     val slider: @Composable () -> Unit = {
         // Height pinned to the slider's own 40dp -- NOT left to wrap its children. The preview
@@ -152,6 +151,7 @@ internal fun ControlBar(
                         )
                         // Over the fill, so a segment stays visible on the part already played.
                         SponsorMarkers(sponsorMarkers, durationMs, Modifier.matchParentSize())
+                        ChapterMarkers(chapters, durationMs, Modifier.matchParentSize())
                     }
                 },
                 thumb = {
@@ -221,7 +221,7 @@ internal fun ControlBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(Sizes.touchTarget)
-                .padding(horizontal = 10.dp + sideInset),
+                .padding(horizontal = rowGutter + sideInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -230,62 +230,35 @@ internal fun ControlBar(
                 style = MaterialTheme.typography.labelMedium,
             )
             Box(modifier = Modifier.weight(1f))
-            Box {
-                IconButton(
-                    onClick = {
-                        moreMenuOpen = true
-                        onMoreMenuOpenChange(true)
-                    },
-                    modifier = Modifier.size(Sizes.touchTarget),
-                ) {
-                    Icon(
-                        Icons.Filled.MoreVert,
-                        contentDescription = stringResource(R.string.action_more),
-                        tint = extras.onVideo,
-                        modifier = Modifier.size(Sizes.icon),
-                    )
-                }
-                val closeMenu = {
-                    moreMenuOpen = false
-                    onMoreMenuOpenChange(false)
-                }
-                DropdownMenu(expanded = moreMenuOpen, onDismissRequest = closeMenu) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.player_menu_quality)) },
-                        trailingIcon = { Text(qualityLabel, style = MaterialTheme.typography.labelLarge) },
-                        onClick = { closeMenu(); onOpenQuality() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.player_menu_speed)) },
-                        trailingIcon = { Text(speedLabel, style = MaterialTheme.typography.labelLarge) },
-                        onClick = { closeMenu(); onOpenSpeed() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.player_menu_captions)) },
-                        leadingIcon = { CaptionsGlyph(tint = MaterialTheme.colorScheme.onSurface, dim = !captionsAvailable, size = Sizes.icon) },
-                        enabled = captionsAvailable,
-                        onClick = { closeMenu(); onOpenCaptions() },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(if (looping) R.string.player_loop_stop else R.string.player_loop)) },
-                        leadingIcon = {
-                            RepeatGlyph(
-                                tint = if (looping) playedColor else MaterialTheme.colorScheme.onSurface,
-                                size = Sizes.icon,
-                            )
-                        },
-                        onClick = { closeMenu(); onToggleLoop() },
-                    )
-                }
+            ControlIcon(
+                description = stringResource(R.string.player_menu_captions),
+                onClick = onOpenCaptions,
+                enabled = captionsAvailable,
+            ) {
+                CaptionsGlyph(tint = extras.onVideo, dim = !captionsAvailable, size = Sizes.icon)
             }
-            val fullscreenDescription = stringResource(
-                if (fullscreen) R.string.player_fullscreen_exit else R.string.player_fullscreen_enter,
-            )
-            IconButton(
+            ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
+                Text(speedLabel, color = extras.onVideo, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            }
+            ControlIcon(description = stringResource(R.string.player_menu_quality), onClick = onOpenQuality) {
+                Text(
+                    stringResource(R.string.player_quality_glyph),
+                    color = extras.onVideo,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                )
+            }
+            ControlIcon(
+                description = stringResource(if (looping) R.string.player_loop_stop else R.string.player_loop),
+                onClick = onToggleLoop,
+            ) {
+                RepeatGlyph(tint = if (looping) playedColor else extras.onVideo, size = Sizes.icon)
+            }
+            ControlIcon(
+                description = stringResource(
+                    if (fullscreen) R.string.player_fullscreen_exit else R.string.player_fullscreen_enter,
+                ),
                 onClick = onToggleFullscreen,
-                modifier = Modifier
-                    .size(Sizes.touchTarget)
-                    .semantics { contentDescription = fullscreenDescription },
             ) {
                 FullscreenGlyph(fullscreen = fullscreen, tint = extras.onVideo, size = Sizes.icon)
             }
@@ -310,11 +283,43 @@ internal fun ControlBar(
         // Offset into the slider box's own (touch-only) top area so the row sits just above the
         // line; the box below is the hit area, not drawn chrome.
         if (expanded && !fullscreen) Box(Modifier.offset(y = Spacing.s16)) { row() }
+        // Shown for the whole of a chaptered video, empty before the first chapter starts, so the
+        // bar does not jump when the first chapter begins.
+        if (expanded && chapters.isNotEmpty()) {
+            Text(
+                currentChapterTitle,
+                color = extras.onVideo,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = rowGutter + sideInset),
+            )
+        }
         // Portrait: pushed down so the line sits on the video's bottom edge; the touch box keeps
         // its full 40dp, the overflow is only the invisible lower half of the thumb. Same push idle
         // and expanded, so the bar never jumps when controls appear.
         Box(Modifier.fillMaxWidth().height(Spacing.s40).offset(y = if (fullscreen) 0.dp else Spacing.s16)) { slider() }
         if (expanded && fullscreen) Box(Modifier.padding(bottom = 6.dp)) { row() }
+    }
+}
+
+/** A 40dp icon-only control for the bottom row. Plain clickable box, not [IconButton]: IconButton
+ *  enforces a 48dp minimum interactive size, and five of them would overflow a 360dp row. */
+@Composable
+private fun ControlIcon(
+    description: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(Spacing.s40)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
     }
 }
 

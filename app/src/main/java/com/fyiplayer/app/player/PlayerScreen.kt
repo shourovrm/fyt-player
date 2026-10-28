@@ -105,12 +105,16 @@ fun PlayerScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by PlaybackSession.state.collectAsState()
+    val pageChapters by PlaybackSession.chapterSource.collectAsState()
+    val chapters = chaptersForPage(state.current?.pageUrl, pageChapters)
     val context = LocalContext.current
     val activity = context.asActivity()
 
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showCaptionSheet by remember { mutableStateOf(false) }
+    var showAudioSheet by remember { mutableStateOf(false) }
+    var showChaptersSheet by remember { mutableStateOf(false) }
     var seekThumbs by remember { mutableStateOf<SeekThumbnails?>(null) }
 
     LaunchedEffect(state.current?.pageUrl) {
@@ -194,15 +198,12 @@ fun PlayerScreen(
     // instead of resuming a timer that expired mid-drag and would yank the chrome away -- a hide
     // during a seekbar drag unmounts the bar and releases the drag under the user's finger.
     var scrubbing by remember { mutableStateOf(false) }
-    // Same reasoning for the More menu: it is a dropdown over the chrome, so hiding the chrome
-    // would close it under the finger.
-    var moreMenuOpen by remember { mutableStateOf(false) }
     // The end of the video brings the controls up so Replay is one tap, not two.
     LaunchedEffect(state.ended) {
         if (state.ended) interact()
     }
-    LaunchedEffect(controlsToken, state.isPlaying, scrubbing, moreMenuOpen) {
-        if (!state.isPlaying || scrubbing || moreMenuOpen) return@LaunchedEffect
+    LaunchedEffect(controlsToken, state.isPlaying, scrubbing) {
+        if (!state.isPlaying || scrubbing) return@LaunchedEffect
         delay(3000); controlsVisible = false
     }
 
@@ -348,6 +349,15 @@ fun PlayerScreen(
                             }
                         }
                     }
+                    // Top-right corner, both orientations: the dub button. Hidden with the rest of
+                    // the controls, and it draws nothing for a single-language video.
+                    PlayerTopActions(
+                        audioTracks = state.availableAudioTracks,
+                        onOpenAudioTracks = { interact(); showAudioSheet = true },
+                        chapters = chapters,
+                        onOpenChapters = { interact(); showChaptersSheet = true },
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
                     // Top-left close / minimize, portrait only (PipePipe hides its X in
                     // fullscreen too). Fullscreen has the exit-fullscreen button instead.
                     if (!fullscreen && (onClose != null || onMinimize != null)) {
@@ -380,15 +390,13 @@ fun PlayerScreen(
                     onToggleFullscreen = { interact(); onToggleFullscreen() },
                     captionsAvailable = state.availableCaptions.isNotEmpty(),
                     onOpenCaptions = { interact(); showCaptionSheet = true },
-                    qualityLabel = state.selectedHeight?.let { stringResource(R.string.player_quality_height, it) }
-                        ?: stringResource(R.string.player_quality_auto),
                     onOpenQuality = { interact(); showQualitySheet = true },
                     speedLabel = stringResource(R.string.player_speed_value, trimSpeed(state.speed)),
                     onOpenSpeed = { interact(); showSpeedSheet = true },
                     looping = state.repeatMode == RepeatMode.ONE,
                     onToggleLoop = { interact(); PlaybackSession.toggleLoop() },
+                    chapters = chapters,
                     onScrubbingChange = { scrubbing = it; if (it) interact() },
-                    onMoreMenuOpenChange = { moreMenuOpen = it; if (it) interact() },
                     modifier = Modifier.align(Alignment.BottomStart),
                 )
 
@@ -422,6 +430,24 @@ fun PlayerScreen(
                         selectedLanguage = state.selectedCaptionLanguage,
                         onSelect = { PlaybackSession.selectCaption(it); showCaptionSheet = false },
                         onDismiss = { showCaptionSheet = false },
+                    )
+                }
+                if (showAudioSheet) {
+                    AudioTrackSheet(
+                        tracks = state.availableAudioTracks,
+                        selectedTrackId = state.selectedAudioTrackId,
+                        onSelect = { PlaybackSession.selectAudioTrack(it); showAudioSheet = false },
+                        onDismiss = { showAudioSheet = false },
+                    )
+                }
+                if (showChaptersSheet) {
+                    ChaptersSheet(
+                        chapters = chapters,
+                        onSelect = {
+                            PlaybackSession.seekTo(it.startSeconds * 1000L)
+                            showChaptersSheet = false
+                        },
+                        onDismiss = { showChaptersSheet = false },
                     )
                 }
             }

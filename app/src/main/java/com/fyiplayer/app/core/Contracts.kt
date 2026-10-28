@@ -71,6 +71,17 @@ data class MediaFormat(
     /** Null when the platform did not publish usable byte ranges: the format then plays as a
      *  plain progressive stream. The ranges describe the file behind this exact [url]. */
     val segmentIndex: SegmentIndexInfo? = null,
+    /** Audio-only formats: the platform's id for one language track (YouTube "en.0"). Formats that
+     *  share an id are the same language at different bitrates. Null when the platform publishes
+     *  no track ids, which is every single-language video. */
+    val audioTrackId: String? = null,
+    /** Audio-only formats: the track's language code as the platform gives it ("en"), null if unknown. */
+    val audioLanguage: String? = null,
+    /** Audio-only formats: the picker row text, e.g. "Spanish". Null when no name can be made. */
+    val audioLabel: String? = null,
+    /** Audio-only formats: true for the track a viewer hears by default (the platform's original,
+     *  or a track it did not tag). The player picks this track first unless the user switches. */
+    val isOriginalAudio: Boolean = false,
 ) {
     val isVideoOnly: Boolean get() = videoCodec != null && audioCodec == null
     val isAudioOnly: Boolean get() = audioCodec != null && videoCodec == null

@@ -1,6 +1,17 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
+2026-10-28 (built, 546 unit tests green; device pass in LOG): control bar is icon-only. Bottom row = time
+label + Captions / Speed ("1x" glyph) / Quality ("HD" glyph) / Loop / Fullscreen at 40 dp; the kebab menu is
+gone. Top-end corner (`PlayerTopActions`, controls visible, page and fullscreen) = Chapters (when the video
+has chapters) and Dub (when >1 audio track). Chapters: `DetailScreen` calls `PlaybackSession.setChapters(
+pageUrl, chapters)`; the player filters by current pageUrl (`chaptersForPage`), draws 2 dp notches on the
+seek bar (`ChapterMarkers`) and the current chapter title above it; the sheet seeks on tap. Dub: `MediaFormat`
+carries audioTrackId/language/label/isOriginalAudio; NewPipe tier0 no longer drops alternate audio
+(`originalAudioOnly` removed), default pick stays the original track; `selectAudioTrack` rebuilds the source
+like `selectQuality` and keeps position. yt-dlp and WebView tiers expose no dubs. Fullscreen portrait videos
+drop the 10 dp row gutter so the icon row fits 360 dp.
+
 
 2026-10-07 (v0.2.25, tests green, NOT YET RUN ON A DEVICE -- phone was in use by another
 session): resume starts at the START of the video segment containing the saved position

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Player chapter list: the control-row button's description and the sheet title. The Description
+     tab's list reads detail_chapters. Rules: docs/copy.md. -->
+<resources>
+    <string name="player_chapters">Chapters</string>
+</resources>

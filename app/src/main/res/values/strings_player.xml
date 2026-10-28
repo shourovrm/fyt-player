@@ -18,7 +18,7 @@
     <string name="player_fullscreen_enter">Full screen</string>
     <string name="player_fullscreen_exit">Exit full screen</string>
 
-    <!-- more menu in the control row -->
+    <!-- control-row icon descriptions: the icons draw no words, so these are what a screen reader says -->
     <string name="player_menu_quality">Quality</string>
     <string name="player_menu_speed">Speed</string>
     <string name="player_menu_captions">Captions</string>

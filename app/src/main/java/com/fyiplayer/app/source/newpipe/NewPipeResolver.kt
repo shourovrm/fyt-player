@@ -10,6 +10,7 @@ import com.fyiplayer.app.core.SegmentIndexInfo
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.engine.UrlScopedResolver
 import java.net.URI
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -108,7 +109,9 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
         info.videoStreams.orEmpty()
             .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
             .forEach { add(muxedFormat(it)) }
-        originalAudioOnly(info.audioStreams.orEmpty())
+        // Every language track is kept: the dub picker needs the alternates. FormatSelector still
+        // plays the original unless the user switches.
+        info.audioStreams.orEmpty()
             .filter { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
             .forEach { add(audioOnlyFormat(it)) }
         // The extractor's own DASH/torrent delivery methods are skipped: the progressive streams
@@ -134,19 +137,23 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
 
 private fun genericCodec(codec: String?, fallback: String) = if (codec.isNullOrBlank()) fallback else codec
 
-/** Multi-audio videos ship dubbed tracks, and picking audio by bitrate alone can land on a dub in
- *  the wrong language. Same narrowing PipePipe's own client uses (`ListHelper
- *  .filterAudioStreamsByLanguage`, "original" mode): keep original/default/untagged tracks; fall
- *  back to untracked ids, then to everything rather than to silence. */
-internal fun originalAudioOnly(streams: List<AudioStream>): List<AudioStream> {
-    if (streams.isEmpty()) return streams
-    val original = streams.filter { s ->
-        val name = s.audioTrackName?.lowercase()
-        name == null || "original" in name || "default" in name
-    }
-    if (original.isNotEmpty()) return original
-    val untagged = streams.filter { it.audioTrackId == null }
-    return untagged.ifEmpty { streams }
+/** Whether the platform's track name marks the track as the one a viewer hears by default. An
+ *  untagged track (no name) counts as original, as it always has. */
+internal fun isOriginalAudioTrack(trackName: String?): Boolean {
+    if (trackName == null) return true
+    val lowered = trackName.lowercase()
+    return "original" in lowered || "default" in lowered
+}
+
+/** Picker row text: the language name, with "(original)" on the original track. Falls back to the
+ *  platform's own track name when the language code names no language. Null when neither exists. */
+internal fun audioTrackLabelOf(languageCode: String?, trackName: String?, isOriginal: Boolean): String? {
+    val languageName = languageCode
+        ?.takeIf { it.isNotBlank() }
+        ?.let { Locale.forLanguageTag(it).displayName }
+        ?.takeIf { it.isNotBlank() && it != languageCode }
+    if (languageName == null) return trackName
+    return if (isOriginal) "$languageName (original)" else languageName
 }
 
 private fun videoOnlyFormat(s: VideoStream) = MediaFormat(
@@ -174,17 +181,24 @@ private fun muxedFormat(s: VideoStream) = MediaFormat(
     audioCodec = "mp4a",
 )
 
-private fun audioOnlyFormat(s: AudioStream) = MediaFormat(
-    formatId = s.id,
-    url = s.content,
-    container = s.format?.suffix ?: "",
-    protocol = Protocol.PROGRESSIVE,
-    videoCodec = null,
-    audioCodec = genericCodec(s.codec, "mp4a"),
-    bitrate = s.averageBitrate.takeIf { it > 0 }?.toLong(),
-    filesizeBytes = s.itagItem?.contentLength?.takeIf { it > 0 },
-    segmentIndex = segmentIndexOf(s.itagItem, s.codec, isAudio = true),
-)
+private fun audioOnlyFormat(s: AudioStream): MediaFormat {
+    val isOriginal = isOriginalAudioTrack(s.audioTrackName)
+    return MediaFormat(
+        formatId = s.id,
+        url = s.content,
+        container = s.format?.suffix ?: "",
+        protocol = Protocol.PROGRESSIVE,
+        videoCodec = null,
+        audioCodec = genericCodec(s.codec, "mp4a"),
+        bitrate = s.averageBitrate.takeIf { it > 0 }?.toLong(),
+        filesizeBytes = s.itagItem?.contentLength?.takeIf { it > 0 },
+        segmentIndex = segmentIndexOf(s.itagItem, s.codec, isAudio = true),
+        audioTrackId = s.audioTrackId,
+        audioLanguage = s.audioLocale,
+        audioLabel = audioTrackLabelOf(s.audioLocale, s.audioTrackName, isOriginal),
+        isOriginalAudio = isOriginal,
+    )
+}
 
 /** The init/index ranges and stream properties a one-stream DASH manifest needs, or null when
  *  the player response did not carry sane ones (the extractor stores -1 for a missing range, and

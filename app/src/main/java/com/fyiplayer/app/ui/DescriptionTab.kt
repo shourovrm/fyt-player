@@ -24,6 +24,7 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoDetail
@@ -75,11 +76,14 @@ private fun DescriptionText(
             handleDescriptionLink(url, detail.ref, context, onOpenDetail, onOpenListing)
         }
     }
-    val base = if (detail.descriptionIsHtml) {
+    val parsed = if (detail.descriptionIsHtml) {
         AnnotatedString.fromHtml(description, linkStyles = linkStyles, linkInteractionListener = listener)
     } else {
         AnnotatedString(description)
     }
+    // Stripped after parsing: YouTube sends HTML, where a line break is a <br> that only becomes a
+    // newline once parsed. The raw string has no lines to match against.
+    val base = stripChapterLines(parsed, detail.chapters)
     SelectionContainer(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
         Text(linkifyGaps(base, detail.ref.pageUrl, linkStyles, listener), style = MaterialTheme.typography.bodyMedium)
     }
@@ -182,6 +186,18 @@ internal fun parseYoutubeTimestamp(raw: String): Long? {
     return (h.toLongOrNull() ?: 0L) * 3600 + (min.toLongOrNull() ?: 0L) * 60 + (s.toLongOrNull() ?: 0L)
 }
 
+/** A timestamp at the start of a line, after bullets, brackets, emoji or spaces: `1:02:03`, `2:05`,
+ *  `(2:05)`, `[1:02:03]`. Group 1 is the timestamp itself; the lookahead keeps `12:345` from matching. */
+private val CHAPTER_LINE_START = Regex(
+    """^[\s\-*•·▪►▶➤➜>\[(\p{So}\uFE0F\u200D]*((?:\d{1,2}:)?\d{1,2}:\d{2})[)\]]?(?![\d:])""",
+)
+
+/** The heading a creator puts above a timestamp list. Only removed when the list under it is. */
+private val CHAPTER_HEADER = Regex(
+    """^[\s\p{So}\uFE0F]*(chapters|timestamps|time stamps|contents|timeline)[\s:\p{So}\uFE0F]*$""",
+    RegexOption.IGNORE_CASE,
+)
+
 /** `1:02:03` / `2:05` as literally typed in a description -- not [parseYoutubeTimestamp]'s shape
  *  (that one parses a URL's `t=` value: bare seconds or the letter form, never colon-separated). */
 internal fun parseColonTimestamp(raw: String): Long? {
@@ -191,6 +207,82 @@ internal fun parseColonTimestamp(raw: String): Long? {
         3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
         else -> null
     }
+}
+
+/**
+ * Removes the uploader's own timestamp list from a description whose chapters are already shown
+ * as the structured list above it. Plain-text form of [stripChapterLines] for an [AnnotatedString].
+ */
+internal fun stripChapterLines(description: String, chapters: List<Chapter>): String =
+    keptLineRanges(description, chapters).joinToString("\n") { description.substring(it.first, it.last + 1) }
+
+/** [stripChapterLines] for a parsed description, which keeps its link and style spans on the lines
+ *  that survive. The same line rules apply; see [keptLineRanges]. */
+internal fun stripChapterLines(description: AnnotatedString, chapters: List<Chapter>): AnnotatedString {
+    if (chapters.isEmpty()) return description
+    val builder = AnnotatedString.Builder()
+    keptLineRanges(description.text, chapters).forEachIndexed { index, range ->
+        if (index > 0) builder.append('\n')
+        builder.append(description.subSequence(range.first, range.last + 1))
+    }
+    return builder.toAnnotatedString()
+}
+
+/**
+ * Offsets into [text] of every line that survives the chapter strip. A line goes when it is a
+ * chapter timestamp, or a heading whose next non-blank line went. Blank lines that would stack up
+ * after a removal collapse to one, and none are left at the top or bottom of the text.
+ */
+internal fun keptLineRanges(text: String, chapters: List<Chapter>): List<IntRange> {
+    val lineRanges = lineRangesOf(text)
+    if (chapters.isEmpty()) return lineRanges
+    val lines = lineRanges.map { text.substring(it.first, it.last + 1) }
+    val chapterSeconds = chapters.mapTo(HashSet()) { it.startSeconds.toLong() }
+    val dropped = BooleanArray(lines.size) { isChapterLine(lines[it], chapterSeconds) }
+    // Backwards, so a heading stacked on another heading sees the one below it already decided.
+    for (index in lines.indices.reversed()) {
+        val nextNonBlank = (index + 1 until lines.size).firstOrNull { lines[it].isNotBlank() }
+        if (CHAPTER_HEADER.containsMatchIn(lines[index]) && nextNonBlank != null && dropped[nextNonBlank]) {
+            dropped[index] = true
+        }
+    }
+    return withoutDroppedLines(lineRanges, lines, dropped)
+}
+
+private fun lineRangesOf(text: String): List<IntRange> {
+    val ranges = mutableListOf<IntRange>()
+    var lineStart = 0
+    for (line in text.split('\n')) {
+        ranges += lineStart until lineStart + line.length
+        lineStart += line.length + 1
+    }
+    return ranges
+}
+
+private fun isChapterLine(line: String, chapterSeconds: Set<Long>): Boolean {
+    val timestamp = CHAPTER_LINE_START.find(line)?.groupValues?.get(1) ?: return false
+    val seconds = parseColonTimestamp(timestamp) ?: return false
+    return seconds in chapterSeconds
+}
+
+private fun withoutDroppedLines(lineRanges: List<IntRange>, lines: List<String>, dropped: BooleanArray): List<IntRange> {
+    val kept = mutableListOf<IntRange>()
+    // Start-of-text counts as blank, so a gap left at the top of the text after a removal is dropped.
+    var lastKeptIsBlank = true
+    var droppedSinceLastKept = false
+    for (index in lineRanges.indices) {
+        if (dropped[index]) {
+            droppedSinceLastKept = true
+            continue
+        }
+        val isBlankLine = lines[index].isBlank()
+        if (isBlankLine && droppedSinceLastKept && lastKeptIsBlank) continue
+        kept += lineRanges[index]
+        lastKeptIsBlank = isBlankLine
+        droppedSinceLastKept = false
+    }
+    if (droppedSinceLastKept && lastKeptIsBlank && kept.isNotEmpty()) kept.removeAt(kept.lastIndex)
+    return kept
 }
 
 private fun timestampUrl(pageUrl: String, seconds: Long): String =
