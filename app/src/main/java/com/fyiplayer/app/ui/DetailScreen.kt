@@ -2,10 +2,8 @@ package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +52,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -58,6 +61,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -80,6 +84,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.text.NumberFormat
+import kotlin.math.roundToInt
 
 /**
  * Pinned player header + metadata + related (DESIGN.md §5). [pageUrl] is the decoded canonical
@@ -137,6 +142,14 @@ fun DetailScreen(
         delay(ACTION_MESSAGE_MILLIS)
         actionMessageVisible = false
     }
+    // Y values in the root Box's coordinate space. They are written from layout callbacks, not
+    // composition, so a scroll moves the pill without recomposing this screen. The pill is hidden
+    // while the action row is above the list's top edge: the row is scrolled out, and the pill
+    // would otherwise sit over the header.
+    var rootTopPx by remember { mutableFloatStateOf(0f) }
+    var listTopPx by remember { mutableFloatStateOf(0f) }
+    var actionRowBottomPx by remember { mutableFloatStateOf(0f) }
+    val actionMessageInView by remember { derivedStateOf { actionRowBottomPx > listTopPx } }
 
     BackHandler(enabled = fullscreen) { fullscreen = false }
     // AppScaffold reads this to drop the nav bar and its inset padding for exactly as long as
@@ -223,143 +236,153 @@ fun DetailScreen(
     // No top bar (neither YouTube nor PipePipe has one): the title lives once, under the video,
     // and close/minimise are the player's own top-left buttons. Scaffold still pads the status bar.
     Scaffold { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            // A fixed-height pinned header (not LazyColumn item 0): it never scrolls away and is
-            // never recycled by scroll, so the player surface underneath keeps its identity.
-            val headerHeight = LocalConfiguration.current.screenWidthDp.dp * 9 / 16
-            Box(Modifier.fillMaxWidth().height(headerHeight).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                playerSurface(shownRef, false) { fullscreen = true }
-            }
+        // Shared root for the page and the message pill: the pill is drawn after the Column, so it
+        // sits on top of the list, and it is positioned against this Box's own top edge.
+        Box(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { rootTopPx = it.positionInRoot().y }) {
+            Column(Modifier.fillMaxSize()) {
+                // A fixed-height pinned header (not LazyColumn item 0): it never scrolls away and is
+                // never recycled by scroll, so the player surface underneath keeps its identity.
+                val headerHeight = LocalConfiguration.current.screenWidthDp.dp * 9 / 16
+                Box(Modifier.fillMaxWidth().height(headerHeight).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                    playerSurface(shownRef, false) { fullscreen = true }
+                }
 
-            LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                item {
-                    // Long-press opens the same action sheet Similar rows use (below) -- picked
-                    // over a 5th action-row column so "Download subtitles" doesn't squeeze Like/
-                    // Save/Download/Share; tap is a no-op since the title has nowhere else to go.
-                    Text(
-                        shownRef.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .combinedClickable(onClick = {}, onLongClick = { actionSheetRef = shownRef })
-                            .padding(start = Spacing.pageMargin, end = Spacing.pageMargin, top = 10.dp),
-                    )
-                }
-                // Before detail() lands (or when it fails), the ref itself often already knows the
-                // channel URL (listings + playlist rows persist it) -- link from that instead of
-                // degrading to plain text for the whole wait.
-                val uploaderListing = detail.uploader ?: shownRef.uploaderUrl?.let {
-                    Listing(sourceId = shownRef.sourceId, kind = Listing.Kind.CHANNEL, key = it, title = shownRef.uploader ?: "")
-                }
-                item {
-                    when {
-                        uploaderListing != null -> Text(
-                            "${uploaderListing.title}  ›",
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.clickable { onOpenListing(uploaderListing) }
-                                .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-                        )
-                        shownRef.uploader != null -> Text(
-                            shownRef.uploader,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-                        )
-                    }
-                }
-                item {
-                    val meta = listOfNotNull(
-                        detail.viewCount?.let { pluralStringResource(R.plurals.detail_meta_views, it.toPluralQuantity(), formatCount(it)) }
-                            ?: shownRef.viewCountText,
-                        detail.likeCount?.let { pluralStringResource(R.plurals.detail_meta_likes, it.toPluralQuantity(), formatCount(it)) },
-                        detail.dislikeCount?.let { pluralStringResource(R.plurals.detail_meta_dislikes, it.toPluralQuantity(), formatCount(it)) },
-                        detail.uploadDate?.let(::formatUploadDate),
-                    ).joinToString(" · ")
-                    if (meta.isNotBlank()) {
+                LazyColumn(
+                    Modifier.fillMaxWidth().weight(1f).onGloballyPositioned { listTopPx = it.positionInRoot().y },
+                ) {
+                    item {
+                        // Long-press opens the same action sheet Similar rows use (below) -- picked
+                        // over a 5th action-row column so "Download subtitles" doesn't squeeze Like/
+                        // Save/Download/Share; tap is a no-op since the title has nowhere else to go.
                         Text(
-                            meta,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
+                            shownRef.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier
+                                .combinedClickable(onClick = {}, onLongClick = { actionSheetRef = shownRef })
+                                .padding(start = Spacing.pageMargin, end = Spacing.pageMargin, top = 10.dp),
                         )
                     }
-                }
-                item {
-                    // SponsorBlock exceptions are per YouTube channel, so other sources get no toggle.
-                    val sponsorChannelUrl = if (shownRef.sourceId == "youtube") uploaderListing?.key else null
-                    VideoActionRow(
-                        rememberVideoActions(shownRef),
-                        sponsorChannelUrl = sponsorChannelUrl,
-                        onMessage = { text -> actionMessage = ActionMessage(text) },
-                    )
-                }
-                // Its own item so it sits between the icon row and the tabs. Expanding and
-                // collapsing this item is what moves the tabs; a fixed-height slot would
-                // reserve empty space on every page instead.
-                item {
-                    AnimatedVisibility(
-                        visible = actionMessageVisible,
-                        modifier = Modifier.fillMaxWidth(),
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            ActionMessagePill(actionMessage?.text.orEmpty())
+                    // Before detail() lands (or when it fails), the ref itself often already knows the
+                    // channel URL (listings + playlist rows persist it) -- link from that instead of
+                    // degrading to plain text for the whole wait.
+                    val uploaderListing = detail.uploader ?: shownRef.uploaderUrl?.let {
+                        Listing(sourceId = shownRef.sourceId, kind = Listing.Kind.CHANNEL, key = it, title = shownRef.uploader ?: "")
+                    }
+                    item {
+                        when {
+                            uploaderListing != null -> Text(
+                                "${uploaderListing.title}  ›",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.clickable { onOpenListing(uploaderListing) }
+                                    .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                            )
+                            shownRef.uploader != null -> Text(
+                                shownRef.uploader,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                            )
                         }
                     }
-                }
-                // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
-                // option (the old showCommentsTab-only gate no longer applies).
-                item {
-                    PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = Spacing.s16)) {
-                        Tab(
-                            selected = tabsVm.selectedTab == DetailTab.SIMILAR,
-                            onClick = { tabsVm.selectedTab = DetailTab.SIMILAR },
-                            text = { Text(stringResource(R.string.detail_tab_similar)) },
+                    item {
+                        val meta = listOfNotNull(
+                            detail.viewCount?.let { pluralStringResource(R.plurals.detail_meta_views, it.toPluralQuantity(), formatCount(it)) }
+                                ?: shownRef.viewCountText,
+                            detail.likeCount?.let { pluralStringResource(R.plurals.detail_meta_likes, it.toPluralQuantity(), formatCount(it)) },
+                            detail.dislikeCount?.let { pluralStringResource(R.plurals.detail_meta_dislikes, it.toPluralQuantity(), formatCount(it)) },
+                            detail.uploadDate?.let(::formatUploadDate),
+                        ).joinToString(" · ")
+                        if (meta.isNotBlank()) {
+                            Text(
+                                meta,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
+                            )
+                        }
+                    }
+                    item {
+                        // SponsorBlock exceptions are per YouTube channel, so other sources get no toggle.
+                        val sponsorChannelUrl = if (shownRef.sourceId == "youtube") uploaderListing?.key else null
+                        VideoActionRow(
+                            rememberVideoActions(shownRef),
+                            sponsorChannelUrl = sponsorChannelUrl,
+                            onMessage = { text -> actionMessage = ActionMessage(text) },
+                            // Reports the row's bottom edge so the pill can float under it. Written on
+                            // every placement, so it follows the row while the list scrolls.
+                            modifier = Modifier.onGloballyPositioned { coordinates ->
+                                actionRowBottomPx = coordinates.positionInRoot().y + coordinates.size.height
+                            },
                         )
-                        Tab(
-                            selected = tabsVm.selectedTab == DetailTab.DESCRIPTION,
-                            onClick = { tabsVm.selectedTab = DetailTab.DESCRIPTION },
-                            text = { Text(stringResource(R.string.detail_tab_description)) },
-                        )
-                        if (showCommentsTab) {
+                    }
+                    // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
+                    // option (the old showCommentsTab-only gate no longer applies).
+                    item {
+                        PrimaryTabRow(selectedTabIndex = tabsVm.selectedTab.ordinal, modifier = Modifier.padding(top = Spacing.s16)) {
                             Tab(
-                                selected = tabsVm.selectedTab == DetailTab.COMMENTS,
-                                onClick = { tabsVm.selectedTab = DetailTab.COMMENTS },
-                                text = {
-                                    Text(
-                                        tabsVm.commentsCount?.let { stringResource(R.string.detail_tab_comments_count, it) }
-                                            ?: stringResource(R.string.detail_tab_comments),
-                                    )
-                                },
+                                selected = tabsVm.selectedTab == DetailTab.SIMILAR,
+                                onClick = { tabsVm.selectedTab = DetailTab.SIMILAR },
+                                text = { Text(stringResource(R.string.detail_tab_similar)) },
+                            )
+                            Tab(
+                                selected = tabsVm.selectedTab == DetailTab.DESCRIPTION,
+                                onClick = { tabsVm.selectedTab = DetailTab.DESCRIPTION },
+                                text = { Text(stringResource(R.string.detail_tab_description)) },
+                            )
+                            if (showCommentsTab) {
+                                Tab(
+                                    selected = tabsVm.selectedTab == DetailTab.COMMENTS,
+                                    onClick = { tabsVm.selectedTab = DetailTab.COMMENTS },
+                                    text = {
+                                        Text(
+                                            tabsVm.commentsCount?.let { stringResource(R.string.detail_tab_comments_count, it) }
+                                                ?: stringResource(R.string.detail_tab_comments),
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    when (tabsVm.selectedTab) {
+                        DetailTab.SIMILAR -> similarVideosSection(
+                            results = tabsVm.similarItems,
+                            loading = tabsVm.similarLoading,
+                            error = tabsVm.similarError,
+                            retryEnabled = !tabsVm.similarBlocked,
+                            onRetry = { tabsVm.retrySimilar(source, shownRef, detail.related) },
+                            // Just opens Detail -- Detail autoplays the single video (PipePipe queue
+                            // model, CLAUDE.md), so a chain of Similar taps unwinds one video per back.
+                            onClick = onOpenDetail,
+                            onLongPress = { actionSheetRef = it },
+                            onOpenShorts = onOpenShorts,
+                        )
+                        DetailTab.DESCRIPTION -> descriptionTabSection(detail, onOpenDetail, onOpenListing)
+                        DetailTab.COMMENTS -> item {
+                            CommentsSection(
+                                comments = tabsVm.comments,
+                                loading = tabsVm.commentsLoading,
+                                error = tabsVm.commentsError,
+                                retryEnabled = !tabsVm.commentsBlocked,
+                                onRetry = { tabsVm.retryComments(source, shownRef) },
+                                modifier = Modifier.padding(top = 10.dp),
                             )
                         }
                     }
                 }
-                when (tabsVm.selectedTab) {
-                    DetailTab.SIMILAR -> similarVideosSection(
-                        results = tabsVm.similarItems,
-                        loading = tabsVm.similarLoading,
-                        error = tabsVm.similarError,
-                        retryEnabled = !tabsVm.similarBlocked,
-                        onRetry = { tabsVm.retrySimilar(source, shownRef, detail.related) },
-                        // Just opens Detail -- Detail autoplays the single video (PipePipe queue
-                        // model, CLAUDE.md), so a chain of Similar taps unwinds one video per back.
-                        onClick = onOpenDetail,
-                        onLongPress = { actionSheetRef = it },
-                        onOpenShorts = onOpenShorts,
-                    )
-                    DetailTab.DESCRIPTION -> descriptionTabSection(detail, onOpenDetail, onOpenListing)
-                    DetailTab.COMMENTS -> item {
-                        CommentsSection(
-                            comments = tabsVm.comments,
-                            loading = tabsVm.commentsLoading,
-                            error = tabsVm.commentsError,
-                            retryEnabled = !tabsVm.commentsBlocked,
-                            onRetry = { tabsVm.retryComments(source, shownRef) },
-                            modifier = Modifier.padding(top = 10.dp),
-                        )
-                    }
+            }
+            // Last child of the root Box, so it is drawn over the list and the tabs. It takes no
+            // layout space, which is why the tabs never move while the message shows.
+            AnimatedVisibility(
+                visible = actionMessageVisible && actionMessageInView,
+                modifier = Modifier.fillMaxWidth().offset {
+                    IntOffset(0, (actionRowBottomPx - rootTopPx + Spacing.s8.toPx()).roundToInt())
+                },
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    ActionMessagePill(actionMessage?.text.orEmpty())
                 }
             }
         }
