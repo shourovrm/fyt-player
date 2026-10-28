@@ -22,10 +22,11 @@ import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
- * The top-end corner of the player: the Chapters button, then the Dub (audio language) button to
- * its right. The caller places this at Alignment.TopEnd and shows it only while the controls are
- * up. Each button shows only when it has something to offer: Chapters when the video has any,
- * Dub when there is more than one audio language to switch between.
+ * The top-end corner of the player, left to right: Chapters, Captions, then Dub (audio language).
+ * The caller places this at Alignment.TopEnd and shows it only while the controls are up. Each
+ * button shows only when it has something to offer: Chapters when the video has any, Captions
+ * when it has subtitle tracks, Dub when there is more than one audio language to switch between.
+ * Captions draws filled while a subtitle language is selected, so the state reads without a sheet.
  */
 @Composable
 internal fun PlayerTopActions(
@@ -33,6 +34,9 @@ internal fun PlayerTopActions(
     onOpenAudioTracks: () -> Unit,
     chapters: List<Chapter>,
     onOpenChapters: () -> Unit,
+    captionsAvailable: Boolean,
+    captionsSelected: Boolean,
+    onOpenCaptions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val extras = MaterialTheme.fyiExtras
@@ -55,6 +59,18 @@ internal fun PlayerTopActions(
                     tint = extras.onVideo,
                     modifier = Modifier.size(Sizes.icon),
                 )
+            }
+        }
+        if (captionsAvailable) {
+            val description = stringResource(R.string.player_menu_captions)
+            IconButton(
+                onClick = onOpenCaptions,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim),
+                modifier = Modifier
+                    .size(Sizes.touchTarget)
+                    .semantics { contentDescription = description },
+            ) {
+                CaptionsGlyph(tint = extras.onVideo, size = Sizes.icon, filled = captionsSelected)
             }
         }
         if (audioTracks.size > 1) {

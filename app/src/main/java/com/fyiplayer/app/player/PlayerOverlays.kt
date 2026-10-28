@@ -28,7 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.CornerRadius
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -334,22 +338,46 @@ fun FullscreenGlyph(fullscreen: Boolean, tint: Color, size: Dp = Sizes.icon, mod
     }
 }
 
-/** Rounded rect + two text-line ticks — neither `material-icons-core` nor the extended set is on
- *  this app's classpath, and there is no built-in "CC" glyph either way. [dim] is the disabled
- *  look the control bar uses when the current item has no caption tracks at all. */
+/** Rounded box with one open C inside: the captions mark. Hand-drawn because `material-icons-core`
+ *  has no closed-caption glyph. [filled] paints the box solid and erases the C with BlendMode.Clear,
+ *  so the background shows through the letter; the offscreen layer keeps that erase inside this
+ *  glyph and off the control bar behind it. [dim] is the disabled look the control bar uses when
+ *  the current item has no caption tracks at all. */
 @Composable
-fun CaptionsGlyph(tint: Color, dim: Boolean = false, size: Dp = Sizes.icon, modifier: Modifier = Modifier) {
+fun CaptionsGlyph(tint: Color, size: Dp, filled: Boolean = false, dim: Boolean = false) {
     val color = if (dim) tint.copy(alpha = 0.4f) else tint
-    Box(
-        modifier = modifier
-            .size(width = size, height = size * 0.72f)
-            .border(2.dp, color, RoundedCornerShape(4.dp)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(size * 0.12f)) {
-            Spacer(Modifier.width(size * 0.26f).height(1.dp).background(color))
-            Spacer(Modifier.width(size * 0.26f).height(1.dp).background(color))
+    Canvas(Modifier.size(size).graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
+        // Stroke is centred on the path; the box is pulled in by half its width to stay inside the square.
+        val strokeWidth = 2.dp.toPx()
+        val inset = strokeWidth / 2
+        val boxSide = this.size.minDimension
+        val boxSize = Size(boxSide - strokeWidth, boxSide - strokeWidth)
+        val boxCorner = CornerRadius(boxSide * 0.22f)
+        if (filled) {
+            drawRoundRect(color, topLeft = Offset(inset, inset), size = boxSize, cornerRadius = boxCorner)
+        } else {
+            drawRoundRect(
+                color,
+                topLeft = Offset(inset, inset),
+                size = boxSize,
+                cornerRadius = boxCorner,
+                style = Stroke(width = strokeWidth),
+            )
         }
+        // A 280-degree arc, opening to the right (0 degrees is 3 o'clock, sweep runs clockwise).
+        val letterRadius = boxSide * 0.24f
+        val letterCenter = center
+        drawArc(
+            // BlendMode.Clear ignores the colour; the mode alone erases the letter.
+            color = if (filled) Color.Transparent else color,
+            startAngle = 40f,
+            sweepAngle = 280f,
+            useCenter = false,
+            topLeft = Offset(letterCenter.x - letterRadius, letterCenter.y - letterRadius),
+            size = Size(letterRadius * 2, letterRadius * 2),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+            blendMode = if (filled) BlendMode.Clear else BlendMode.SrcOver,
+        )
     }
 }
 

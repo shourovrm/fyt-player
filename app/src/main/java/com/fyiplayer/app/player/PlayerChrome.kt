@@ -60,11 +60,11 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  *    icon buttons right) and the bar on the video's edge, full width (YouTube); in fullscreen the
  *    bar 24dp in from the screen sides with the row BELOW it (PipePipe -- the thumb otherwise sits
  *    under the rounded screen corner).
- * The row is the time label, then five icon-only 40dp targets: Captions, Speed, Quality, Loop,
- * Fullscreen. Speed draws its current value as text; Quality draws a fixed "HD" mark, not the
- * chosen height (the quality sheet shows that). Five 40dp targets and the label fit a 360dp-wide
- * row at the default font scale: 200dp of targets plus a label of about 105dp (an hour-long
- * "1:02:03 / 1:41:12") leaves about 35dp of the 340dp between the 10dp side paddings. Fullscreen
+ * The row is the time label, then four icon-only 40dp targets: Speed, Quality, Loop, Fullscreen.
+ * Captions moved to the top-right corner (PlayerTopActions). Speed draws its current value as text; Quality draws a fixed "HD" mark, not the
+ * chosen height (the quality sheet shows that). Four 40dp targets and the label fit a 360dp-wide
+ * row at the default font scale: 160dp of targets plus a label of about 105dp (an hour-long
+ * "1:02:03 / 1:41:12") leaves about 75dp of the 340dp between the 10dp side paddings. Fullscreen
  * drops that 10dp gutter (the 24dp inset is already there): a portrait video keeps a portrait
  * fullscreen, and at 360dp the 10dp gutter on top of the inset left only 292dp for the same row. The bar stays
  * on its own full-width line so the thumb never shifts sideways when a drag on the idle line
@@ -78,8 +78,6 @@ internal fun ControlBar(
     fullscreen: Boolean,
     expanded: Boolean,
     onToggleFullscreen: () -> Unit,
-    captionsAvailable: Boolean,
-    onOpenCaptions: () -> Unit,
     onOpenQuality: () -> Unit,
     speedLabel: String,
     onOpenSpeed: () -> Unit,
@@ -249,13 +247,6 @@ internal fun ControlBar(
                 style = MaterialTheme.typography.labelMedium,
             )
             Box(modifier = Modifier.weight(1f))
-            ControlIcon(
-                description = stringResource(R.string.player_menu_captions),
-                onClick = onOpenCaptions,
-                enabled = captionsAvailable,
-            ) {
-                CaptionsGlyph(tint = extras.onVideo, dim = !captionsAvailable, size = Sizes.icon)
-            }
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
                 Text(speedLabel, color = extras.onVideo, style = MaterialTheme.typography.labelMedium, maxLines = 1)
             }

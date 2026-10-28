@@ -349,13 +349,16 @@ fun PlayerScreen(
                             }
                         }
                     }
-                    // Top-right corner, both orientations: the dub button. Hidden with the rest of
-                    // the controls, and it draws nothing for a single-language video.
+                    // Top-right corner, both orientations: chapters, captions, dub. Hidden with the rest
+                    // of the controls; each button draws nothing when it has nothing to offer.
                     PlayerTopActions(
                         audioTracks = state.availableAudioTracks,
                         onOpenAudioTracks = { interact(); showAudioSheet = true },
                         chapters = chapters,
                         onOpenChapters = { interact(); showChaptersSheet = true },
+                        captionsAvailable = state.availableCaptions.isNotEmpty(),
+                        captionsSelected = state.selectedCaptionLanguage != null,
+                        onOpenCaptions = { interact(); showCaptionSheet = true },
                         modifier = Modifier.align(Alignment.TopEnd),
                     )
                     // Top-left close / minimize, portrait only (PipePipe hides its X in
@@ -388,8 +391,6 @@ fun PlayerScreen(
                     fullscreen = fullscreen,
                     expanded = controlsVisible,
                     onToggleFullscreen = { interact(); onToggleFullscreen() },
-                    captionsAvailable = state.availableCaptions.isNotEmpty(),
-                    onOpenCaptions = { interact(); showCaptionSheet = true },
                     onOpenQuality = { interact(); showQualitySheet = true },
                     speedLabel = stringResource(R.string.player_speed_value, trimSpeed(state.speed)),
                     onOpenSpeed = { interact(); showSpeedSheet = true },

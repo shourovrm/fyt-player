@@ -240,3 +240,7 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-18 | v0.2.27: Settings hub-and-spoke, hints and explanatory copy deleted app-wide | 12 sections / ~50 controls on one scroll; "explaining everything is peak AI slop" (owner)
 2026-10-26 | Shorts feed: 4/channel, shuffled pool per refresh | round-robin by subscription order hid late subscriptions; no upload date to sort by
 2026-10-28 | shorts feed: 3-day slots, seen last | newest short date orders channels (one detail call each); watched clips stay but sink, so the feed never empties
+2026-10-28 | Shorts grid tap resolves clip by pageUrl; feed order frozen while pager open (new landings append) | index into a re-ordering live list opened the wrong clip
+2026-10-28 | Shorts rail gets a Captions button (CaptionSheet, filled C when a track is on) | parity with the video player
+2026-10-28 | Channel Subscribe buttons replaced by a heart at the end of the name row; tap toggles and shows the Detail ActionMessagePill overlay | user-chosen design
+2026-10-28 | Player captions button moved to top-right (Chapters, Captions, Dub); icon is a C in a rounded box, filled when a track is selected | user-chosen design
