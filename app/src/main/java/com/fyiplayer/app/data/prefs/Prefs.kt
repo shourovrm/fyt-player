@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.fyiplayer.app.core.SponsorCategory
 import com.fyiplayer.app.core.SponsorMode
 import com.fyiplayer.app.core.canonicalChannelKey
+import com.fyiplayer.app.player.CaptionSize
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -45,6 +46,8 @@ class Prefs(private val context: Context) {
         val SHOW_DISLIKE_COUNTS = booleanPreferencesKey("show_dislike_counts")
         val AUTOPLAY_NEXT = booleanPreferencesKey("autoplay_next")
         val SAVE_PLAY_POSITION = booleanPreferencesKey("save_play_position")
+        val CAPTION_SIZE_VIDEO = stringPreferencesKey("caption_size_video")
+        val CAPTION_SIZE_SHORTS = stringPreferencesKey("caption_size_shorts")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
         val LAST_PLAYED_PAGE_URL = stringPreferencesKey("last_played_page_url")
         val LAST_PLAYED_TITLE = stringPreferencesKey("last_played_title")
@@ -130,6 +133,14 @@ class Prefs(private val context: Context) {
     suspend fun setAutoplayNext(v: Boolean) = set(AUTOPLAY_NEXT, v)
     val savePlayPosition: Flow<Boolean> = flow(SAVE_PLAY_POSITION, true)
     suspend fun setSavePlayPosition(v: Boolean) = set(SAVE_PLAY_POSITION, v)
+
+    // Stored by enum name. Separate per host: the Shorts frame is portrait, so one size reads
+    // differently there than in the 16:9 player.
+    val captionSizeVideo: Flow<CaptionSize> = data.map { CaptionSize.fromName(it[CAPTION_SIZE_VIDEO]) }
+    suspend fun setCaptionSizeVideo(v: CaptionSize) = set(CAPTION_SIZE_VIDEO, v.name)
+
+    val captionSizeShorts: Flow<CaptionSize> = data.map { CaptionSize.fromName(it[CAPTION_SIZE_SHORTS]) }
+    suspend fun setCaptionSizeShorts(v: CaptionSize) = set(CAPTION_SIZE_SHORTS, v.name)
 
     /** Update banner's per-version dismissal: hides the banner for this release only, so the
      *  next release banners again. */

@@ -22,11 +22,13 @@ import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PositionsRepository
+import com.fyiplayer.app.player.CaptionSize
 import com.fyiplayer.app.player.PlayerScreen
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 /** Typed route table — no caller hand-builds a route string. */
 object Routes {
@@ -209,9 +211,11 @@ fun AppShell(navController: NavHostController) {
             arguments = listOf(navArgument("pageUrl") { type = NavType.StringType }),
         ) { entry ->
             val pageUrl = entry.arguments?.getString("pageUrl")?.let(Uri::decode).orEmpty()
-            val prefs = rememberFyiApp().prefs
+            val app = rememberFyiApp()
+            val prefs = app.prefs
             val brightnessGesture by prefs.gestureBrightness.collectAsState(initial = true)
             val volumeGesture by prefs.gestureVolume.collectAsState(initial = true)
+            val captionSize by prefs.captionSizeVideo.collectAsState(initial = CaptionSize.DEFAULT)
             val canGoPrevious = WatchTrail.canGoPrevious(routeBelow(navBackStack, entry))
             // One level back: the Detail below replays its own video through its entry guard, the same
             // as system Back. The video being left is remembered first so Next can return to it.
@@ -235,6 +239,8 @@ fun AppShell(navController: NavHostController) {
                         onToggleFullscreen = onToggleFullscreen,
                         gestureBrightness = brightnessGesture,
                         gestureVolume = volumeGesture,
+                        captionSize = captionSize,
+                        onCaptionSizeSelect = { size -> app.appScope.launch { prefs.setCaptionSizeVideo(size) } },
                         pageRef = surfaceRef,
                         // Both unwind every Detail page to the screen the first video came from
                         // (playlist, channel, library). X also stops playback; ⌄ keeps it running

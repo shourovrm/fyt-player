@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.player.CaptionSize
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.player.SharedVideoSurface
 import com.fyiplayer.app.player.asActivity
@@ -167,6 +168,7 @@ internal fun ShortsPager(
     onPageSettled: (VideoRef) -> Unit = {},
 ) {
     val playerState by PlaybackSession.state.collectAsState()
+    val captionSize by rememberFyiApp().prefs.captionSizeShorts.collectAsStateWithLifecycle(initialValue = CaptionSize.DEFAULT)
     val pagerState = rememberPagerState(initialPage = page.coerceIn(0, items.size - 1)) { items.size }
 
     // This composable's own lifetime IS "the pager is showing" -- ShortsScreen only reaches this
@@ -251,6 +253,7 @@ internal fun ShortsPager(
         SharedVideoSurface(
             player = PlaybackSession.exoPlayer,
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+            captionSize = captionSize,
             modifier = Modifier.fillMaxSize(),
         )
         VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->

@@ -64,6 +64,20 @@
     <string name="settings_quality_mobile">On mobile data</string>
     <string name="settings_resolution_option">%1$dp</string>
 
+    <!-- caption size: the Settings group, its sample line and the caption sheet chips. The four
+         steps are Media3 fractions of the default caption size; the words are the same everywhere. -->
+    <string name="settings_captions">Captions</string>
+    <string name="settings_caption_size">Caption size</string>
+    <string name="settings_caption_size_hint">Applies to the text of captions while a video plays</string>
+    <string name="settings_caption_size_videos">Videos</string>
+    <string name="settings_caption_size_shorts">Shorts</string>
+    <string name="settings_caption_sample">Where verifiable rewards come from</string>
+    <string name="caption_size_small">Small</string>
+    <string name="caption_size_medium">Medium</string>
+    <string name="caption_size_large">Large</string>
+    <string name="caption_size_extra_large">Extra large</string>
+    <string name="caption_size_chips_label">Size</string>
+
     <!-- gestures, video page -->
     <string name="settings_gesture_brightness">Brightness</string>
     <string name="settings_gesture_volume">Volume</string>

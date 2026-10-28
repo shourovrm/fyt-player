@@ -87,7 +87,7 @@ private fun friendlyMessage(e: ExtractionError): String = stringResource(
  * `LaunchedEffect`-driven copy: a queue can advance underneath a route pinned to one video, and
  * any indirection here is exactly the one-frame "wrong title" flicker CLAUDE.md's pitfalls call out.
  *
- * [gestureBrightness]/[gestureVolume] and [onDownload] are the seams the caller wires from
+ * [gestureBrightness]/[gestureVolume], [captionSize]/[onCaptionSizeSelect] and [onDownload] are the seams the caller wires from
  * `data/prefs/Prefs.kt` and the (not yet built) download queue — this file imports neither.
  */
 @Composable
@@ -97,6 +97,8 @@ fun PlayerScreen(
     gestureBrightness: Boolean = true,
     gestureVolume: Boolean = true,
     onDownload: (() -> Unit)? = null,
+    captionSize: CaptionSize,
+    onCaptionSizeSelect: (CaptionSize) -> Unit,
     // Top-left buttons, portrait only: [onClose] = stop playback + leave the page (PipePipe's X),
     // [onMinimize] = leave with playback continuing into the mini player (YouTube's chevron).
     onClose: (() -> Unit)? = null,
@@ -272,6 +274,7 @@ fun PlayerScreen(
                 SharedVideoSurface(
                     player = PlaybackSession.exoPlayer,
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
+                    captionSize = captionSize,
                     modifier = Modifier
                         .fillMaxSize()
                         .playerGestures(
@@ -447,6 +450,8 @@ fun PlayerScreen(
                         tracks = state.availableCaptions,
                         selectedLanguage = state.selectedCaptionLanguage,
                         onSelect = { PlaybackSession.selectCaption(it); showCaptionSheet = false },
+                        captionSize = captionSize,
+                        onCaptionSizeSelect = onCaptionSizeSelect,
                         onDismiss = { showCaptionSheet = false },
                     )
                 }

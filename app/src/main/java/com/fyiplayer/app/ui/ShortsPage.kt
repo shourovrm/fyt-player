@@ -68,6 +68,7 @@ import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.player.CaptionSheet
+import com.fyiplayer.app.player.CaptionSize
 import com.fyiplayer.app.player.CaptionsGlyph
 import com.fyiplayer.app.player.PauseGlyph
 import com.fyiplayer.app.core.ExtractionError
@@ -104,6 +105,7 @@ internal fun ShortsPage(
     onOpenChannel: (() -> Unit)?,
 ) {
     val app = rememberFyiApp()
+    val captionSize by app.prefs.captionSizeShorts.collectAsState(initial = CaptionSize.DEFAULT)
     val context = LocalContext.current
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
@@ -356,6 +358,8 @@ internal fun ShortsPage(
             tracks = playerState.availableCaptions,
             selectedLanguage = playerState.selectedCaptionLanguage,
             onSelect = { PlaybackSession.selectCaption(it); showCaptionSheet = false },
+            captionSize = captionSize,
+            onCaptionSizeSelect = { size -> app.appScope.launch { app.prefs.setCaptionSizeShorts(size) } },
             onDismiss = { showCaptionSheet = false },
         )
     }

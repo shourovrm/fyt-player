@@ -7,7 +7,7 @@ import org.junit.Test
 class AttachRegistryTest {
 
     @Test fun `detaching a non-owner still reports the current owner`() {
-        val r = AttachRegistry<String>()
+        val r = AttachRegistry<String, Int>()
         r.attach("full", 1)
         r.attach("mini", 2)
         val owner = r.detach("full") // full wasn't on top; mini remains the real owner
@@ -15,7 +15,7 @@ class AttachRegistryTest {
     }
 
     @Test fun `detaching the owner hands off to the next most recent host`() {
-        val r = AttachRegistry<String>()
+        val r = AttachRegistry<String, Int>()
         r.attach("full", 1)
         r.attach("mini", 2)
         val next = r.detach("mini")
@@ -24,7 +24,7 @@ class AttachRegistryTest {
     }
 
     @Test fun `detaching the last host yields no owner`() {
-        val r = AttachRegistry<String>()
+        val r = AttachRegistry<String, Int>()
         r.attach("full", 1)
         assertNull(r.detach("full"))
     }
@@ -33,7 +33,7 @@ class AttachRegistryTest {
     // incoming host already claimed the view, then the outgoing host's onRelease fires. The
     // registry must still resolve ownership to the host that's really left holding it.
     @Test fun `re-attach by the outgoing host then its detach still resolves to the real owner`() {
-        val r = AttachRegistry<String>()
+        val r = AttachRegistry<String, Int>()
         r.attach("full", 1) // full owns it
         r.attach("mini", 2) // mini takes over
         r.attach("full", 1) // stale full update steals it back (bug trigger) -> full on top again
@@ -42,7 +42,7 @@ class AttachRegistryTest {
     }
 
     @Test fun `re-attaching an existing host moves it to the top without duplicating`() {
-        val r = AttachRegistry<String>()
+        val r = AttachRegistry<String, Int>()
         r.attach("full", 1)
         r.attach("mini", 2)
         r.attach("full", 3) // full reclaims ownership, now on top with an updated resize mode

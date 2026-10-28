@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.rememberFyiApp
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -48,6 +49,7 @@ import com.fyiplayer.app.core.VideoRef
 @Composable
 fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
     val state by PlaybackSession.state.collectAsState()
+    val captionSize by rememberFyiApp().prefs.captionSizeVideo.collectAsState(initial = CaptionSize.DEFAULT)
     val ref = state.current ?: return
 
     val position = if (state.queueSize > 1) {
@@ -79,6 +81,7 @@ fun MiniPlayer(onOpen: (VideoRef) -> Unit, modifier: Modifier = Modifier) {
                         // ZOOM, not FIT: a 96x54 box with letterbox bars either side reads as
                         // broken, and the thumb is a glance target, not a viewing surface.
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
+                        captionSize = captionSize,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

@@ -62,6 +62,7 @@ fun PlaybackSettings(prefs: Prefs) {
             onSelect = { scope.launch { prefs.setMaxResolutionMobile(it) } },
         )
     }
+    CaptionSettings(prefs)
 }
 
 private val HEIGHTS = listOf(2160, 1440, 1080, 720, 480, 360)
