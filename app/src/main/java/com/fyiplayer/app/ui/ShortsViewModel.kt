@@ -133,7 +133,8 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                     if (ok != null) {
                         settled[i] = ChannelShorts(newestDate, ok.items.take(SHORTS_ITEMS_PER_CHANNEL))
                     }
-                    feed = feed.copy(items = orderShortsFeed(settled.filterNotNull(), System.currentTimeMillis(), seenPageUrls, shuffleKeys))
+                    val reordered = orderShortsFeed(settled.filterNotNull(), System.currentTimeMillis(), seenPageUrls, shuffleKeys)
+                    feed = feed.copy(items = feedAfterLanding(feed.items, reordered, pagerOpen = showPlayer))
                 }
             }
             jobs.joinAll()

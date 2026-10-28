@@ -46,7 +46,7 @@ import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
  * The Shorts tab lands here first: a portrait thumbnail grid, not an immediately-playing pager.
- * Tapping a tile opens the full-screen pager at that tile's index (ShortsScreen.kt owns the
+ * Tapping a tile opens the full-screen pager at that tile's clip (ShortsScreen.kt owns the
  * grid/pager toggle). No I/O per tile (project rule 6) -- everything painted here already came
  * back with the feed. No duration badge, ever: a short's `durationSeconds` is null (never
  * published for this shape of listing), so there is nothing honest to render.
@@ -55,7 +55,7 @@ import com.fyiplayer.app.ui.theme.fyiExtras
 internal fun ShortsGrid(
     items: List<VideoRef>,
     gridState: LazyGridState,
-    onOpenPlayer: (Int) -> Unit,
+    onOpenPlayer: (tapped: VideoRef, paintedIndex: Int) -> Unit,
     onLongPress: (VideoRef) -> Unit,
     hasMore: Boolean = false,
     loadingMore: Boolean = false,
@@ -83,7 +83,7 @@ internal fun ShortsGrid(
         // Feed items are already deduped by page URL (orderShortsFeed in ShortsFeed.kt), so a stable
         // key here is safe and lets a mid-scroll refresh keep tiles instead of re-laying them all.
         itemsIndexed(items, key = { _, ref -> ref.pageUrl }) { index, ref ->
-            ShortsGridTile(ref, onClick = { onOpenPlayer(index) }, onLongPress = { onLongPress(ref) })
+            ShortsGridTile(ref, onClick = { onOpenPlayer(ref, index) }, onLongPress = { onLongPress(ref) })
         }
         if (loadingMore) {
             item(key = "loadingMore", span = { GridItemSpan(maxLineSpan) }) {

@@ -115,8 +115,8 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
                 ShortsGrid(
                     items = feed.items,
                     gridState = gridState,
-                    onOpenPlayer = { index ->
-                        vm.pagerPage = clampGridIndex(index, feed.items.size)
+                    onOpenPlayer = { tapped, paintedIndex ->
+                        vm.pagerPage = pagerPageForTap(vm.feed.items, tapped.pageUrl, paintedIndex)
                         vm.showPlayer = true
                     },
                     onLongPress = { actionSheetRef = it },

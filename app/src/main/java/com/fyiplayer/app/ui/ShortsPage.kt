@@ -49,6 +49,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
@@ -63,6 +65,8 @@ import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
 import com.fyiplayer.app.data.repo.PlaylistRepository
+import com.fyiplayer.app.player.CaptionSheet
+import com.fyiplayer.app.player.CaptionsGlyph
 import com.fyiplayer.app.player.PauseGlyph
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.player.PlaybackSession
@@ -104,6 +108,7 @@ internal fun ShortsPage(
     var showDetailsSheet by remember { mutableStateOf(false) }
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
+    var showCaptionSheet by remember { mutableStateOf(false) }
     val shareChooserTitle = stringResource(R.string.action_share)
     val extras = MaterialTheme.fyiExtras
 
@@ -260,6 +265,10 @@ internal fun ShortsPage(
                 context.startActivity(Intent.createChooser(send, shareChooserTitle))
             },
             onSave = { showSaveSheet = true },
+            // Same active-page gate as quality/speed: the session's captions belong to the clip loaded now.
+            onCaptions = if (isActive) { { showCaptionSheet = true } } else null,
+            captionsAvailable = playerState.availableCaptions.isNotEmpty(),
+            captionsSelected = playerState.selectedCaptionLanguage != null,
             // Quality/speed act on PlaybackSession's current item -- only meaningful while this
             // page is the one actually loaded, so the buttons don't show on inactive pages.
             onQuality = if (isActive) { { showQualitySheet = true } } else null,
@@ -333,6 +342,14 @@ internal fun ShortsPage(
             onDismiss = { showSpeedSheet = false },
         )
     }
+    if (showCaptionSheet) {
+        CaptionSheet(
+            tracks = playerState.availableCaptions,
+            selectedLanguage = playerState.selectedCaptionLanguage,
+            onSelect = { PlaybackSession.selectCaption(it); showCaptionSheet = false },
+            onDismiss = { showCaptionSheet = false },
+        )
+    }
 }
 
 @Composable
@@ -341,6 +358,9 @@ private fun ShortsActionRail(
     onLike: () -> Unit,
     onShare: () -> Unit,
     onSave: () -> Unit,
+    onCaptions: (() -> Unit)?,
+    captionsAvailable: Boolean,
+    captionsSelected: Boolean,
     onQuality: (() -> Unit)?,
     speed: Float,
     onSpeed: (() -> Unit)?,
@@ -361,6 +381,17 @@ private fun ShortsActionRail(
         RailButton(onClick = onShare) {
             Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share), tint = extras.onVideo)
         }
+        // Stays visible but dimmed when the clip has no captions: a missing button would read as a
+        // missing feature, not as "this clip has none".
+        if (onCaptions != null) {
+            RailButton(
+                onClick = onCaptions,
+                enabled = captionsAvailable,
+                description = stringResource(R.string.player_menu_captions),
+            ) {
+                CaptionsGlyph(tint = extras.onVideo, size = Sizes.icon, filled = captionsSelected, dim = !captionsAvailable)
+            }
+        }
         // No quality glyph anywhere in this repo (PlayerScreen's own overflow menu is a text
         // DropdownMenuItem, not an icon) -- a text label matches what already exists instead of
         // inventing a new hand-drawn glyph.
@@ -378,13 +409,20 @@ private fun ShortsActionRail(
 }
 
 @Composable
-private fun RailButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun RailButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    /** Set only where the glyph itself carries no label (CaptionsGlyph has no contentDescription). */
+    description: String? = null,
+    content: @Composable () -> Unit,
+) {
     Box(
         Modifier
             .size(Sizes.touchTarget)
             .clip(CircleShape)
             .background(MaterialTheme.fyiExtras.videoScrimFaint)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick)
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

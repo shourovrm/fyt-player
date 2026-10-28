@@ -87,6 +87,31 @@ class ShortsNavTest {
         assertEquals(false, sessionHoldsFeed(emptyList(), items))
     }
 
+    @Test fun `tap opens the clip by page url when the feed re-ordered under the grid`() {
+        val items = listOf(clip("x"), clip("a"), clip("b")) // b was painted at index 1 before x landed
+        assertEquals(2, pagerPageForTap(items, tappedPageUrl = "https://y/b", paintedIndex = 1))
+    }
+
+    @Test fun `tap falls back to the painted index when the clip left the feed`() {
+        val items = listOf(clip("a"), clip("b"))
+        assertEquals(1, pagerPageForTap(items, tappedPageUrl = "https://y/gone", paintedIndex = 5))
+    }
+
+    @Test fun `landing with the pager closed takes the re-ordered feed as is`() {
+        val current = listOf(clip("a"), clip("b"))
+        val reordered = listOf(clip("c"), clip("b"), clip("a"))
+        assertEquals(reordered, feedAfterLanding(current, reordered, pagerOpen = false))
+    }
+
+    @Test fun `landing with the pager open keeps shown clips in place and appends new ones`() {
+        val current = listOf(clip("a"), clip("b"))
+        val reordered = listOf(clip("c"), clip("b"), clip("a"), clip("d"))
+        assertEquals(
+            listOf("a", "b", "c", "d"),
+            feedAfterLanding(current, reordered, pagerOpen = true).map { it.remoteId },
+        )
+    }
+
     @Test fun `missing feed items are found by page url in feed order`() {
         val items = listOf(clip("a"), clip("x"), clip("b"), clip("y"))
         val session = listOf(clip("a"), clip("b"))

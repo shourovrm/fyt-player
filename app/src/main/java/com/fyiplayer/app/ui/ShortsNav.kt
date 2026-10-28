@@ -27,6 +27,21 @@ internal fun shortsNavAction(page: Int, index: Int): ShortsNavAction = when {
 internal fun clampGridIndex(index: Int, itemCount: Int): Int =
     if (itemCount <= 0) 0 else index.coerceIn(0, itemCount - 1)
 
+/** A grid tap becomes the pager page of the tapped clip, looked up by page URL in the feed as it is
+ *  at tap time: the index the grid painted can name a different clip once a channel has landed.
+ *  Falls back to the painted index only when the clip has left the feed. */
+internal fun pagerPageForTap(items: List<VideoRef>, tappedPageUrl: String, paintedIndex: Int): Int =
+    items.indexOfFirst { it.pageUrl == tappedPageUrl }.takeIf { it >= 0 }
+        ?: clampGridIndex(paintedIndex, items.size)
+
+/** The feed to show when a channel lands. While the pager is open, the clips it already shows keep
+ *  their indices and only new clips are appended, so a re-order cannot move the clip being watched. */
+internal fun feedAfterLanding(current: List<VideoRef>, reordered: List<VideoRef>, pagerOpen: Boolean): List<VideoRef> {
+    if (!pagerOpen) return reordered
+    val shownPageUrls = current.mapTo(HashSet()) { it.pageUrl }
+    return current + reordered.filter { it.pageUrl !in shownPageUrls }
+}
+
 /** position/duration -> the full-screen progress bar's 0..1 fill. A short publishes no duration
  *  and the session may not have measured one from the player yet, so an unknown/zero duration
  *  must never divide -- guard it to an empty bar instead of a crash or a garbage fraction. */
