@@ -155,7 +155,7 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                         Text(
                             ref.title,
                             style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(end = 4.dp),
                         )
