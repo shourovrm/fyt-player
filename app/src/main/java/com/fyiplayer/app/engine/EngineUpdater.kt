@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.write
 import kotlinx.coroutines.withContext
 
-// Own store, not Prefs.kt -- this is one timestamp read only by EngineSettings, not app-start
+// Own store, not Prefs.kt -- this is one timestamp read only by AboutSettings, not app-start
 // config every screen shares.
 private val Context.engineUpdaterStore by preferencesDataStore(name = "engine_updater")
 private val LAST_CHECKED = longPreferencesKey("last_checked_ms")

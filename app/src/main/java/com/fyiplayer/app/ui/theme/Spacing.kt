@@ -58,6 +58,11 @@ object Sizes {
     val sheetMaxWidth: Dp = 320.dp
     val dialogMinWidth: Dp = 280.dp
     val playerPortraitHeight: Dp = 220.dp
+
+    // About page. The glyph is drawn on the adaptive icon's 108 dp canvas so its safe zone fits the tile.
+    val aboutLogo: Dp = 72.dp
+    val aboutLogoGlyph: Dp = 108.dp
+    val actionButton: Dp = 56.dp
 }
 
 /** Material shape scale. */

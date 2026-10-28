@@ -153,6 +153,7 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Settings | Last crash / Crash log | Crash report | vocabulary |
 | Settings | Playback log (recent timings and error types, no links) | Playback report / Recent timings and error types, with no links. | label and hint split |
 | Settings | FYT Player 0.2.25 (row in "App") | Version row under "About" | version belongs under About |
+| Settings | About page: Check for updates button, sentence results | Round buttons Update / Site support / Reports, one-word captions; chip Checking / Up to date / Failed | state as a label and an icon, no full stops |
 | Settings | Couldn't check — are you online? | Update check failed. Check your connection and try again. | no dash, no question |
 | Settings | You're on the latest version | You have the latest version. | plain words |
 | Settings | Update available — v1.2 / Get | Version 1.2 is available / Install update | no dash, verb plus object |

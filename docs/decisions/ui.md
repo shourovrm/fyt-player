@@ -1,6 +1,17 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-28 (c): About page rebuilt as mockup variant C (`settings/About*.kt`; `AppSettings.kt` and
+`EngineSettings.kt` deleted, only About used them): hero (logo tile, name, version, update-status chip), a
+strip of round buttons Update / Site support / Reports (Reports only when a crash or playback log exists),
+then a "Site support" group of icon rows (Version, Update channel, Last checked). Update shows its result
+as the chip (Checking / Up to date / Failed, retry on tap / Version X is available + Install update); it
+does not auto-check. Report Clear now confirms. `SettingsValueRow` gained an optional `leadingIcon`.
+Device-verified: page layout and the Up to date chip. Not tapped: Site support update (it changes the
+on-device engine, which is yt-dlp 2026.08.19 while desktop is 2026.10.26). The action-message pill now
+floats over the page (root Box, anchored under the action row, no layout space) so the tabs never move;
+verified on device. Known nit: the Update channel row shows the dropdown arrow twice (leading and trailing).
+
 2026-10-28 (b): Like and the Skips shield show their message as a pill directly under the action icon row
 (inverseSurface, fades after 2 s, a repeat restarts the timer; `ActionMessage` in DetailScreen) instead of a
 system toast, which Android draws at the bottom near the tab bar. The download-quality picker still toasts.

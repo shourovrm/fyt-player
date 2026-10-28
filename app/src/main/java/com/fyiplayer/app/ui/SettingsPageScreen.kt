@@ -20,12 +20,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.settings.AboutSettings
 import com.fyiplayer.app.settings.AccountSettings
-import com.fyiplayer.app.settings.AppSettings
 import com.fyiplayer.app.settings.BackupSettings
 import com.fyiplayer.app.settings.ContentSettings
 import com.fyiplayer.app.settings.DownloadSettings
-import com.fyiplayer.app.settings.EngineSettings
 import com.fyiplayer.app.settings.GestureSettings
 import com.fyiplayer.app.settings.HistorySettings
 import com.fyiplayer.app.settings.PlaybackSettings
@@ -96,10 +95,7 @@ fun SettingsPageScreen(page: String, onBack: () -> Unit) {
                 SettingsPage.DOWNLOADS -> DownloadSettings(prefs)
                 SettingsPage.HISTORY -> HistorySettings(prefs)
                 SettingsPage.BACKUP -> BackupSettings()
-                SettingsPage.ABOUT -> {
-                    AppSettings()
-                    EngineSettings()
-                }
+                SettingsPage.ABOUT -> AboutSettings()
             }
         }
     }

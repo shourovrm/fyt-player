@@ -96,9 +96,6 @@
 
     <!-- about -->
     <string name="settings_check_updates">Check for updates</string>
-    <string name="settings_update_checking">Checking for updates</string>
-    <string name="settings_update_current">Up to date.</string>
-    <string name="settings_update_failed">Could not check. Try again.</string>
     <string name="settings_update_available">Version %1$s is available</string>
     <string name="settings_update_install">Install update</string>
     <string name="settings_update_downloading">Downloading update</string>
@@ -109,7 +106,6 @@
     <string name="settings_site_support_update">Update site support</string>
     <string name="settings_site_support_updated">Site support updated.</string>
     <string name="settings_site_support_current">Up to date.</string>
-    <string name="settings_site_support_last_checked">Last checked %1$s</string>
     <string name="settings_crash_report">Crash report</string>
     <string name="settings_playback_report">Playback report</string>
 

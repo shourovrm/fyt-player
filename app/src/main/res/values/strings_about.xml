@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- About page only. Rules: docs/copy.md. Shared labels (Version, Site support, Reports) live in strings_settings.xml. -->
+<resources>
+    <string name="about_action_update">Update</string>
+    <string name="about_update_checking">Checking</string>
+    <string name="about_update_up_to_date">Up to date</string>
+    <string name="about_update_failed">Failed</string>
+    <string name="about_last_checked">Last checked</string>
+    <string name="about_clear_crash_title">Clear crash report</string>
+    <string name="about_clear_playback_title">Clear playback report</string>
+</resources>
