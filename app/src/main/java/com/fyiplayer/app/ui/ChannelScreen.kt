@@ -151,7 +151,7 @@ fun ChannelScreen(
             onOpenShorts(currentVideos, 0)
             return
         }
-        PlaybackSession.play(currentVideos, 0)
+        PlaybackSession.play(currentVideos, 0, queueTitle = listing.title)
         onOpenDetail(first)
     }
 
@@ -167,7 +167,7 @@ fun ChannelScreen(
                         // (selected only). Same icon/semantics as the non-selecting top bar's own
                         // "Play all" button further down this file.
                         IconButton(onClick = {
-                            if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0)
+                            if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0, queueTitle = listing.title)
                             selection = emptySet()
                         }) { Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all)) }
                         IconButton(onClick = {

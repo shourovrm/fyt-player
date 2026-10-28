@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
@@ -116,28 +117,19 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
         // Open on the item that is playing, not at the top: with a long queue the useful rows are
         // the ones around the current position.
         LaunchedEffect(state.index) { listState.scrollToItem(state.index.coerceAtLeast(0)) }
-        ModalBottomSheet(onDismissRequest = { expanded = false }, sheetState = sheetState) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = Spacing.s16, end = Spacing.s8, bottom = Spacing.s8),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.player_queue_title, state.index + 1, state.queueSize),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                // material-icons-core (the only icon artifact on the classpath, see DECISIONS.md)
-                // has no Shuffle glyph -- text button, same pattern as PlaylistDetailScreen's own.
-                TextButton(onClick = { PlaybackSession.toggleShuffle() }) {
-                    Text(
-                        stringResource(if (state.shuffled) R.string.player_queue_shuffle_on else R.string.player_queue_shuffle),
-                        color = if (state.shuffled) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                    )
-                }
-                TextButton(onClick = { PlaybackSession.clearQueue(); expanded = false }) {
-                    Text(stringResource(R.string.action_clear))
-                }
-            }
+        ModalBottomSheet(
+            onDismissRequest = { expanded = false },
+            sheetState = sheetState,
+            dragHandle = { QueueDragHandle() },
+        ) {
+            QueueHeader(
+                title = state.queueTitle ?: stringResource(R.string.player_queue_default_title),
+                position = stringResource(R.string.player_queue_count_short, state.index + 1, state.queueSize),
+                channel = current.uploader.orEmpty(),
+                shuffled = state.shuffled,
+                onShuffle = { PlaybackSession.toggleShuffle() },
+                onClearAll = { PlaybackSession.clearQueue(); expanded = false },
+            )
             LazyColumn(state = listState, modifier = Modifier.heightIn(max = Spacing.s64 * 7)) {
                 // No pageUrl key: the same video can be enqueued twice, and a duplicate LazyColumn
                 // key is a hard crash ("Key ... was already used", seen on device).
@@ -196,6 +188,85 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                     }
                 }
             }
+        }
+    }
+}
+
+// Material's DragHandle pads 22 dp above and below its grip, which left a band of empty sheet over
+// the header. This grip keeps the same 4 dp height and 32 dp width with only the padding needed.
+@Composable
+private fun QueueDragHandle() {
+    Box(Modifier.fillMaxWidth().padding(top = Spacing.s8, bottom = 4.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(width = Spacing.s32, height = 4.dp)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant, RoundedCornerShape(2.dp)),
+        )
+    }
+}
+
+/**
+ * Queue name and position on the left, Shuffle and Clear on the right. The position is its own
+ * Text beside the title, so a long title truncates while "(1/30)" always stays fully visible.
+ */
+@Composable
+private fun QueueHeader(
+    title: String,
+    position: String,
+    channel: String,
+    shuffled: Boolean,
+    onShuffle: () -> Unit,
+    onClearAll: () -> Unit,
+) {
+    // Icon-only buttons have no visible label, so these strings are their only accessible name.
+    val shuffleLabel = stringResource(if (shuffled) R.string.player_queue_shuffle_on else R.string.player_queue_shuffle)
+    val clearLabel = stringResource(R.string.action_clear)
+    Row(
+        Modifier.fillMaxWidth().padding(start = Spacing.s16, end = Spacing.s8, bottom = Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Text(
+                    position,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            if (channel.isNotEmpty()) {
+                Text(
+                    channel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconButton(
+            onClick = onShuffle,
+            modifier = Modifier.size(Sizes.touchTarget).semantics { contentDescription = shuffleLabel },
+        ) {
+            ShuffleGlyph(tint = MaterialTheme.colorScheme.primary)
+        }
+        IconButton(
+            onClick = onClearAll,
+            modifier = Modifier.size(Sizes.touchTarget).semantics { contentDescription = clearLabel },
+        ) {
+            ClearAllGlyph(tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

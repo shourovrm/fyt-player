@@ -65,6 +65,9 @@ data class PlayerState(
     val index: Int = -1,
     val queueSize: Int = 0,
     val queue: List<VideoRef> = emptyList(),
+    /** Name of the playlist or channel the queue came from; null for an ad-hoc queue. Set only by
+     *  [PlaybackSession.play], so any later queue edit keeps it and a fresh play resets it. */
+    val queueTitle: String? = null,
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     /** Player sits in STATE_ENDED: the centre button becomes Replay. */
@@ -379,7 +382,7 @@ object PlaybackSession {
         }
     }
 
-    fun play(refs: List<VideoRef>, startIndex: Int) {
+    fun play(refs: List<VideoRef>, startIndex: Int, queueTitle: String? = null) {
         ensureInit()
         // play() always means a genuinely new queue (never a mid-queue continuation -- those go
         // through skipNext/skipPrevious/playAt instead), so the OLD item must not keep playing
@@ -409,7 +412,7 @@ object PlaybackSession {
         // flag must follow or state says OFF while the player keeps repeating.
         player.repeatMode = Player.REPEAT_MODE_OFF
         _state.value = PlayerState(
-            index = index, queueSize = queue.size, queue = queue,
+            index = index, queueSize = queue.size, queue = queue, queueTitle = queueTitle,
             isPlaying = player.isPlaying, speed = player.playbackParameters.speed,
             autoAdvances = _state.value.autoAdvances, // a counter, must survive the reset
         )

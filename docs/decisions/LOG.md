@@ -249,3 +249,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-28 | Queue sheet rows wrap titles to 2 lines | long titles were cut at one line
 2026-10-28 | Central transport retry in extraction: 3 attempts, 1 s/2 s waits, only ExtractionError.Network (timeout/DNS/connect/SSL); never walls/429; Network branch logs exception class names | one blip showed 'No connection' on channel/video pages; resolve (resume after long pause) inherits it
 2026-10-28 | Queue sheet rows show a 64x36 thumbnail after the position number | user request
+2026-10-28 | Queue sheet header: queue title (playlist/channel name) + small (n/N) + current channel line, icon-only blue Shuffle and Clear-all (hand-drawn path glyphs), 8 dp drag handle replaces the tall default | user-chosen variant 2

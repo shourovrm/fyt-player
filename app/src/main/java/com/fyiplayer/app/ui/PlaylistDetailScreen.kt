@@ -155,9 +155,9 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(onClick = { PlaybackSession.play(videos, 0) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
+                    Button(onClick = { PlaybackSession.play(videos, 0, queueTitle = name ?: defaultTitle) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
                     OutlinedButton(
-                        onClick = { PlaybackSession.play(videos.shuffled(), 0) },
+                        onClick = { PlaybackSession.play(videos.shuffled(), 0, queueTitle = name ?: defaultTitle) },
                         contentPadding = PaddingValues(horizontal = Spacing.s16),
                         modifier = Modifier.padding(start = Spacing.s8),
                     ) { Text(stringResource(R.string.playlist_shuffle)) }
