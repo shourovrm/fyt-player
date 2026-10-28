@@ -117,7 +117,7 @@ bar and no ⋮ (title lives once, under the video; the ⋮ sheet's only unique i
 still on long-press of cards elsewhere). Idle portrait = 3dp red line + 10dp dot on the video's
 bottom edge; touching the dot starts the drag AND brings the controls up (one Slider call site in
 ControlBar for both states -- a second call site orphaned the in-flight drag, isScrubbing stuck).
-Tapped = top-left ✕ (PlaybackSession.clear + pop) and ⌄ (pop, mini player keeps playing), centre
+Tapped = top-left ✕ (PlaybackSession.clear + pop the whole Detail chain back to the screen it was opened from) and ⌄ (same pop of the whole Detail chain, playback keeps running in the mini player), centre
 ⏮ ⏸ ⏭ with prev/next shown independently only when they exist (PipePipe rule), bottom row
 time · 720p · 1x · CC · fullscreen above the bar (portrait) / below it with 24dp side inset
 (fullscreen), gradient instead of the black band. Preview-grid button + OverflowControls deleted

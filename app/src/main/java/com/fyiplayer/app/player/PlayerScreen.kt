@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
@@ -99,6 +101,12 @@ fun PlayerScreen(
     // [onMinimize] = leave with playback continuing into the mini player (YouTube's chevron).
     onClose: (() -> Unit)? = null,
     onMinimize: (() -> Unit)? = null,
+    // Watch trail (ui/WatchTrail.kt): Previous/Next over the videos opened one after another from
+    // Detail. Only read while the queue holds at most one item. A null [onTrailPrevious] hides the
+    // button (no Detail page below); a null [onTrailNext] shows it disabled (nothing to open yet).
+    watchTrailEnabled: Boolean = false,
+    onTrailPrevious: (() -> Unit)? = null,
+    onTrailNext: (() -> Unit)? = null,
     // The watch page's own video, when embedded in one: with the session cleared (notification
     // Close) the surface shows this ref's poster + replay instead of a dead "Nothing playing".
     pageRef: VideoRef? = null,
@@ -332,21 +340,25 @@ fun PlayerScreen(
                     // Prev / play / next, centred as one row. Prev only when there IS a previous
                     // item, next only when there is a next one -- independently, PipePipe's rule
                     // (index != 0 / index+1 != size), not "queue has more than one".
+                    // A one-item queue has no neighbours, so the watch trail takes over its buttons.
+                    val trailActive = watchTrailEnabled && state.queueSize <= 1
                     Row(
                         modifier = Modifier.align(Alignment.Center),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.s24),
                     ) {
-                        if (state.index > 0) {
-                            IconButton(onClick = { PlaybackSession.skipPrevious(); interact() }, modifier = Modifier.size(Sizes.transportButton)) {
-                                SkipGlyph(forward = false, tint = extras.onVideo, size = Sizes.transportGlyph)
+                        if (trailActive) {
+                            if (onTrailPrevious != null) {
+                                TransportSkipButton(forward = false, enabled = true) { onTrailPrevious(); interact() }
                             }
+                        } else if (state.index > 0) {
+                            TransportSkipButton(forward = false, enabled = true) { PlaybackSession.skipPrevious(); interact() }
                         }
                         CenterPlayButton(onClick = { PlaybackSession.togglePlayPause(); interact() }, playing = state.isPlaying, ended = state.ended)
-                        if (state.index + 1 < state.queueSize) {
-                            IconButton(onClick = { PlaybackSession.skipNext(); interact() }, modifier = Modifier.size(Sizes.transportButton)) {
-                                SkipGlyph(forward = true, tint = extras.onVideo, size = Sizes.transportGlyph)
-                            }
+                        if (trailActive) {
+                            TransportSkipButton(forward = true, enabled = onTrailNext != null) { onTrailNext?.invoke(); interact() }
+                        } else if (state.index + 1 < state.queueSize) {
+                            TransportSkipButton(forward = true, enabled = true) { PlaybackSession.skipNext(); interact() }
                         }
                     }
                     // Top-right corner, both orientations: chapters, captions, dub. Hidden with the rest
@@ -392,6 +404,11 @@ fun PlayerScreen(
                     expanded = controlsVisible,
                     onToggleFullscreen = { interact(); onToggleFullscreen() },
                     onOpenQuality = { interact(); showQualitySheet = true },
+                    qualityButtonText = qualityLabel(
+                        selectedHeight = state.selectedHeight,
+                        isAuto = state.qualityIsAuto,
+                        autoText = stringResource(R.string.player_quality_auto),
+                    ),
                     speedLabel = stringResource(R.string.player_speed_value, trimSpeed(state.speed)),
                     onOpenSpeed = { interact(); showSpeedSheet = true },
                     looping = state.repeatMode == RepeatMode.ONE,
@@ -413,7 +430,7 @@ fun PlayerScreen(
                 if (showQualitySheet) {
                     QualitySheet(
                         heights = state.availableHeights,
-                        selectedHeight = state.selectedHeight,
+                        selectedHeight = if (state.qualityIsAuto) null else state.selectedHeight,
                         onSelect = { PlaybackSession.selectQuality(it); showQualitySheet = false },
                         onDismiss = { showQualitySheet = false },
                     )
@@ -455,3 +472,24 @@ fun PlayerScreen(
         }
     }
 }
+
+/** Prev/next glyph button for the centre transport row. A disabled glyph is dimmed, not hidden,
+ *  so the user can see that the control exists but has nothing to go to yet. */
+@Composable
+private fun TransportSkipButton(forward: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val extras = MaterialTheme.fyiExtras
+    val tint = if (enabled) extras.onVideo else extras.onVideo.copy(alpha = DISABLED_GLYPH_ALPHA)
+    // Same scrim circle as CenterPlayButton, so a bright frame cannot wash out the glyph.
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(Sizes.transportButton)
+            .clip(CircleShape)
+            .background(extras.videoScrimLight),
+    ) {
+        SkipGlyph(forward = forward, tint = tint, size = Sizes.transportGlyph)
+    }
+}
+
+private const val DISABLED_GLYPH_ALPHA = 0.4f

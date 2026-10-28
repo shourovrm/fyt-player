@@ -5,9 +5,13 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -51,6 +55,21 @@ fun NavController.openDetail(pageUrl: String) = navigate("detail/${Uri.encode(pa
 fun NavController.openDetail(ref: VideoRef) {
     RefCache.put(ref)
     openDetail(ref.pageUrl)
+}
+
+/** X and ⌄ on the Detail player: pops every Detail page on top of the stack, so the user lands on the
+ *  screen the first video was opened from. Stops at the first non-Detail entry, so Home stays the
+ *  floor when no other screen sits under the chain. */
+fun NavController.closeDetailChain() {
+    while (currentBackStackEntry?.destination?.route == Routes.DETAIL && popBackStack()) {
+    }
+}
+
+/** Route of the back stack entry directly under [entry], or null at the bottom of the stack. Reads
+ *  the observable stack list rather than previousBackStackEntry, so the Previous button recomposes. */
+private fun routeBelow(stack: List<NavBackStackEntry>, entry: NavBackStackEntry): String? {
+    val index = stack.indexOfFirst { it.id == entry.id }
+    return stack.getOrNull(index - 1)?.destination?.route
 }
 
 fun NavController.openListing(listing: Listing) = navigate(
@@ -130,6 +149,12 @@ fun AppShell(navController: NavHostController) {
         app.prefs.savePlayPosition.flatMapLatest { enabled -> if (enabled) positionsRepo.observeAll() else flowOf(emptyMap()) }
     }.collectAsState(initial = emptyMap())
 
+    // Watch trail for single-video Detail playback. A depth change observed here is how any video
+    // opened by another route (list, mini player, autoplay) ends forward history.
+    val navBackStack by navController.currentBackStack.collectAsState()
+    var watchTrail by remember { mutableStateOf(WatchTrail()) }
+    LaunchedEffect(navBackStack.size) { watchTrail = watchTrail.onBackStackDepthChanged(navBackStack.size) }
+
     CompositionLocalProvider(LocalPlaybackPositions provides positions) {
     NavHost(
         navController = navController,
@@ -187,24 +212,51 @@ fun AppShell(navController: NavHostController) {
             val prefs = rememberFyiApp().prefs
             val brightnessGesture by prefs.gestureBrightness.collectAsState(initial = true)
             val volumeGesture by prefs.gestureVolume.collectAsState(initial = true)
+            val canGoPrevious = WatchTrail.canGoPrevious(routeBelow(navBackStack, entry))
+            // One level back: the Detail below replays its own video through its entry guard, the same
+            // as system Back. The video being left is remembered first so Next can return to it.
+            val goPrevious: () -> Unit = {
+                val session = PlaybackSession.state.value
+                session.queue.getOrNull(session.index)?.let { watchTrail = watchTrail.recordLeft(it) }
+                navController.popBackStack()
+            }
             DetailScreen(
                 pageUrl = pageUrl,
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
                 onOpenShorts = { items, index -> navController.openShortsPlayer(items, index) },
                 onBack = { navController.popBackStack() },
-                playerSurface = { surfaceRef, fullscreen, onToggleFullscreen ->
+                playerSurface = { surfaceRef, fullscreen, onToggleFullscreen, similarSuggestion ->
+                    // The forward list wins over the Similar suggestion: Next walks back down a trail
+                    // the user already went up, and only then offers something new.
+                    val forwardTarget = watchTrail.nextForward()
                     PlayerScreen(
                         fullscreen = fullscreen,
                         onToggleFullscreen = onToggleFullscreen,
                         gestureBrightness = brightnessGesture,
                         gestureVolume = volumeGesture,
                         pageRef = surfaceRef,
-                        // ⌄ pops like back does, so a Similar chain still unwinds one video at a
-                        // time. X = done watching: stops playback and drops the whole Detail chain
-                        // back to the tab underneath (nothing lands in the mini player).
-                        onClose = { PlaybackSession.clear(); navController.popBackStack(Routes.HOME, inclusive = false) },
-                        onMinimize = { navController.popBackStack() },
+                        // Both unwind every Detail page to the screen the first video came from
+                        // (playlist, channel, library). X also stops playback; ⌄ keeps it running
+                        // in the mini player. A one-level pop would land on the previous Detail,
+                        // whose entry guard restarts that video over the one still playing.
+                        onClose = {
+                            PlaybackSession.clear()
+                            watchTrail = watchTrail.cleared()
+                            navController.closeDetailChain()
+                        },
+                        onMinimize = {
+                            watchTrail = watchTrail.cleared()
+                            navController.closeDetailChain()
+                        },
+                        watchTrailEnabled = true,
+                        onTrailPrevious = if (canGoPrevious) goPrevious else null,
+                        onTrailNext = (forwardTarget ?: similarSuggestion)?.let { target ->
+                            {
+                                if (forwardTarget != null) watchTrail = watchTrail.popForward()
+                                navController.openDetail(target)
+                            }
+                        },
                     )
                 },
             )

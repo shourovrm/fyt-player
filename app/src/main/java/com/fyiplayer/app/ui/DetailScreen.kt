@@ -107,7 +107,7 @@ fun DetailScreen(
     onOpenListing: (Listing) -> Unit,
     onOpenShorts: (List<VideoRef>, Int) -> Unit,
     onBack: () -> Unit,
-    playerSurface: @Composable (ref: VideoRef, fullscreen: Boolean, onToggleFullscreen: () -> Unit) -> Unit = { _, _, _ -> },
+    playerSurface: @Composable (ref: VideoRef, fullscreen: Boolean, onToggleFullscreen: () -> Unit, similarSuggestion: VideoRef?) -> Unit = { _, _, _, _ -> },
 ) {
     val app = rememberFyiApp()
     val ref = remember(pageUrl) {
@@ -230,8 +230,11 @@ fun DetailScreen(
     // Fullscreen: render ONLY the player, full size -- the top bar, metadata and related list are
     // not composed at all, so there is nothing left for AppScaffold's own chrome to compete with
     // for screen edges.
+    // The Similar list is loaded per entry, so this is the page's own top suggestion. Empty until the
+    // Similar tab's fetch lands, which leaves the player's Next disabled rather than guessing.
+    val similarSuggestion = tabsVm.similarItems.firstOrNull { !it.isShort }
     if (fullscreen) {
-        playerSurface(shownRef, true) { fullscreen = false }
+        playerSurface(shownRef, true, { fullscreen = false }, similarSuggestion)
         return
     }
 
@@ -246,7 +249,7 @@ fun DetailScreen(
                 // never recycled by scroll, so the player surface underneath keeps its identity.
                 val headerHeight = LocalConfiguration.current.screenWidthDp.dp * 9 / 16
                 Box(Modifier.fillMaxWidth().height(headerHeight).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                    playerSurface(shownRef, false) { fullscreen = true }
+                    playerSurface(shownRef, false, { fullscreen = true }, similarSuggestion)
                 }
 
                 LazyColumn(

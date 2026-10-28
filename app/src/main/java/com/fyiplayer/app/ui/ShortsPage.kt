@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -72,7 +74,9 @@ import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.settings.WallSignInButton
 import com.fyiplayer.app.player.PlayerState
+import com.fyiplayer.app.player.QualityBadge
 import com.fyiplayer.app.player.QualitySheet
+import com.fyiplayer.app.player.qualityLabel
 import com.fyiplayer.app.player.SeekThumbnailPreview
 import com.fyiplayer.app.player.SpeedSheet
 import com.fyiplayer.app.player.fetchSeekThumbnails
@@ -249,6 +253,11 @@ internal fun ShortsPage(
         }
 
         ShortsActionRail(
+            qualityButtonText = qualityLabel(
+                selectedHeight = playerState.selectedHeight,
+                isAuto = playerState.qualityIsAuto,
+                autoText = stringResource(R.string.player_quality_auto),
+            ),
             liked = liked,
             onLike = {
                 // Process scope, not rememberCoroutineScope: this page can leave composition
@@ -330,7 +339,7 @@ internal fun ShortsPage(
     if (showQualitySheet) {
         QualitySheet(
             heights = playerState.availableHeights,
-            selectedHeight = playerState.selectedHeight,
+            selectedHeight = if (playerState.qualityIsAuto) null else playerState.selectedHeight,
             onSelect = { PlaybackSession.selectQuality(it); showQualitySheet = false },
             onDismiss = { showQualitySheet = false },
         )
@@ -354,6 +363,7 @@ internal fun ShortsPage(
 
 @Composable
 private fun ShortsActionRail(
+    qualityButtonText: String,
     liked: Boolean,
     onLike: () -> Unit,
     onShare: () -> Unit,
@@ -392,12 +402,11 @@ private fun ShortsActionRail(
                 CaptionsGlyph(tint = extras.onVideo, size = Sizes.icon, filled = captionsSelected, dim = !captionsAvailable)
             }
         }
-        // No quality glyph anywhere in this repo (PlayerScreen's own overflow menu is a text
-        // DropdownMenuItem, not an icon) -- a text label matches what already exists instead of
-        // inventing a new hand-drawn glyph.
+        // A pill, not a circle: the badge is wider than the 48dp round target, and a circle clip
+        // would cut its outline at the corners.
         if (onQuality != null) {
-            RailButton(onClick = onQuality) {
-                Text(stringResource(R.string.shorts_quality_label), color = extras.onVideo, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+            RailButton(onClick = onQuality, shape = RoundedCornerShape(percent = 50)) {
+                QualityBadge(qualityButtonText)
             }
         }
         if (onSpeed != null) {
@@ -414,12 +423,13 @@ private fun RailButton(
     enabled: Boolean = true,
     /** Set only where the glyph itself carries no label (CaptionsGlyph has no contentDescription). */
     description: String? = null,
+    shape: Shape = CircleShape,
     content: @Composable () -> Unit,
 ) {
     Box(
         Modifier
-            .size(Sizes.touchTarget)
-            .clip(CircleShape)
+            .defaultMinSize(Sizes.touchTarget, Sizes.touchTarget)
+            .clip(shape)
             .background(MaterialTheme.fyiExtras.videoScrimFaint)
             .clickable(enabled = enabled, onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),

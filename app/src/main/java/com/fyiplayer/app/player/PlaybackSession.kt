@@ -74,6 +74,9 @@ data class PlayerState(
     val ended: Boolean = false,
     val error: ExtractionError? = null,
     val selectedHeight: Int? = null,
+    /** True only after the user picks Auto. [selectedHeight] still holds the height the ceiling
+     *  chose then, so the quality button needs this flag to say "Auto". */
+    val qualityIsAuto: Boolean = false,
     val availableHeights: List<Int> = emptyList(),
     // Captions default OFF (Contracts.kt's CaptionTrack carries no selection flag, and `init`
     // disables the text renderer to match) -- null means Off, same as [CaptionSheet]'s own model.
@@ -662,6 +665,7 @@ object PlaybackSession {
         ensureInit()
         // The dub pick must survive a quality change, so it is passed back in, not reset.
         rebuildCurrent(height ?: maxHeight(), _state.value.selectedAudioTrackId)
+        _state.update { it.copy(qualityIsAuto = height == null) }
     }
 
     /** Switches the audio language of the current item, keeping its height. [trackId] must be one
@@ -905,7 +909,7 @@ object PlaybackSession {
             _state.update {
                 it.copy(
                     current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
-                    selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
+                    selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats),
                     availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                     availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                     selectedAudioTrackId = audioTrackIdOf(item.selection),
@@ -1091,7 +1095,7 @@ object PlaybackSession {
         _state.update {
             it.copy(
                 current = ref, firstFrameRendered = if (resetFirstFrame) false else it.firstFrameRendered, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
-                selectedHeight = item.height, availableHeights = availableHeightsOf(item.resolved.formats),
+                selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats),
                 availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                 availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                 selectedAudioTrackId = audioTrackIdOf(item.selection),

@@ -35,7 +35,6 @@
     <string name="shorts_details_comments">Comments</string>
     <string name="shorts_details_comments_count">Comments (%1$d)</string>
     <string name="shorts_details">Details</string>
-    <string name="shorts_quality_label">HD</string>
     <string name="shorts_title">Shorts</string>
     <string name="shorts_empty_no_subscriptions">No Shorts yet.</string>
     <string name="shorts_failed_all">Shorts did not load. Try again.</string>

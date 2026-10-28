@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,11 +61,13 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  *    icon buttons right) and the bar on the video's edge, full width (YouTube); in fullscreen the
  *    bar 24dp in from the screen sides with the row BELOW it (PipePipe -- the thumb otherwise sits
  *    under the rounded screen corner).
- * The row is the time label, then four icon-only 40dp targets: Speed, Quality, Loop, Fullscreen.
- * Captions moved to the top-right corner (PlayerTopActions). Speed draws its current value as text; Quality draws a fixed "HD" mark, not the
- * chosen height (the quality sheet shows that). Four 40dp targets and the label fit a 360dp-wide
- * row at the default font scale: 160dp of targets plus a label of about 105dp (an hour-long
- * "1:02:03 / 1:41:12") leaves about 75dp of the 340dp between the 10dp side paddings. Fullscreen
+ * The row is the time label, then four targets of at least 40dp: Speed, Quality, Loop, Fullscreen.
+ * Captions moved to the top-right corner (PlayerTopActions). Speed and Quality both draw their
+ * current value as text: Quality is an outlined badge with the playing height or "Auto", and
+ * it is the only target wider than 40dp. Budget at the default font scale: the three 40dp targets
+ * are 120dp, the badge is about 45dp for a four-digit height, and the label is about 105dp (an
+ * hour-long "1:02:03 / 1:41:12"). That is about 270dp of the 340dp between the 10dp side paddings
+ * on a 360dp-wide row, leaving about 70dp. The badge is estimated, not measured. Fullscreen
  * drops that 10dp gutter (the 24dp inset is already there): a portrait video keeps a portrait
  * fullscreen, and at 360dp the 10dp gutter on top of the inset left only 292dp for the same row. The bar stays
  * on its own full-width line so the thumb never shifts sideways when a drag on the idle line
@@ -79,6 +82,7 @@ internal fun ControlBar(
     expanded: Boolean,
     onToggleFullscreen: () -> Unit,
     onOpenQuality: () -> Unit,
+    qualityButtonText: String,
     speedLabel: String,
     onOpenSpeed: () -> Unit,
     looping: Boolean,
@@ -251,12 +255,7 @@ internal fun ControlBar(
                 Text(speedLabel, color = extras.onVideo, style = MaterialTheme.typography.labelMedium, maxLines = 1)
             }
             ControlIcon(description = stringResource(R.string.player_menu_quality), onClick = onOpenQuality) {
-                Text(
-                    stringResource(R.string.player_quality_glyph),
-                    color = extras.onVideo,
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                )
+                QualityBadge(qualityButtonText)
             }
             ControlIcon(
                 description = stringResource(if (looping) R.string.player_loop_stop else R.string.player_loop),
@@ -313,8 +312,9 @@ internal fun ControlBar(
     }
 }
 
-/** A 40dp icon-only control for the bottom row. Plain clickable box, not [IconButton]: IconButton
- *  enforces a 48dp minimum interactive size, and five of them would overflow a 360dp row. */
+/** A control for the bottom row, 40dp minimum and wider only when its content needs it (the
+ *  quality badge). Plain clickable box, not [IconButton]: IconButton enforces a 48dp minimum
+ *  interactive size, and five of them would overflow a 360dp row. */
 @Composable
 private fun ControlIcon(
     description: String,
@@ -324,7 +324,7 @@ private fun ControlIcon(
 ) {
     Box(
         modifier = Modifier
-            .size(Spacing.s40)
+            .defaultMinSize(minWidth = Spacing.s40, minHeight = Spacing.s40)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,

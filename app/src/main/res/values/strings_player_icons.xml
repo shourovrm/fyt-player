@@ -3,6 +3,4 @@
      content descriptions a screen reader reads. Reused labels live in strings_player.xml. -->
 <resources>
     <string name="player_audio_language">Audio language</string>
-    <!-- Drawn inside the Quality icon. Kept as a resource so a translation can change it. -->
-    <string name="player_quality_glyph">HD</string>
 </resources>

@@ -25,6 +25,8 @@ object Spacing {
 /** Component sizes. Named by role so a call site reads as intent, not as a number. */
 object Sizes {
     val touchTarget: Dp = 48.dp
+    /** Outline of the quality badge. Thinner than the 2 dp inline allowance, so it needs a token. */
+    val badgeBorder: Dp = 1.5.dp
     val icon: Dp = 24.dp
     val iconSmall: Dp = 16.dp
     val iconLarge: Dp = 32.dp
