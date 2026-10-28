@@ -48,6 +48,9 @@ object Sizes {
     val thumbHeight: Dp = 68.dp
     val miniThumbWidth: Dp = 96.dp
     val miniThumbHeight: Dp = 54.dp
+    // Queue-sheet row thumb: half the list thumb would be 60x34, off the 4 dp grid.
+    val queueThumbWidth: Dp = 64.dp
+    val queueThumbHeight: Dp = 36.dp
     val shortsCardWidth: Dp = 160.dp
     val shortsCardHeight: Dp = 284.dp
     val channelAvatar: Dp = 56.dp
