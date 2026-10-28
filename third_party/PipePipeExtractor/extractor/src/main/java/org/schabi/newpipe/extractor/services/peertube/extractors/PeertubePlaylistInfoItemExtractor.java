@@ -4,9 +4,11 @@ import com.grack.nanojson.JsonObject;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo;
 import org.schabi.newpipe.extractor.playlist.PlaylistInfoItemExtractor;
+import org.schabi.newpipe.extractor.services.peertube.PeertubeParsingHelper;
 import org.schabi.newpipe.extractor.utils.JsonUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 public class PeertubePlaylistInfoItemExtractor implements PlaylistInfoItemExtractor {
 
@@ -25,8 +27,9 @@ public class PeertubePlaylistInfoItemExtractor implements PlaylistInfoItemExtrac
     }
 
     @Override
-    public String getThumbnailUrl() throws ParsingException {
-        return baseUrl + JsonUtils.getString(item, "thumbnailPath");
+    public String getThumbnailUrl() {
+        return PeertubeParsingHelper.getFirstImageUrl(
+                PeertubeParsingHelper.getThumbnailsFromPlaylistOrVideoItem(baseUrl, item));
     }
 
     @Override
@@ -38,6 +41,12 @@ public class PeertubePlaylistInfoItemExtractor implements PlaylistInfoItemExtrac
     public String getUploaderName() throws ParsingException {
         final JsonObject owner = JsonUtils.getObject(item, "ownerAccount");
         return JsonUtils.getString(owner, "displayName");
+    }
+
+    @Nullable
+    @Override
+    public String getUploaderId() {
+        return PeertubeParsingHelper.getAccountId(item.getObject("ownerAccount"));
     }
 
     @Override

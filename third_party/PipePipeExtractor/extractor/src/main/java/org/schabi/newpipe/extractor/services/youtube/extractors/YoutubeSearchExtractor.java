@@ -4,7 +4,6 @@ import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.YOUTUBEI_V1_URL;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getJsonPostResponse;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getTextFromObject;
-import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getValidJsonResponseBody;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.prepareDesktopJsonBuilder;
 import static org.schabi.newpipe.extractor.utils.Utils.UTF_8;
 import static org.schabi.newpipe.extractor.utils.Utils.isNullOrEmpty;
@@ -14,8 +13,6 @@ import org.schabi.newpipe.extractor.services.youtube.search.filter.YoutubeFilter
 import com.grack.nanojson.JsonArray;
 import com.grack.nanojson.JsonBuilder;
 import com.grack.nanojson.JsonObject;
-import com.grack.nanojson.JsonParser;
-import com.grack.nanojson.JsonParserException;
 import com.grack.nanojson.JsonWriter;
 
 import org.schabi.newpipe.extractor.downloader.Downloader;
@@ -28,7 +25,6 @@ import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper;
 import org.schabi.newpipe.extractor.utils.JsonUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -155,15 +151,9 @@ public class YoutubeSearchExtractor extends YoutubeBaseSearchExtractor {
                 .getBytes(UTF_8);
         // @formatter:on
 
-        final String responseBody = getValidJsonResponseBody(getDownloader().post(
-                page.getUrl(), new HashMap<>(), json));
-
-        final JsonObject ajaxJson;
-        try {
-            ajaxJson = JsonParser.object().from(responseBody);
-        } catch (final JsonParserException e) {
-            throw new ParsingException("Could not parse JSON", e);
-        }
+        // Use the same client headers as the initial request, otherwise YouTube rejects the
+        // continuation request with a 400 Precondition check failed response.
+        final JsonObject ajaxJson = getJsonPostResponse("search", json, localization);
 
         final JsonArray continuationItems = ajaxJson.getArray("onResponseReceivedCommands")
                 .getObject(0).getObject("appendContinuationItemsAction")
@@ -197,14 +187,22 @@ public class YoutubeSearchExtractor extends YoutubeBaseSearchExtractor {
                         .getObject("playlistRenderer")));
             } else if (item.has("lockupViewModel")) {
                 final JsonObject lockupViewModel = item.getObject("lockupViewModel");
-                if ("LOCKUP_CONTENT_TYPE_PLAYLIST".equals(
-                        lockupViewModel.getString("contentType"))) {
+                final String contentType = lockupViewModel.getString("contentType");
+                if ("LOCKUP_CONTENT_TYPE_PLAYLIST".equals(contentType)
+                        || "LOCKUP_CONTENT_TYPE_PODCAST".equals(contentType)) {
                     collector.commit(
                             new YoutubeMixOrPlaylistLockupInfoItemExtractor(lockupViewModel));
+                } else if ("LOCKUP_CONTENT_TYPE_VIDEO".equals(contentType)) {
+                    collector.commit(new YoutubeLockupStreamInfoItemExtractor(
+                            lockupViewModel, timeAgoParser));
                 }
+            } else if (item.has("shortsLockupViewModel")) {
+                collector.commit(new YoutubeShortsInfoItemExtractor(
+                        item.getObject("shortsLockupViewModel")));
             } else if (item.has("reelShelfRenderer")) {
-                // Shorts shelf section: without this branch every short YouTube groups into a
-                // shelf is silently dropped and search returns almost no shorts at all.
+                // Shorts shelf section (older SERP shape): without this branch every short
+                // YouTube groups into a reel shelf is silently dropped. Upstream 5.5.0 already
+                // walks gridShelfViewModel and bare shortsLockupViewModel below.
                 for (final Object reel : item.getObject("reelShelfRenderer").getArray("items")) {
                     final JsonObject reelItem = (JsonObject) reel;
                     if (reelItem.has("reelItemRenderer")) {
@@ -216,19 +214,11 @@ public class YoutubeSearchExtractor extends YoutubeBaseSearchExtractor {
                     }
                 }
             } else if (item.has("gridShelfViewModel")) {
-                // Current desktop SERP wraps the shorts shelf this way (verified live 2026-08:
-                // gridShelfViewModel.contents[].shortsLockupViewModel).
-                for (final Object grid : item.getObject("gridShelfViewModel")
-                        .getArray("contents")) {
-                    final JsonObject gridItem = (JsonObject) grid;
-                    if (gridItem.has("shortsLockupViewModel")) {
-                        collector.commit(new YoutubeShortsInfoItemExtractor(
-                                gridItem.getObject("shortsLockupViewModel")));
-                    }
+                final JsonArray shelfContents = item.getObject("gridShelfViewModel")
+                        .getArray("contents");
+                if (shelfContents != null) {
+                    collectStreamsFrom(collector, shelfContents);
                 }
-            } else if (item.has("shortsLockupViewModel")) {
-                collector.commit(new YoutubeShortsInfoItemExtractor(
-                        item.getObject("shortsLockupViewModel")));
             }
         }
     }

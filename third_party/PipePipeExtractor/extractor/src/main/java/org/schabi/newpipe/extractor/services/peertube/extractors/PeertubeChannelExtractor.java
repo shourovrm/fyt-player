@@ -3,7 +3,9 @@ package org.schabi.newpipe.extractor.services.peertube.extractors;
 import com.grack.nanojson.JsonObject;
 import com.grack.nanojson.JsonParser;
 import com.grack.nanojson.JsonParserException;
+import org.schabi.newpipe.extractor.Image;
 import org.schabi.newpipe.extractor.Page;
+import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.channel.ChannelExtractor;
 import org.schabi.newpipe.extractor.downloader.Downloader;
@@ -46,18 +48,24 @@ public class PeertubeChannelExtractor extends ChannelExtractor {
 
     @Override
     public String getAvatarUrl() {
-        String value;
-        try {
-            value = JsonUtils.getString(json, "avatar.path");
-        } catch (final Exception e) {
-            value = "/client/assets/images/default-avatar.png";
-        }
-        return baseUrl + value;
+        return PeertubeParsingHelper.getBiggestImageUrl(getAvatars());
+    }
+
+    @Nonnull
+    @Override
+    public List<Image> getAvatars() {
+        return PeertubeParsingHelper.getAvatarsFromOwnerAccountOrVideoChannelObject(baseUrl, json);
     }
 
     @Override
     public String getBannerUrl() {
-        return null;
+        return PeertubeParsingHelper.getBiggestImageUrl(getBanners());
+    }
+
+    @Nonnull
+    @Override
+    public List<Image> getBanners() {
+        return PeertubeParsingHelper.getBannersFromAccountOrVideoChannelObject(baseUrl, json);
     }
 
     @Override
@@ -86,13 +94,9 @@ public class PeertubeChannelExtractor extends ChannelExtractor {
 
     @Override
     public String getParentChannelAvatarUrl() {
-        String value;
-        try {
-            value = JsonUtils.getString(json, "ownerAccount.avatar.path");
-        } catch (final Exception e) {
-            value = "/client/assets/images/default-avatar.png";
-        }
-        return baseUrl + value;
+        return PeertubeParsingHelper.getBiggestImageUrl(
+                PeertubeParsingHelper.getAvatarsFromOwnerAccountOrVideoChannelObject(
+                        baseUrl, json.getObject("ownerAccount")));
     }
 
     @Override
@@ -104,18 +108,18 @@ public class PeertubeChannelExtractor extends ChannelExtractor {
     @Override
     public List<ListLinkHandler> getTabs() throws ParsingException {
         return Arrays.asList(
-                PeertubeChannelTabLinkHandlerFactory.getInstance().fromQuery(getId(),
+                PeertubeChannelTabLinkHandlerFactory.getInstance().fromQuery(getLinkHandler().getId(),
                         Collections.singletonList(new FilterItem(Filter.ITEM_IDENTIFIER_UNKNOWN, ChannelTabs.VIDEOS)), null, getBaseUrl()),
-                PeertubeChannelTabLinkHandlerFactory.getInstance().fromQuery(getId(),
-                        Collections.singletonList(new FilterItem(Filter.ITEM_IDENTIFIER_UNKNOWN, ChannelTabs.CHANNELS)), null, getBaseUrl())
+                PeertubeChannelTabLinkHandlerFactory.getInstance().fromQuery(getLinkHandler().getId(),
+                        Collections.singletonList(new FilterItem(Filter.ITEM_IDENTIFIER_UNKNOWN, ChannelTabs.PLAYLISTS)), null, getBaseUrl())
         );
     }
 
     @Nonnull
     @Override
     public InfoItemsPage<StreamInfoItem> getInitialPage() throws IOException, ExtractionException {
-        return getPage(new Page(baseUrl + "/api/v1/" + getId() + "/videos?" + START_KEY + "=0&"
-                + COUNT_KEY + "=" + ITEMS_PER_PAGE));
+        return getPage(new Page(baseUrl + "/api/v1/" + getLinkHandler().getId() + "/videos?"
+                + START_KEY + "=0&" + COUNT_KEY + "=" + ITEMS_PER_PAGE));
     }
 
     @Override
@@ -143,6 +147,10 @@ public class PeertubeChannelExtractor extends ChannelExtractor {
             final StreamInfoItemsCollector collector = new StreamInfoItemsCollector(getServiceId());
             collectStreamsFrom(collector, pageJson, getBaseUrl());
 
+            if (ServiceList.PeerTube.getFilterTypes().contains("channels")) {
+                collector.applyBlocking(ServiceList.PeerTube.getFilterConfig());
+            }
+
             return new InfoItemsPage<>(collector,
                     PeertubeParsingHelper.getNextPage(page.getUrl(), total));
         } else {
@@ -154,7 +162,7 @@ public class PeertubeChannelExtractor extends ChannelExtractor {
     public void onFetchPage(@Nonnull final Downloader downloader)
             throws IOException, ExtractionException {
         final Response response = downloader.get(
-                baseUrl + PeertubeChannelLinkHandlerFactory.API_ENDPOINT + getId());
+                baseUrl + PeertubeChannelLinkHandlerFactory.API_ENDPOINT + getLinkHandler().getId());
         if (response != null) {
             setInitialData(response.responseBody());
         } else {
@@ -171,6 +179,19 @@ public class PeertubeChannelExtractor extends ChannelExtractor {
         if (json == null) {
             throw new ExtractionException("Unable to extract PeerTube channel data");
         }
+    }
+
+    /**
+     * The id of the account owning this video channel, {@code accounts/<name>@<host>}: items report
+     * their account as uploader id, so only this id lets a block rule by channel id recognise the
+     * channel page, and an id taken from the page match its videos. The link handler id
+     * ({@code video-channels/<name>}) still addresses the API.
+     */
+    @Override
+    public String getId() throws ParsingException {
+        final String ownerId = json == null ? null
+                : PeertubeParsingHelper.getAccountId(json.getObject("ownerAccount"));
+        return ownerId != null ? ownerId : super.getId();
     }
 
     @Nonnull

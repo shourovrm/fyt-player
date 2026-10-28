@@ -28,8 +28,11 @@ public class PeertubeStreamInfoItemExtractor implements StreamInfoItemExtractor 
     }
 
     @Override
-    public String getThumbnailUrl() throws ParsingException {
-        return baseUrl + JsonUtils.getString(item, "thumbnailPath");
+    public String getThumbnailUrl() {
+        // The list thumbnail comes first; the bigger preview is only a fallback for the
+        // instances which do not serve a thumbnailPath
+        return PeertubeParsingHelper.getFirstImageUrl(
+                PeertubeParsingHelper.getThumbnailsFromPlaylistOrVideoItem(baseUrl, item));
     }
 
     @Override
@@ -58,12 +61,16 @@ public class PeertubeStreamInfoItemExtractor implements StreamInfoItemExtractor 
 
     @Nullable
     @Override
+    public String getUploaderId() {
+        return PeertubeParsingHelper.getAccountId(item.getObject("account"));
+    }
+
+    @Nullable
+    @Override
     public String getUploaderAvatarUrl() {
-        final JsonObject account = item.getObject("account");
-        if (account.has("avatar") && !account.isNull("avatar")) {
-            return baseUrl + account.getObject("avatar").getString("path");
-        }
-        return null;
+        return PeertubeParsingHelper.getBiggestImageUrl(
+                PeertubeParsingHelper.getAvatarsFromOwnerAccountOrVideoChannelObject(
+                        baseUrl, item.getObject("account")));
     }
 
     @Override

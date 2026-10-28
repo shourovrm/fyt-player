@@ -1,5 +1,6 @@
 package org.schabi.newpipe.extractor.services.bilibili;
 
+import com.grack.nanojson.JsonArray;
 import com.grack.nanojson.JsonObject;
 import com.grack.nanojson.JsonParser;
 import com.grack.nanojson.JsonParserException;
@@ -32,6 +33,7 @@ import org.schabi.newpipe.extractor.services.bilibili.extractors.BilibiliSuggest
 import org.schabi.newpipe.extractor.services.bilibili.extractors.BillibiliStreamExtractor;
 import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliBulletCommentsLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliChannelLinkHandlerFactory;
+import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliChannelTabLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliCommentsLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliFeedLinkHandlerFactory;
 import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliPlaylistLinkHandlerFactory;
@@ -100,7 +102,7 @@ public class BilibiliService extends StreamingService {
     public static String FETCH_COOKIE_URL = "https://api.bilibili.com/x/frontend/finger/spi";
     public static String FETCH_COMMENTS_URL = "https://api.bilibili.com/x/v2/reply/wbi/main";
     public static String FETCH_TAGS_URL = "https://api.bilibili.com/x/web-interface/view/detail/tag?bvid=";
-    public final static String FETCH_RECOMMENDED_LIVES_URL = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getUserRecommend?page_size=30&platform=web";
+    public final static String FETCH_RECOMMENDED_LIVES_URL = "https://api.live.bilibili.com/room/v1/room/get_user_recommend?page_size=30&platform=web";
     public static String VIDEOSHOT_API_URL = "https://api.bilibili.com/x/player/videoshot?index=1&bvid=";
     public final static String FETCH_TICKET_URL = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket";
 
@@ -317,8 +319,42 @@ public class BilibiliService extends StreamingService {
     }
 
     static public boolean isBiliBiliDownloadUrl(String url){
-        // *.akamaized.net, *.bilivideo.com
-        return url.contains("akamaized.net") || url.contains("bilivideo.com");
+        // *.akamaized.net, *.bilivideo.com, *.bilivideo.cn, *.mountaintoys.cn
+        return url.contains("akamaized.net") || url.contains("bilivideo.com")
+                || url.contains("bilivideo.cn") || url.contains("mountaintoys.cn");
+    }
+
+    /**
+     * Bilibili's M-CDN (PCDN) edge nodes, typically {@code *.mcdn.bilivideo.cn} and
+     * {@code *.edge.mountaintoys.cn}. They are built for the web player: they don't
+     * answer HEAD requests (404), may reject non-browser clients (403) and their
+     * signatures are short-lived, which breaks resumable downloads.
+     */
+    static public boolean isMcdnUrl(String url){
+        return url.contains("mcdn.bilivideo") || url.contains("mountaintoys") || url.contains("os=mcdn");
+    }
+
+    /**
+     * Picks a stable, download-friendly URL out of a DASH stream entry.
+     * Prefers the primary address; falls back to any non M-CDN backup url;
+     * if every candidate is M-CDN, the primary is kept as a last resort.
+     *
+     * @param primary   the stream's baseUrl/base_url
+     * @param backupUrls the stream's backupUrl/backup_url list, may be empty
+     */
+    static public String pickStableStreamUrl(String primary, JsonArray backupUrls){
+        if (primary != null && !isMcdnUrl(primary)) {
+            return primary;
+        }
+        if (backupUrls != null) {
+            for (int i = 0; i < backupUrls.size(); i++) {
+                final String candidate = backupUrls.getString(i);
+                if (candidate != null && !candidate.isEmpty() && !isMcdnUrl(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return primary;
     }
 
     static public boolean isBiliBiliUrl(String url){
@@ -406,7 +442,7 @@ public class BilibiliService extends StreamingService {
 
     @Override
     public ListLinkHandlerFactory getChannelTabLHFactory() {
-        return null;
+        return new BilibiliChannelTabLinkHandlerFactory();
     }
 
     @Override

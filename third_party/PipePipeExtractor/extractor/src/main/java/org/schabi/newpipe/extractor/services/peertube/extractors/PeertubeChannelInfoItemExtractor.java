@@ -4,7 +4,10 @@ import com.grack.nanojson.JsonObject;
 import org.schabi.newpipe.extractor.ListExtractor;
 import org.schabi.newpipe.extractor.channel.ChannelInfoItemExtractor;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
+import org.schabi.newpipe.extractor.services.peertube.PeertubeParsingHelper;
 import org.schabi.newpipe.extractor.utils.JsonUtils;
+
+import javax.annotation.Nullable;
 
 public class PeertubeChannelInfoItemExtractor implements ChannelInfoItemExtractor {
 
@@ -22,14 +25,29 @@ public class PeertubeChannelInfoItemExtractor implements ChannelInfoItemExtracto
     }
 
     @Override
-    public String getThumbnailUrl() throws ParsingException {
-        final JsonObject avatar = JsonUtils.getObject(item, "avatar");
-        return baseUrl + JsonUtils.getString(avatar, "path");
+    public String getThumbnailUrl() {
+        return PeertubeParsingHelper.getBiggestImageUrl(
+                PeertubeParsingHelper.getAvatarsFromOwnerAccountOrVideoChannelObject(
+                        baseUrl, item));
     }
 
     @Override
     public String getName() throws ParsingException {
         return JsonUtils.getString(item, "displayName");
+    }
+
+    /**
+     * The id of the account owning this video channel.
+     *
+     * <p>
+     * Stream items, comments and playlists all report the account behind them, so only the
+     * account id lets a block rule created from any of them match its channels too.
+     * </p>
+     */
+    @Nullable
+    @Override
+    public String getUploaderId() {
+        return PeertubeParsingHelper.getAccountId(item.getObject("ownerAccount"));
     }
 
     @Override

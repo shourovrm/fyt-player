@@ -5,6 +5,7 @@ import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.addYoutubeHeaders;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.extractPlaylistTypeFromPlaylistUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.fixThumbnailUrl;
+import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getChannelIdFromUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getJsonPostResponse;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getTextFromObject;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getUrlFromNavigationEndpoint;
@@ -18,6 +19,7 @@ import com.grack.nanojson.JsonObject;
 import com.grack.nanojson.JsonWriter;
 
 import org.schabi.newpipe.extractor.Page;
+import org.schabi.newpipe.extractor.ServiceList;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.downloader.Downloader;
 import org.schabi.newpipe.extractor.downloader.Response;
@@ -325,6 +327,10 @@ public class YoutubePlaylistExtractor extends PlaylistExtractor {
             nextPage = getNextPageFrom(contents);
         }
 
+        if (ServiceList.YouTube.getFilterTypes().contains("playlists")) {
+            collector.applyBlocking(ServiceList.YouTube.getFilterConfig());
+        }
+
         return new InfoItemsPage<>(collector, nextPage);
     }
 
@@ -349,6 +355,10 @@ public class YoutubePlaylistExtractor extends PlaylistExtractor {
                 .getArray("continuationItems");
 
         collectStreamsFrom(collector, continuation);
+
+        if (ServiceList.YouTube.getFilterTypes().contains("playlists")) {
+            collector.applyBlocking(ServiceList.YouTube.getFilterConfig());
+        }
 
         return new InfoItemsPage<>(collector, getNextPageFrom(continuation));
     }
@@ -519,6 +529,21 @@ public class YoutubePlaylistExtractor extends PlaylistExtractor {
                 } catch (final ParsingException ignored) {
                 }
                 return fallbackUrl;
+            }
+
+            @Override
+            public String getUploaderId() throws ParsingException {
+                if (fallbackUrl == null) {
+                    return super.getUploaderId();
+                }
+                try {
+                    final String uploaderId = super.getUploaderId();
+                    if (!isNullOrEmpty(uploaderId)) {
+                        return uploaderId;
+                    }
+                } catch (final ParsingException ignored) {
+                }
+                return getChannelIdFromUrl(fallbackUrl);
             }
         });
     }

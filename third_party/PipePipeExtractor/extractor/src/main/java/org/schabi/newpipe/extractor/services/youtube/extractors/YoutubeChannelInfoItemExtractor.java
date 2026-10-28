@@ -10,6 +10,8 @@ import org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper;
 import org.schabi.newpipe.extractor.services.youtube.linkHandler.YoutubeChannelLinkHandlerFactory;
 import org.schabi.newpipe.extractor.utils.Utils;
 
+import javax.annotation.Nullable;
+
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.fixThumbnailUrl;
 import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper.getTextFromObject;
 
@@ -34,6 +36,9 @@ import static org.schabi.newpipe.extractor.services.youtube.YoutubeParsingHelper
  */
 
 public class YoutubeChannelInfoItemExtractor implements ChannelInfoItemExtractor {
+    private static final String TOPIC_SUFFIX = " - Topic";
+    private static final String ZULU_TOPIC_SUFFIX = " - Isihloko";
+
     private final JsonObject channelInfoItem;
     /**
      * New layout:
@@ -73,7 +78,12 @@ public class YoutubeChannelInfoItemExtractor implements ChannelInfoItemExtractor
     @Override
     public String getName() throws ParsingException {
         try {
-            return getTextFromObject(channelInfoItem.getObject("title"));
+            final String name = getTextFromObject(channelInfoItem.getObject("title"));
+            if (name != null && name.endsWith(ZULU_TOPIC_SUFFIX)) {
+                return name.substring(0, name.length() - ZULU_TOPIC_SUFFIX.length())
+                        + TOPIC_SUFFIX;
+            }
+            return name;
         } catch (final Exception e) {
             throw new ParsingException("Could not get name", e);
         }
@@ -132,6 +142,12 @@ public class YoutubeChannelInfoItemExtractor implements ChannelInfoItemExtractor
     @Override
     public boolean isVerified() throws ParsingException {
         return YoutubeParsingHelper.isVerified(channelInfoItem.getArray("ownerBadges"));
+    }
+
+    @Nullable
+    @Override
+    public String getUploaderId() {
+        return channelInfoItem.getString("channelId");
     }
 
     @Override

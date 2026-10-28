@@ -466,7 +466,7 @@ private fun PlaylistInfoItem.toPlaylistVideoRef(): VideoRef? {
 private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     id = commentId,
     author = uploaderName ?: "",
-    text = commentText ?: "",
+    text = commentText?.content ?: "", // 5.5.0: getCommentText() returns a Description
     likeCount = likeCount.takeIf { it != CommentsInfoItem.NO_LIKE_COUNT }?.toLong(),
     timeText = englishAge(uploadDate) ?: textualUploadDate,
     parentId = parentId,

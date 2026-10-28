@@ -9,6 +9,7 @@ import org.schabi.newpipe.extractor.comments.CommentsInfoItemExtractor;
 import org.schabi.newpipe.extractor.exceptions.ParsingException;
 import org.schabi.newpipe.extractor.localization.DateWrapper;
 import org.schabi.newpipe.extractor.services.bilibili.linkHandler.BilibiliChannelLinkHandlerFactory;
+import org.schabi.newpipe.extractor.stream.Description;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,7 +54,7 @@ public class BilibiliCommentsInfoItemExtractor implements CommentsInfoItemExtrac
     }
 
     @Override
-    public String getCommentText() throws ParsingException {
+    public Description getCommentText() throws ParsingException {
         String result = StringEscapeUtils.unescapeHtml4((data.getObject("content").getString("message")));
         try {
             if (result.endsWith("...") && data.getObject("content").getObject("jump_url") != null && data.getObject("content").getObject("jump_url").keySet().size() > 0) {
@@ -61,7 +62,7 @@ public class BilibiliCommentsInfoItemExtractor implements CommentsInfoItemExtrac
             }
         } catch (Exception e) {
         }
-        return result;
+        return new Description(result, Description.PLAIN_TEXT);
     }
 
     @SuppressWarnings("SimpleDateFormat")
@@ -73,6 +74,12 @@ public class BilibiliCommentsInfoItemExtractor implements CommentsInfoItemExtrac
     @Override
     public String getCommentId() throws ParsingException {
         return data.getString("rpid_str");
+    }
+
+    @Override
+    public String getUploaderId() throws ParsingException {
+        final String mid = data.get("mid") == null ? null : String.valueOf(data.get("mid"));
+        return mid;
     }
 
     @Override
