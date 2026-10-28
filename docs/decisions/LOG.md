@@ -245,3 +245,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-28 | Channel Subscribe buttons replaced by a heart at the end of the name row; tap toggles and shows the Detail ActionMessagePill overlay | user-chosen design
 2026-10-28 | Player captions button moved to top-right (Chapters, Captions, Dub); icon is a C in a rounded box, filled when a track is selected | user-chosen design
 2026-10-28 | Channel heart moved into the app bar left of Play-all; name row under the bar removed | user-chosen layout
+2026-10-28 | Channel Play-all starts the queue then opens the first video's Detail page; Detail entry guard compares queue[index] not current | play() clears current until resolve, guard would replace the queue

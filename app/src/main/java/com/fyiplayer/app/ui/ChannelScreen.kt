@@ -141,6 +141,20 @@ fun ChannelScreen(
         }
     }
 
+    // Shorts go to the swipe pager, which starts the queue itself, so the queue is only started
+    // here for the Detail route. Starting it before navigating means Detail's entry guard sees the
+    // first video already queued and does not replace the whole queue with that one video.
+    fun playAllAndOpen() {
+        val first = currentVideos.firstOrNull() ?: return
+        val onShortsTab = (vm.selected as? ChannelUiTab.Content)?.tab == ChannelTab.SHORTS
+        if (onShortsTab || first.isShort) {
+            onOpenShorts(currentVideos, 0)
+            return
+        }
+        PlaybackSession.play(currentVideos, 0)
+        onOpenDetail(first)
+    }
+
     Scaffold(
         topBar = {
             if (selecting) {
@@ -163,7 +177,7 @@ fun ChannelScreen(
                     },
                 )
             } else {
-                ChannelTopBar(listing.title, currentVideos, subscribed, onBack, ::onHeartTapped)
+                ChannelTopBar(listing.title, currentVideos, subscribed, onBack, ::onHeartTapped, ::playAllAndOpen)
             }
         },
         floatingActionButton = {
@@ -225,6 +239,7 @@ private fun ChannelTopBar(
     subscribed: Boolean,
     onBack: () -> Unit,
     onToggleSubscribe: () -> Unit,
+    onPlayAll: () -> Unit,
 ) {
     val heartTint = if (subscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     TopAppBar(
@@ -240,7 +255,7 @@ private fun ChannelTopBar(
                 )
             }
             if (videos.isNotEmpty()) {
-                IconButton(onClick = { PlaybackSession.play(videos, 0) }) {
+                IconButton(onClick = onPlayAll) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                 }
             }

@@ -169,9 +169,11 @@ fun DetailScreen(
     // here. The old once-per-nav-entry latch left the deeper video running over this page's
     // description (user-reported mismatch). Same-video re-entry stays a no-op, so reopening the
     // mini player's detail never restarts it; error state replays (retry-on-reopen).
+    // Compares the queue slot, not `current`: play() clears `current` until its resolve lands, so a
+    // queue started just before navigating here would otherwise be replaced by this one video.
     LaunchedEffect(pageUrl) {
         val st = PlaybackSession.state.value
-        if (st.current?.pageUrl != ref.pageUrl || st.error != null) {
+        if (st.queue.getOrNull(st.index)?.pageUrl != ref.pageUrl || st.error != null) {
             PlaybackSession.play(listOf(ref), 0)
         }
     }
