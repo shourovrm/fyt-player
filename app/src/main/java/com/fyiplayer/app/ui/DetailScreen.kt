@@ -8,25 +8,21 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -50,6 +46,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
@@ -171,6 +169,11 @@ fun DetailScreen(
     // A bare-URL open (share) started playback with title="" -- hand the enriched ref to the
     // session so the mini player / notification stop showing an empty title.
     LaunchedEffect(shownRef) { if (shownRef.title.isNotBlank()) PlaybackSession.updateCurrentMeta(shownRef) }
+    // Keyed on the page the player plays (shownRef), so the player only applies these when that
+    // page is the one playing. Runs before Play too; the session holds them until then.
+    LaunchedEffect(shownRef.pageUrl, detail.chapters) {
+        PlaybackSession.setChapters(shownRef.pageUrl, detail.chapters)
+    }
 
     // Only the selected tab fetches, and only once per video -- ensureXLoaded is idempotent
     // (DetailTabsViewModel), so re-running this on every recomposition (e.g. re-entering from
@@ -228,18 +231,13 @@ fun DetailScreen(
                 }
                 item {
                     when {
-                        uploaderListing != null -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "${uploaderListing.title}  ›",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f).clickable { onOpenListing(uploaderListing) }
-                                    .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-                            )
-                            // Sits on the channel's own line: it is a per-channel switch, and a
-                            // row of its own pushed the view count down for one short label.
-                            if (shownRef.sourceId == "youtube") SponsorChannelToggle(uploaderListing.key)
-                        }
+                        uploaderListing != null -> Text(
+                            "${uploaderListing.title}  ›",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.clickable { onOpenListing(uploaderListing) }
+                                .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                        )
                         shownRef.uploader != null -> Text(
                             shownRef.uploader,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -265,7 +263,11 @@ fun DetailScreen(
                         )
                     }
                 }
-                item { VideoActionRow(rememberVideoActions(shownRef)) }
+                item {
+                    // SponsorBlock exceptions are per YouTube channel, so other sources get no toggle.
+                    val sponsorChannelUrl = if (shownRef.sourceId == "youtube") uploaderListing?.key else null
+                    VideoActionRow(rememberVideoActions(shownRef), sponsorChannelUrl = sponsorChannelUrl)
+                }
                 // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
                 // option (the old showCommentsTab-only gate no longer applies).
                 item {
@@ -327,52 +329,59 @@ fun DetailScreen(
 }
 
 /**
- * Like / Add to playlist / Download / Share, directly under the title (no Queue: the page's own video is already the queue) -- the same handlers
- * [VideoActionSheet]'s long-press sheet uses ([VideoActions], `ui/VideoActionSheet.kt`), just laid
- * out as a permanent row instead of a sheet. Download is the page's one filled button; Like shows
- * the accent colour and a filled icon while liked, read from [VideoActions.likedFlow], not a
- * one-shot check, so a toggle from elsewhere (or from this row itself) is never stale. The row
- * scrolls sideways so four labelled buttons survive large font scale.
+ * Like / Save (add to playlist) / Download / Share, plus the channel's SponsorBlock toggle when it
+ * applies, as one row of icon-only buttons under the title (no Queue: the page's own video is
+ * already the queue). The handlers are the ones [VideoActionSheet]'s long-press sheet uses
+ * ([VideoActions], `ui/VideoActionSheet.kt`). Icons spread evenly across the width, so the row
+ * never scrolls. Each button's spoken label is its full name. Like and the Skips toggle confirm
+ * with a short toast. Like shows the accent colour and a filled icon while liked, read from
+ * [VideoActions.likedFlow], so a toggle from elsewhere is never stale.
  */
 @Composable
-private fun VideoActionRow(actions: VideoActions, modifier: Modifier = Modifier) {
+private fun VideoActionRow(actions: VideoActions, sponsorChannelUrl: String?, modifier: Modifier = Modifier) {
     val liked by actions.likedFlow.collectAsState(initial = false)
     var showPlaylistPicker by remember(actions.ref.pageUrl) { mutableStateOf(false) }
     val context = LocalContext.current
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val likeAddedMessage = stringResource(R.string.detail_like_added)
+    val likeRemovedMessage = stringResource(R.string.detail_like_removed)
+    val saveLabel = stringResource(R.string.action_add_to_playlist)
+    val downloadLabel = stringResource(R.string.action_download)
 
     Row(
-        modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+        modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val likeColor = if (liked) MaterialTheme.colorScheme.primary else onSurfaceVariant
-        TextButton(onClick = { actions.toggleLike(liked) }) {
+        IconButton(onClick = {
+            actions.toggleLike(liked)
+            // The toast names the state the tap switches to, so it is chosen from the current value.
+            showToast(context, if (liked) likeRemovedMessage else likeAddedMessage)
+        }) {
             Icon(
                 if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = null, tint = likeColor, modifier = Modifier.size(Sizes.iconSmall),
+                contentDescription = stringResource(if (liked) R.string.action_unlike else R.string.action_like),
+                tint = if (liked) MaterialTheme.colorScheme.primary else onSurfaceVariant,
+                modifier = Modifier.size(Sizes.icon),
             )
-            Spacer(Modifier.width(Spacing.s8))
-            Text(stringResource(if (liked) R.string.action_unlike else R.string.action_like), color = likeColor)
         }
-        TextButton(onClick = { showPlaylistPicker = true }) {
-            SaveGlyph(tint = onSurfaceVariant)
-            Spacer(Modifier.width(Spacing.s8))
-            Text(stringResource(R.string.action_add_to_playlist), color = onSurfaceVariant)
+        // Canvas glyphs carry no description of their own, so the label goes on the button.
+        IconButton(onClick = { showPlaylistPicker = true }, modifier = Modifier.semantics { contentDescription = saveLabel }) {
+            SaveGlyph(tint = onSurfaceVariant, size = Sizes.icon)
         }
-        Button(onClick = { actions.startDownload() }) {
-            DownloadTrayGlyph(tint = MaterialTheme.colorScheme.onPrimary)
-            Spacer(Modifier.width(Spacing.s8))
-            Text(stringResource(R.string.action_download))
+        // The page's one filled control: Download is the primary action here.
+        FilledIconButton(onClick = { actions.startDownload() }, modifier = Modifier.semantics { contentDescription = downloadLabel }) {
+            DownloadTrayGlyph(tint = MaterialTheme.colorScheme.onPrimary, size = Sizes.icon)
         }
-        TextButton(onClick = { actions.share() }) {
-            Icon(Icons.Filled.Share, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(Sizes.iconSmall))
-            Spacer(Modifier.width(Spacing.s8))
-            Text(stringResource(R.string.action_share), color = onSurfaceVariant)
+        IconButton(onClick = { actions.share() }) {
+            Icon(
+                Icons.Filled.Share,
+                contentDescription = stringResource(R.string.action_share),
+                tint = onSurfaceVariant,
+                modifier = Modifier.size(Sizes.icon),
+            )
         }
+        SponsorChannelToggle(sponsorChannelUrl)
     }
 
     if (showPlaylistPicker) {

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Channel page header under the app bar. Rules: docs/copy.md. -->
+<resources>
+    <string name="channel_subscribed">Subscribed</string>
+</resources>

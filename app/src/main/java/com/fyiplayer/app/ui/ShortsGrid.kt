@@ -1,6 +1,7 @@
 package com.fyiplayer.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,7 +80,7 @@ internal fun ShortsGrid(
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        // Feed items are already deduped by page URL (ShortsFeed.kt's interleave), so a stable
+        // Feed items are already deduped by page URL (orderShortsFeed in ShortsFeed.kt), so a stable
         // key here is safe and lets a mid-scroll refresh keep tiles instead of re-laying them all.
         itemsIndexed(items, key = { _, ref -> ref.pageUrl }) { index, ref ->
             ShortsGridTile(ref, onClick = { onOpenPlayer(index) }, onLongPress = { onLongPress(ref) })
@@ -106,7 +107,7 @@ internal fun ShortsGrid(
 }
 
 @Composable
-private fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit) {
+internal fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit, selected: Boolean = false) {
     Box(
         Modifier
             .aspectRatio(9f / 16f)
@@ -122,6 +123,10 @@ private fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
                 .fillMaxSize()
                 .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to MaterialTheme.fyiExtras.videoScrim)),
         )
+        // Channel Shorts tab selection mode; the main feed never passes selected.
+        if (selected) {
+            Box(Modifier.fillMaxSize().border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(Radius.xs)))
+        }
         Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
             Text(
                 ref.title,

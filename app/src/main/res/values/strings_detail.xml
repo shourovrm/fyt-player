@@ -50,9 +50,13 @@
     <string name="detail_download_quality">Download quality</string>
     <string name="detail_download_failed_title">Cannot download this video</string>
 
-    <!-- detail: SponsorBlock exception on the channel line -->
-    <string name="detail_sponsor_on">Skips on</string>
-    <string name="detail_sponsor_off">Skips off</string>
+    <!-- detail: action row toasts (four words max, docs/copy.md) -->
+    <string name="detail_like_added">Liked</string>
+    <string name="detail_like_removed">Unliked</string>
+    <string name="detail_sponsor_skipping_on">Skipping on this channel</string>
+    <string name="detail_sponsor_skipping_off">Not skipping this channel</string>
+
+    <!-- detail: SponsorBlock exception, icon in the action row (spoken label only, no visible text) -->
     <string name="detail_sponsor_stop_spoken">Stop skipping on this channel</string>
     <string name="detail_sponsor_resume_spoken">Resume skipping on this channel</string>
 

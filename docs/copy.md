@@ -80,7 +80,7 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Update | Update available — vX | Update available: X | no dash |
 | Update | Get | Install | verb says what happens |
 | Update | Downloading update… | Downloading update | no ellipsis |
-| Channel | Subscribed (button) | Unsubscribe | button is a verb |
+| Channel | Unsubscribe (button) | Subscribed (tonal button, check icon) | 2026-10-28: state label chosen from the sub-3-row mock; tapping it unsubscribes |
 | Channel | Add selected to queue | Add to queue | shared string |
 | Channel | Loading… | Loading | no ellipsis |
 | Channel | No videos / This channel has no videos here. | No videos yet / This channel has not posted any here. | empty-state pattern |

@@ -1,6 +1,16 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-28 (built, 546 unit tests green; device pass in LOG): Detail action row is icon-only Like / Save /
+Download (tonal) / Share / Skips shield, evenly spaced, no sideways scroll; Like and Skips toggles show a
+toast; the channel line is the name only (the "Skips on/off" text button is gone). Channel page: header
+row under the app bar (avatar when the listing has one, name, Subscribe / tonal Subscribed with check;
+no subscriber count: `Listing` has no field). Channel Shorts tab = 3-column portrait grid reusing
+`ShortsGridTile` (long-press selects, border shows it). Description shows chapters once: the structured
+list stays and the chapter timestamp lines plus their "Chapters:" header are stripped from the parsed
+description (`stripChapterLines`, works on the AnnotatedString because YouTube descriptions are HTML).
+Library History hides vertical clips: shorts are now recorded as seen (shorts.md) but are not videos.
+
 
 2026-10-18 (v0.2.27, device-UNverified): Settings is hub-and-spoke: `SettingsScreen` = 8 rows with
 live summaries, `SettingsPageScreen(page)` on route `settings/{page}` hosts the unchanged section

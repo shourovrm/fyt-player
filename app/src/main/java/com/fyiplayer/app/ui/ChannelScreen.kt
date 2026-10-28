@@ -11,24 +11,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Scaffold
@@ -50,7 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.ChannelTab
@@ -95,6 +102,9 @@ fun ChannelScreen(
     val listStateByTab: Map<ChannelUiTab, LazyListState> =
         (ChannelTab.entries.map { ChannelUiTab.Content(it) } + ChannelUiTab.Search)
             .associateWith { tab -> key(tab) { rememberLazyListState() } }
+    // The Shorts tab is a grid, so it cannot share the list states above. Hoisted for the same
+    // reason: a grid state made inside the tab body would reset its scroll on each tab switch.
+    val shortsGridState: LazyGridState = rememberLazyGridState()
 
     val currentVideos: List<VideoRef> = when (val sel = vm.selected) {
         is ChannelUiTab.Content -> if (sel.tab in CONTAINER_TABS) emptyList() else vm.videoTab(sel.tab).items
@@ -140,7 +150,7 @@ fun ChannelScreen(
                     },
                 )
             } else {
-                ChannelTopBar(listing.title, subscribed, currentVideos, onBack) { vm.toggleSubscription(listing) }
+                ChannelTopBar(listing.title, currentVideos, onBack)
             }
         },
         floatingActionButton = {
@@ -154,15 +164,20 @@ fun ChannelScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            ChannelHeader(listing, subscribed) { vm.toggleSubscription(listing) }
             ChannelTabRow(vm.availableTabs, vm.selected) { vm.selectTab(listing, it) }
             when (val sel = vm.selected) {
-                is ChannelUiTab.Content -> if (sel.tab in CONTAINER_TABS) {
-                    ContainerTabBody(
+                is ChannelUiTab.Content -> when {
+                    sel.tab in CONTAINER_TABS -> ContainerTabBody(
                         vm.containerTab(sel.tab), listState = listStateByTab.getValue(sel), onOpen = onOpenListing,
                         onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
                     )
-                } else {
-                    VideoTabBody(
+                    sel.tab == ChannelTab.SHORTS -> ChannelShortsGrid(
+                        state = vm.videoTab(sel.tab), selection = selection, gridState = shortsGridState,
+                        onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
+                        onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
+                    )
+                    else -> VideoTabBody(
                         state = vm.videoTab(sel.tab), selection = selection, listState = listStateByTab.getValue(sel),
                         onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
                         onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
@@ -182,10 +197,8 @@ fun ChannelScreen(
 @Composable
 private fun ChannelTopBar(
     title: String,
-    subscribed: Boolean,
     videos: List<VideoRef>,
     onBack: () -> Unit,
-    onToggleSubscribe: () -> Unit,
 ) {
     TopAppBar(
         title = { Text(title.ifBlank { stringResource(R.string.channel_title_fallback) }, maxLines = 1) },
@@ -196,14 +209,48 @@ private fun ChannelTopBar(
                     Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                 }
             }
-            // Filled vs outlined makes the two states unmistakable without a second icon.
-            if (subscribed) {
-                OutlinedButton(onClick = onToggleSubscribe) { Text(stringResource(R.string.action_unsubscribe)) }
-            } else {
-                Button(onClick = onToggleSubscribe) { Text(stringResource(R.string.action_subscribe)) }
-            }
         },
     )
+}
+
+/**
+ * Channel name, avatar and subscribe control, under the app bar (the bar keeps only back, title and
+ * play-all). The avatar is drawn only when the listing already carried one; no lookup is made for it.
+ * Subscribed is a tonal button with a check, and a tap unsubscribes at once, as it did in the bar.
+ */
+@Composable
+private fun ChannelHeader(listing: Listing, subscribed: Boolean, onToggleSubscribe: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        listing.thumbnailUrl?.let { avatarUrl ->
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(Sizes.channelAvatar).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+            Spacer(Modifier.width(Spacing.s16))
+        }
+        Text(
+            listing.title.ifBlank { stringResource(R.string.channel_title_fallback) },
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.width(Spacing.s16))
+        if (subscribed) {
+            FilledTonalButton(onClick = onToggleSubscribe) {
+                Icon(Icons.Filled.Check, contentDescription = null)
+                Spacer(Modifier.width(Spacing.s8))
+                Text(stringResource(R.string.channel_subscribed))
+            }
+        } else {
+            Button(onClick = onToggleSubscribe) { Text(stringResource(R.string.action_subscribe)) }
+        }
+    }
 }
 
 @StringRes
