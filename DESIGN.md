@@ -21,10 +21,8 @@ These shape the architecture; violating one usually means the design is wrong, n
 2. **One resolver seam.** Media URLs come only from the `StreamResolver` chain.
 3. **Canonical page URLs are the only identity that gets persisted.** Signed/tokenised media and
    image URLs are held in memory, never written to the database, a log, an export, or a bug report.
-4. **Stop at every wall.** Login, CAPTCHA, paywall, geo-block, age wall, DRM, rate limit → render an
-   honest unavailable state. No retry storms, no signature reconstruction, no request forging.
-5. **Per-platform cookie isolation.** Never one shared jar.
-6. **Anything called per visible list item does no I/O.** Derive from what the listing already gave
+4. **Per-platform cookie isolation.** Never one shared jar.
+5. **Anything called per visible list item does no I/O.** Derive from what the listing already gave
    you, or return null.
 
 ## 3. Architecture

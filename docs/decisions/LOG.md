@@ -259,3 +259,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-28 | Watch trail (ui/WatchTrail.kt): single-video queues get prev/next in the player: prev = pop to the Detail below, next = forward trail else first Similar item; no queue list shown; playlist queues keep queue prev/next | user chose option 1
 2026-10-28 | Transport buttons (prev/play/next) all sit in scrim circles | prev/next vanished on bright frames
 2026-10-28 | Caption size setting: four steps, separate prefs for videos and Shorts, Settings group + chips in the caption sheet; applied via SubtitleView fractional text size | user request
+2026-10-28 | "No access-control bypass" rule dropped from CLAUDE.md and DESIGN.md | user: it blocked needed manoeuvres (PO token / SABR for kids videos); older rejections citing it are historical

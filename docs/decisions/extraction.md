@@ -137,11 +137,15 @@ Paging via PageToken (JSON-serialized NewPipe Page).
 - Upgrade target is now v5.4.0: both patches pass `git apply --check` on it (subagent-run, not
   re-verified), Downloader + YoutubeJavaScriptDecoder interfaces unchanged, android_vr client
   removed upstream (2a9a92fb), SABR rewritten (c82d0030). mweb/SABR needs app-side PO-token
-  generation = crosses the no-bypass rule; do not adopt.
+  generation; rejected under the no-bypass rule until that rule was dropped 2026-10-28. Now open:
+  it is the only known route to >360p for made-for-kids videos (visionos gets itag 18 only).
 - Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
   (playback rides HLS manifests now) — verify when a progressive-only video shows up.
 
 ## Gotchas
+
+- The "no access-control bypass" rule was removed from CLAUDE.md/DESIGN.md on 2026-10-28. Lines in
+  this file and LOG.md that cite it record why something was rejected at the time, not a live ban.
 
 - `StreamInfoCache` has no clear-all: toggling the dislike setting only affects videos fetched
   afterwards (a cached one keeps its state up to 60 min).

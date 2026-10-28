@@ -39,7 +39,6 @@ Large codebase? `/graphify` (if available) for persistent structural memory.
 - **One resolver seam.** Media URLs come only from the `StreamResolver` chain.
 - **Persist canonical page URLs only.** Signed/tokenised media and image URLs stay in memory — never the database, a log, an export file, or a bug report. They expire and they identify.
 - Redact cookies, signatures, tokens, IPs and media URLs from all logs and crash output.
-- **No access-control bypass.** Stop at login, CAPTCHA, paywall, geo-block, age wall, DRM, rate limit → render an honest unavailable state. No retry storms, no request forging, no signature reconstruction. Platform terms restrict extraction; this boundary is what separates a client from a liability.
 - Cookies isolated per service/domain. Never one shared jar.
 - **Background playback is wanted here:** keep the media session + foreground service and the lockscreen/headset/Bluetooth controls. Audio focus and becoming-noisy belong on the player, not the session — set both explicitly.
 - Anything called per visible list item does no I/O. Derive from what the listing already gave you, or return null.
