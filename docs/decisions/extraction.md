@@ -26,10 +26,13 @@ check. yt-dlp `HTTP Error 429` / too many requests / rate limit and `HTTP Error 
 AccessChallenge (hard stop) instead of Unsupported, which fell through to the WebView tier and
 re-hit the walled page. Statuses match the "http error NNN" shape only (bare digits hit video
 ids). Resolver logs go through `DiagLog` (see playback.md).
-Upstream reference clone: `~/repos/pipepipe` (PipePipe v5.4.0, 2026-09-26, client + extractor
-c68e10e) -- read-only, NOT the build checkout (`~/repos/PipePipe/PipePipeExtractor`).
+**2026-10-28 EXTRACTOR NOW VENDORED:** the build compiles `third_party/PipePipeExtractor` (v5.2.5 +
+our 2 patches, exported to `third_party/patches/`); no sibling checkout is needed. `~/repos/PipePipe`
+(single upstream checkout, pulled to `3fd38c6`) is only where updates are fetched from; the
+lowercase `~/repos/pipepipe` clone was deleted. Update recipe: `third_party/README.md`.
+Always `./gradlew clean` after changing the extractor.
 
-**EXTRACTOR PATCHES (must survive every extractor bump):** `~/repos/PipePipe/PipePipeExtractor`
+**EXTRACTOR PATCHES (must survive every extractor bump):** fork checkout `~/repos/PipePipe/PipePipeExtractor`
 remotes: `upstream` = codeberg.org/NullPointerException/PipePipeExtractor (fetch only),
 `origin` = github.com/shourovrm/PipePipeExtractor (ours, default branch `fyt-patches`; the
 submodule clone was SHALLOW -- `git fetch --unshallow upstream` was needed before GitHub
@@ -106,9 +109,9 @@ downloads, channel Courses tab and resolver fallback (searchChannel moved to the
 Paging via PageToken (JSON-serialized NewPipe Page).
 
 - **Age-gate wave LANDED (2026-08-07, device-verified):** extractor is now PipePipeExtractor,
-  built from the sibling checkout `~/repos/PipePipe/PipePipeExtractor` via composite build
-  (`includeBuild` + coordinate substitution in settings.gradle.kts). Signed-in age-gated video
-  plays via tier0 in <2 s. Building needs that checkout present at that path.
+  built from source via composite build (`includeBuild` + coordinate substitution in
+  settings.gradle.kts; source is `third_party/PipePipeExtractor` since 2026-10-28, earlier a sibling
+  checkout). Signed-in age-gated video plays via tier0 in <2 s.
 - Zulu mystery SOLVED and fixed: the fork hardcodes `Localization("zu")` for all YouTube
   extraction (`YoutubeService.getLocalization` override) — deliberate, it blocks server-side
   title translation, so "original titles" is permanently on and can never be a toggle. Textual

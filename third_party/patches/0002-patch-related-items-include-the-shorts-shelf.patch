@@ -1,0 +1,62 @@
+From 409d738d586144920d13ba398e406105aaa59491 Mon Sep 17 00:00:00 2001
+From: Riad Mashrub Shourov <92566855+shourovrm@users.noreply.github.com>
+Date: Sun, 30 Aug 2026 14:46:20 +0600
+Subject: [PATCH 2/2] patch: related items include the shorts shelf
+
+The watch-next sidebar's secondaryResults carries Shorts as a
+reelShelfRenderer (items: reelItemRenderer or shortsLockupViewModel)
+or as a bare shortsLockupViewModel result, neither handled by the
+existing map()-based pipeline that expects one extractor per result.
+Handled in a separate loop that commits directly to the collector,
+reusing YoutubeStreamInfoItemExtractor/YoutubeShortsInfoItemExtractor
+as the search shelf patch does. No itemSectionRenderer wrapping is
+used around secondaryResults in this fork, so that case doesn't apply
+here. Age-restricted early return and existing filtering untouched.
+---
+ .../extractors/YoutubeStreamExtractor.java    | 30 +++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/extractors/YoutubeStreamExtractor.java b/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/extractors/YoutubeStreamExtractor.java
+index 74f8cc19..ac2aedb5 100644
+--- a/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/extractors/YoutubeStreamExtractor.java
++++ b/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/extractors/YoutubeStreamExtractor.java
+@@ -1721,6 +1721,36 @@ public class YoutubeStreamExtractor extends StreamExtractor {
+                     .getArray("results");
+ 
+             final TimeAgoParser timeAgoParser = getTimeAgoParser();
++
++            // Shorts shelf in the watch-next sidebar: a single "results" entry that fans out
++            // to many stream items, so it can't fit the single-item map() below. Handled
++            // separately and committed directly, same extractors as the search shelf patch.
++            for (final Object result : results) {
++                if (!(result instanceof JsonObject)) {
++                    continue;
++                }
++                final JsonObject resultObj = (JsonObject) result;
++                if (resultObj.has("reelShelfRenderer")) {
++                    for (final Object reel : resultObj.getObject("reelShelfRenderer")
++                            .getArray("items")) {
++                        if (!(reel instanceof JsonObject)) {
++                            continue;
++                        }
++                        final JsonObject reelItem = (JsonObject) reel;
++                        if (reelItem.has("reelItemRenderer")) {
++                            collector.commit(new YoutubeStreamInfoItemExtractor(
++                                    reelItem.getObject("reelItemRenderer"), timeAgoParser));
++                        } else if (reelItem.has("shortsLockupViewModel")) {
++                            collector.commit(new YoutubeShortsInfoItemExtractor(
++                                    reelItem.getObject("shortsLockupViewModel")));
++                        }
++                    }
++                } else if (resultObj.has("shortsLockupViewModel")) {
++                    collector.commit(new YoutubeShortsInfoItemExtractor(
++                            resultObj.getObject("shortsLockupViewModel")));
++                }
++            }
++
+             results.stream()
+                     .filter(JsonObject.class::isInstance)
+                     .map(JsonObject.class::cast)
+-- 
+2.56.0
+
