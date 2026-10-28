@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,7 +31,7 @@ import com.fyiplayer.app.ui.theme.Spacing
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChaptersSheet(chapters: List<Chapter>, onSelect: (Chapter) -> Unit, onDismiss: () -> Unit) {
-    val playingChapter = chapterAt(chapters, PlaybackSession.progress.value.positionMs)
+    val playingChapter = remember(chapters) { chapterAt(chapters, PlaybackSession.progress.value.positionMs) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
             item {
