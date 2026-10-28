@@ -48,18 +48,17 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
         NewPipeInit.ensure(client)
         val fetchStartedAt = System.currentTimeMillis()
         val info = try {
-            StreamInfoCache.get(ref.pageUrl).also {
+            guardedWithRetry { StreamInfoCache.get(ref.pageUrl) }.also {
                 DiagLog.log(TAG, "stream info ok in ${System.currentTimeMillis() - fetchStartedAt}ms")
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            val mapped = mapNewPipeError(e)
+        } catch (mapped: ExtractionError) {
             val wallReason = (mapped as? ExtractionError.AccessChallenge)?.reason
             DiagLog.log(
                 TAG,
                 "stream info failed in ${System.currentTimeMillis() - fetchStartedAt}ms: " +
-                    "${e::class.simpleName} -> ${mapped::class.simpleName} reason=$wallReason",
+                    "${mapped::class.simpleName} reason=$wallReason",
             )
             // Age/login wall + signed in: retry once on the TVHTML5 client, whose player responses
             // honour the account's age verification. Any other wall (rate limit, bot check, geo,

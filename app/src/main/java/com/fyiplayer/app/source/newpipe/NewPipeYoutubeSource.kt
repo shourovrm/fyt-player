@@ -93,7 +93,7 @@ class NewPipeYoutubeSource(
 
     override suspend fun search(query: String, page: String?, filter: SearchFilter): SearchPage = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        guarded {
+        guardedWithRetry {
             // getFilterItem(0) is the registered "all" filter -- the fork's filter engine REQUIRES
             // a registered item (an empty list throws), same default PipePipe's own client passes.
             val factory = ServiceList.YouTube.searchQHFactory
@@ -120,7 +120,7 @@ class NewPipeYoutubeSource(
         withContext(Dispatchers.IO) {
             NewPipeInit.ensure(client)
             val filter = tab.contentFilter() ?: throw tabUnavailableError(tab)
-            guarded {
+            guardedWithRetry {
                 if (page == null) {
                     val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
                     channelNames[channelUrl] = channelInfo.name
@@ -146,7 +146,7 @@ class NewPipeYoutubeSource(
             // back into the delegate untouched -- no risk of feeding it a NewPipe Page token instead.
             if (tab == ChannelTab.COURSES) return@withContext delegate.channelContainers(channelUrl, tab, page)
             if (tab != ChannelTab.PLAYLISTS) throw tabUnavailableError(tab)
-            guarded {
+            guardedWithRetry {
                 if (page == null) {
                     val handler = channelTabHandler(ChannelInfo.getInfo(ServiceList.YouTube, channelUrl), ChannelTabs.PLAYLISTS, tab)
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
@@ -163,7 +163,7 @@ class NewPipeYoutubeSource(
         Listing.Kind.CHANNEL -> channelTab(listing.key, ChannelTab.VIDEOS, page)
         Listing.Kind.PLAYLIST -> withContext(Dispatchers.IO) {
             NewPipeInit.ensure(client)
-            guarded {
+            guardedWithRetry {
                 if (page == null) {
                     val info = PlaylistInfo.getInfo(ServiceList.YouTube, listing.key)
                     SearchPage(items = info.relatedItems.mapNotNull { it.toVideoRef() }, nextPage = info.nextPage.tokenOrNull(), title = info.name)
@@ -182,7 +182,7 @@ class NewPipeYoutubeSource(
     override suspend fun searchChannel(channelUrl: String, query: String, page: String?): SearchPage =
         withContext(Dispatchers.IO) {
             NewPipeInit.ensure(client)
-            guarded {
+            guardedWithRetry {
                 val handler = ServiceList.YouTube.channelTabLHFactory.fromUrl(channelSearchUrl(channelUrl, query))
                 if (page == null) {
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
@@ -198,7 +198,7 @@ class NewPipeYoutubeSource(
         NewPipeInit.ensure(client)
         // Shared with NewPipeResolver.resolve/seekThumbnails: one StreamInfo fetch per video url,
         // not three (see StreamInfoCache).
-        val info = guarded { StreamInfoCache.get(ref.pageUrl) }
+        val info = guardedWithRetry { StreamInfoCache.get(ref.pageUrl) }
         val uploaderListing = info.uploaderUrl?.let {
             Listing(sourceId = SOURCE_ID, kind = Listing.Kind.CHANNEL, key = it, title = info.uploaderName ?: "")
         }
@@ -232,7 +232,7 @@ class NewPipeYoutubeSource(
 
     override suspend fun comments(ref: VideoRef, max: Int): List<Comment> = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        guarded { fetchComments(ref.pageUrl, max) }
+        guardedWithRetry { fetchComments(ref.pageUrl, max) }
     }
 
     // Threading: top-level comments (parentId null) plus one page of replies per top-level comment
@@ -268,7 +268,7 @@ class NewPipeYoutubeSource(
 
     override suspend fun seekThumbnails(ref: VideoRef): SeekThumbnails? = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        val info = guarded { StreamInfoCache.get(ref.pageUrl) }
+        val info = guardedWithRetry { StreamInfoCache.get(ref.pageUrl) }
         // Largest TILE wins, not most frames: the level with the most frames is the smallest
         // tiles (80x45 for a 16:9 long video, 25x45 for a short -- seen live), and blown up to
         // card size that was the "unclear" preview. PipePipe picks by resolution the same way.
@@ -300,7 +300,9 @@ class NewPipeYoutubeSource(
 
     override suspend fun topic(topic: Topic): SearchPage = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
-        if (topic == Topic.LOCAL) localFeed() else YoutubeTopicFeed.fetch(topic)
+        // YoutubeTopicFeed.fetch is not suspend, so it cannot sit inside guardedWithRetry; the
+        // retry wraps the whole call instead (its own guarded() throws the Network it retries on).
+        if (topic == Topic.LOCAL) localFeed() else withTransportRetry { YoutubeTopicFeed.fetch(topic) }
     }
 
     /** "Local" chip: song / movie / drama searches in the content country's language

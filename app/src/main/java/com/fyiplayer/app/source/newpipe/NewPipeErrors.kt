@@ -43,7 +43,7 @@ internal fun mapNewPipeError(e: Exception): ExtractionError = when (e) {
     // too, not just transport trouble -- only a genuine transport failure (in [e] itself or its
     // cause chain, e.g. an OkHttp wrapper) is actually "no connection".
     is IOException ->
-        if (isTransportFailure(e)) ExtractionError.Network("network error", e)
+        if (isTransportFailure(e)) ExtractionError.Network("network error", e).also { logNetworkClasses(e) }
         else ExtractionError.Unsupported("platform changed", logged(e))
 
     is ParsingException,
@@ -76,6 +76,13 @@ private fun isTransportFailure(e: Throwable): Boolean =
     generateSequence(e as Throwable?) { it.cause }.take(8).any {
         it is SocketTimeoutException || it is UnknownHostException || it is ConnectException || it is SSLException
     }
+
+// Class names only, outer to inner: the wrapper is usually plain IOException, and the cause
+// that matched isTransportFailure is the part that says which failure it was.
+private fun logNetworkClasses(e: Throwable) {
+    val chain = generateSequence(e) { it.cause }.take(8).joinToString(" > ") { it::class.simpleName ?: "anonymous" }
+    DiagLog.log("NewPipeErrors", "network: $chain")
+}
 
 // Class name only -- messages can echo page URLs. Same lesson as ChainResolver's logHardStop:
 // a silent Unsupported mapping cost a debugging session.
