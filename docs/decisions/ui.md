@@ -1,6 +1,13 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-28 (b): Like and the Skips shield show their message as a pill directly under the action icon row
+(inverseSurface, fades after 2 s, a repeat restarts the timer; `ActionMessage` in DetailScreen) instead of a
+system toast, which Android draws at the bottom near the tab bar. The download-quality picker still toasts.
+Device-verified: "Liked" pill under the icons. About tab redesign: four mockups in
+/tmp/fyt-mockups/about-variants.html, none chosen yet. The About page today has no icons (rows: Version +
+Check for updates, Site support group, Reports); material-icons-core only, no extended set.
+
 2026-10-28 (built, 546 unit tests green; device pass in LOG): Detail action row is icon-only Like / Save /
 Download (tonal) / Share / Skips shield, evenly spaced, no sideways scroll; Like and Skips toggles show a
 toast; the channel line is the name only (the "Skips on/off" text button is gone). Channel page: header

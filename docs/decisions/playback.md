@@ -1,6 +1,12 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
+2026-10-28 (b): while the slider is dragged, the preview card label reads "2:00 One small file" (position, then
+the chapter at the scrub position, title ellipsised, card stays 160 dp) when the video has chapters, and keeps
+"2:00 / 8:00" otherwise (`seekPreviewLabel` in ChapterMarkers.kt, 6 unit tests). The horizontal-swipe seek HUD
+and the Shorts scrub label are unchanged. NOT device-verified: adb touch injection never showed the card
+(swipe, draganddrop and held motionevent all failed to trigger it), so check by hand.
+
 2026-10-28 (built, 546 unit tests green; device pass in LOG): control bar is icon-only. Bottom row = time
 label + Captions / Speed ("1x" glyph) / Quality ("HD" glyph) / Loop / Fullscreen at 40 dp; the kebab menu is
 gone. Top-end corner (`PlayerTopActions`, controls visible, page and fullscreen) = Chapters (when the video
