@@ -3,4 +3,5 @@
 <resources>
     <string name="channel_subscribed">Subscribed</string>
     <string name="channel_unsubscribed">Unsubscribed</string>
+    <string name="channel_queue_uploads">Uploads</string>
 </resources>

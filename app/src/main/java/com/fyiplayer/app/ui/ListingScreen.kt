@@ -39,6 +39,8 @@ import com.fyiplayer.app.player.PlaybackSession
 @Composable
 fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: () -> Unit) {
     val vm: ListingViewModel = viewModel()
+    // Queue sheet title for anything started from this list; same resolution as the top bar.
+    val listingQueueTitle = listing.title.ifBlank { vm.resolvedTitle ?: stringResource(R.string.listing_title_fallback) }
     var selection by remember { mutableStateOf(emptySet<String>()) }
     val selecting = selection.isNotEmpty()
     BackHandler(enabled = selecting) { selection = emptySet() }
@@ -54,7 +56,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                     onSelectAll = { selection = selectAllOrNone(vm.items, selection) },
                     actions = {
                         IconButton(onClick = {
-                            selectedInOrder(vm.items, selection).forEach { PlaybackSession.enqueue(it) }
+                            selectedInOrder(vm.items, selection).forEach { PlaybackSession.enqueue(it, listingQueueTitle) }
                             selection = emptySet()
                         }) { Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_add_to_queue)) }
                     },
@@ -76,7 +78,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                             }
                         }
                         if (vm.items.isNotEmpty()) {
-                            IconButton(onClick = { PlaybackSession.play(vm.items, 0) }) {
+                            IconButton(onClick = { PlaybackSession.play(vm.items, 0, queueTitle = listingQueueTitle) }) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                             }
                         }
@@ -88,7 +90,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
             if (selecting) {
                 PlaySelectionFab(selection.size) {
                     val refs = selectedInOrder(vm.items, selection)
-                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0)
+                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0, queueTitle = listingQueueTitle)
                     selection = emptySet()
                 }
             }

@@ -90,6 +90,7 @@ fun ChannelScreen(
     val subscribed by vm.isSubscribed(listing.key).collectAsStateWithLifecycle(initialValue = false)
     val subscribedMessage = stringResource(R.string.channel_subscribed)
     val unsubscribedMessage = stringResource(R.string.channel_unsubscribed)
+    val uploadsQueueTitle = stringResource(R.string.channel_queue_uploads)
     var message by remember { mutableStateOf<ActionMessage?>(null) }
     var messageVisible by remember { mutableStateOf(false) }
     LaunchedEffect(message) {
@@ -151,7 +152,7 @@ fun ChannelScreen(
             onOpenShorts(currentVideos, 0)
             return
         }
-        PlaybackSession.play(currentVideos, 0, queueTitle = listing.title)
+        PlaybackSession.play(currentVideos, 0, queueTitle = uploadsQueueTitle)
         onOpenDetail(first)
     }
 
@@ -167,7 +168,7 @@ fun ChannelScreen(
                         // (selected only). Same icon/semantics as the non-selecting top bar's own
                         // "Play all" button further down this file.
                         IconButton(onClick = {
-                            if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0, queueTitle = listing.title)
+                            if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0, queueTitle = uploadsQueueTitle)
                             selection = emptySet()
                         }) { Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all)) }
                         IconButton(onClick = {

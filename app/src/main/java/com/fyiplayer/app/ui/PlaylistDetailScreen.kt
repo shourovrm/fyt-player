@@ -137,7 +137,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
             if (selecting) {
                 PlaySelectionFab(selection.size) {
                     val refs = selectedInOrder(videos, selection)
-                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0)
+                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0, queueTitle = name ?: defaultTitle)
                     selection = emptySet()
                 }
             }

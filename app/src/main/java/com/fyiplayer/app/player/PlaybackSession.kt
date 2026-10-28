@@ -474,10 +474,12 @@ object PlaybackSession {
     }
 
     /** Appends [ref] to the end of the queue. Returns false (and does nothing) when the same page
-     *  is already queued -- callers show "already in queue" instead of a silent duplicate. */
-    fun enqueue(ref: VideoRef): Boolean {
+     *  is already queued -- callers show "already in queue" instead of a silent duplicate.
+     *  [queueTitle] only matters when this call starts the queue (empty queue becomes a new one);
+     *  appending to an existing queue keeps that queue's title. */
+    fun enqueue(ref: VideoRef, queueTitle: String? = null): Boolean {
         ensureInit()
-        if (queue.isEmpty()) { play(listOf(ref), 0); return true }
+        if (queue.isEmpty()) { play(listOf(ref), 0, queueTitle); return true }
         if (queue.any { it.pageUrl == ref.pageUrl }) return false
         val newIndex = queue.size
         queue = queue + ref
