@@ -195,9 +195,16 @@ internal fun ControlBar(
                 val xPx = (insetPx + fraction * sliderWidthPx - previewWidthPx / 2)
                     .toInt()
                     .coerceIn(insetPx, (insetPx + sliderWidthPx - previewWidthPx).coerceAtLeast(insetPx))
+                val seekLabel = seekPreviewLabel(
+                    positionMs = scrubValueMs,
+                    durationMs = progress.durationMs,
+                    chapter = chapterAt(chapters, scrubValueMs),
+                )
                 SeekThumbnailPreview(
                     image = seekThumbs?.imageFor(scrubValueMs / 1000.0),
-                    timestampText = formatPosition(scrubValueMs, progress.durationMs),
+                    timestampText = seekLabel.timeText,
+                    trailingText = seekLabel.trailingText,
+                    trailingIsChapter = seekLabel.trailingIsChapter,
                     width = previewWidth,
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -366,7 +373,10 @@ internal fun mmss(ms: Long, forceHours: Boolean = false): String {
     return if (h > 0 || forceHours) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
-internal fun formatPosition(positionMs: Long, durationMs: Long): String {
-    val hasHours = durationMs / 1000 >= 3600
-    return "${mmss(positionMs, forceHours = hasHours)} / ${mmss(durationMs)}"
-}
+/** The playhead clock. Hours appear for every position once the VIDEO is an hour or longer, so the
+ *  position and the total always share one format. */
+internal fun positionClock(positionMs: Long, durationMs: Long): String =
+    mmss(positionMs, forceHours = durationMs / 1000 >= 3600)
+
+internal fun formatPosition(positionMs: Long, durationMs: Long): String =
+    "${positionClock(positionMs, durationMs)} / ${mmss(durationMs)}"

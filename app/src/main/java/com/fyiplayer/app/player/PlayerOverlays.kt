@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -162,6 +164,9 @@ fun SeekThumbnailPreview(
     timestampText: String,
     modifier: Modifier = Modifier,
     width: Dp = Sizes.seekPreviewWidth,
+    /** Drawn after [timestampText]: "/ total" or a chapter title. Null draws the time alone. */
+    trailingText: String? = null,
+    trailingIsChapter: Boolean = false,
 ) {
     // A tile under MIN_PREVIEW_TILE_PX wide (YouTube's 25x45 shorts level, seen live) is pure
     // blur at card size -- the pill alone reads better than a smeared frame.
@@ -169,14 +174,37 @@ fun SeekThumbnailPreview(
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         // Timestamp ABOVE the frame, large (PipePipe/YouTube both do this): the eye is on the
         // frame, and the number must be readable at arm's length without looking under the card.
-        Text(
-            timestampText,
-            color = MaterialTheme.fyiExtras.onVideo,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier
+        // A chapter title is capped at the card width so it cannot widen the card; the total is
+        // not capped, because the old label was never capped and must stay exactly as it was.
+        val pillCap = if (trailingIsChapter) Modifier.widthIn(max = width) else Modifier
+        Row(
+            modifier = pillCap
                 .background(MaterialTheme.fyiExtras.videoScrim, RoundedCornerShape(6.dp))
                 .padding(horizontal = 10.dp, vertical = 4.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Measured before the trailing text and never shrunk: a long chapter title gives up
+            // its own width, the clock never does.
+            Text(
+                timestampText,
+                color = MaterialTheme.fyiExtras.onVideo,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                softWrap = false,
+            )
+            if (trailingText != null) {
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    trailingText,
+                    color = MaterialTheme.fyiExtras.onVideo,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
+        }
         if (shown != null) {
             Spacer(Modifier.height(6.dp))
             val cardHeight = when (shown) {

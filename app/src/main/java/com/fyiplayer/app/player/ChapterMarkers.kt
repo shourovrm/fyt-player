@@ -24,6 +24,21 @@ internal fun chaptersForPage(playingPageUrl: String?, pageChapters: PageChapters
 internal fun chapterAt(chapters: List<Chapter>, positionMs: Long): Chapter? =
     chapters.lastOrNull { it.startSeconds * 1000L <= positionMs }
 
+/** The two parts of the scrub preview label. [timeText] is the playhead clock. [trailingText] is
+ *  "/ total" when no chapter applies, or the chapter title when one does. [trailingIsChapter] tells
+ *  the card which of the two it is drawing, so it can cap a long title at the card width. */
+internal data class SeekPreviewLabel(val timeText: String, val trailingText: String, val trailingIsChapter: Boolean)
+
+/** The scrub preview label for [positionMs]. A blank chapter title counts as no chapter: a bare
+ *  "2:00 " with nothing after it would read as a missing value. */
+internal fun seekPreviewLabel(positionMs: Long, durationMs: Long, chapter: Chapter?): SeekPreviewLabel {
+    val timeText = positionClock(positionMs, durationMs)
+    if (chapter == null || chapter.title.isBlank()) {
+        return SeekPreviewLabel(timeText, "/ ${mmss(durationMs)}", trailingIsChapter = false)
+    }
+    return SeekPreviewLabel(timeText, chapter.title, trailingIsChapter = true)
+}
+
 /** Each chapter start as a fraction of [durationMs], for the seek-bar notches. A chapter at 0
  *  gets no notch because the bar's own left edge already marks it, and a start at or past the end
  *  has no place on the bar. */
