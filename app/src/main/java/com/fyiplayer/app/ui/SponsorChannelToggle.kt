@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,11 +27,11 @@ import kotlinx.coroutines.launch
  * Per-channel SponsorBlock exception, the fifth icon of the video page's action row. Renders
  * nothing while SponsorBlock is off, since there would be nothing to except the channel from.
  * The icon is a check-shield while skipping, an outline shield while this channel is excluded.
+ * [onMessage] receives the confirmation text for each tap; the caller decides where it shows.
  */
 @Composable
-internal fun SponsorChannelToggle(channelUrl: String?) {
+internal fun SponsorChannelToggle(channelUrl: String?, onMessage: (String) -> Unit) {
     val prefs = rememberFyiApp().prefs
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val enabled by prefs.sponsorBlock.collectAsStateWithLifecycle(initialValue = false)
     val whitelist by prefs.sponsorWhitelist.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -49,7 +48,7 @@ internal fun SponsorChannelToggle(channelUrl: String?) {
         onClick = {
             scope.launch { prefs.setSponsorChannelWhitelisted(channelUrl, !whitelisted) }
             // Message names the state the tap switches to, so it is chosen from the current value.
-            showToast(context, if (whitelisted) skippingOnMessage else skippingOffMessage)
+            onMessage(if (whitelisted) skippingOnMessage else skippingOffMessage)
         },
         modifier = Modifier.semantics { contentDescription = spokenAction },
     ) {

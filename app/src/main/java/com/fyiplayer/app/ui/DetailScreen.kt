@@ -1,6 +1,11 @@
 package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -26,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,13 +53,16 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -64,6 +74,7 @@ import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.player.PlaybackSession
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -116,6 +127,16 @@ fun DetailScreen(
     // NOT keyed on pageUrl: this screen's own lifetime is the right scope for it, not a per-video
     // reset. Toggled by the player slot's own fullscreen button, or by the BackHandler below.
     var fullscreen by remember { mutableStateOf(false) }
+    // Words for the pill under the action row. The text is kept after the timer hides the pill,
+    // so the fade-out still shows what was said; visibility is a separate flag for that reason.
+    var actionMessage by remember { mutableStateOf<ActionMessage?>(null) }
+    var actionMessageVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(actionMessage) {
+        if (actionMessage == null) return@LaunchedEffect
+        actionMessageVisible = true
+        delay(ACTION_MESSAGE_MILLIS)
+        actionMessageVisible = false
+    }
 
     BackHandler(enabled = fullscreen) { fullscreen = false }
     // AppScaffold reads this to drop the nav bar and its inset padding for exactly as long as
@@ -266,7 +287,26 @@ fun DetailScreen(
                 item {
                     // SponsorBlock exceptions are per YouTube channel, so other sources get no toggle.
                     val sponsorChannelUrl = if (shownRef.sourceId == "youtube") uploaderListing?.key else null
-                    VideoActionRow(rememberVideoActions(shownRef), sponsorChannelUrl = sponsorChannelUrl)
+                    VideoActionRow(
+                        rememberVideoActions(shownRef),
+                        sponsorChannelUrl = sponsorChannelUrl,
+                        onMessage = { text -> actionMessage = ActionMessage(text) },
+                    )
+                }
+                // Its own item so it sits between the icon row and the tabs. Expanding and
+                // collapsing this item is what moves the tabs; a fixed-height slot would
+                // reserve empty space on every page instead.
+                item {
+                    AnimatedVisibility(
+                        visible = actionMessageVisible,
+                        modifier = Modifier.fillMaxWidth(),
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            ActionMessagePill(actionMessage?.text.orEmpty())
+                        }
+                    }
                 }
                 // Always at least SIMILAR + DESCRIPTION, so the tab row is never a bar with one
                 // option (the old showCommentsTab-only gate no longer applies).
@@ -334,11 +374,17 @@ fun DetailScreen(
  * already the queue). The handlers are the ones [VideoActionSheet]'s long-press sheet uses
  * ([VideoActions], `ui/VideoActionSheet.kt`). Icons spread evenly across the width, so the row
  * never scrolls. Each button's spoken label is its full name. Like and the Skips toggle confirm
- * with a short toast. Like shows the accent colour and a filled icon while liked, read from
+ * with a short message under the row ([onMessage], shown by [ActionMessagePill]). Like shows the
+ * accent colour and a filled icon while liked, read from
  * [VideoActions.likedFlow], so a toggle from elsewhere is never stale.
  */
 @Composable
-private fun VideoActionRow(actions: VideoActions, sponsorChannelUrl: String?, modifier: Modifier = Modifier) {
+private fun VideoActionRow(
+    actions: VideoActions,
+    sponsorChannelUrl: String?,
+    onMessage: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val liked by actions.likedFlow.collectAsState(initial = false)
     var showPlaylistPicker by remember(actions.ref.pageUrl) { mutableStateOf(false) }
     val context = LocalContext.current
@@ -355,8 +401,8 @@ private fun VideoActionRow(actions: VideoActions, sponsorChannelUrl: String?, mo
     ) {
         IconButton(onClick = {
             actions.toggleLike(liked)
-            // The toast names the state the tap switches to, so it is chosen from the current value.
-            showToast(context, if (liked) likeRemovedMessage else likeAddedMessage)
+            // The message names the state the tap switches to, so it is chosen from the current value.
+            onMessage(if (liked) likeRemovedMessage else likeAddedMessage)
         }) {
             Icon(
                 if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -381,7 +427,7 @@ private fun VideoActionRow(actions: VideoActions, sponsorChannelUrl: String?, mo
                 modifier = Modifier.size(Sizes.icon),
             )
         }
-        SponsorChannelToggle(sponsorChannelUrl)
+        SponsorChannelToggle(sponsorChannelUrl, onMessage = onMessage)
     }
 
     if (showPlaylistPicker) {
@@ -392,6 +438,33 @@ private fun VideoActionRow(actions: VideoActions, sponsorChannelUrl: String?, mo
             state = state,
             onSelect = { option: DownloadOption -> actions.confirmDownload(option) { message -> showToast(context, message) } },
             onDismiss = { actions.dismissDownloadPicker() },
+        )
+    }
+}
+
+/** One message on screen. A plain class, not a data class: each tap makes a new instance, so a
+ *  repeat of the same words still changes the state and restarts the timer. */
+private class ActionMessage(val text: String)
+
+/** Long enough to read a four-word message, short enough not to linger over the tabs. */
+private const val ACTION_MESSAGE_MILLIS = 2000L
+
+/** The short confirmation under the action row. Inverse colours make it read as a passing
+ *  message rather than page content; [liveRegion] makes TalkBack read each new text aloud. */
+@Composable
+private fun ActionMessagePill(text: String) {
+    Surface(
+        shape = RoundedCornerShape(Radius.s),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            modifier = Modifier
+                .padding(horizontal = Spacing.s16, vertical = Spacing.s8)
+                .semantics { liveRegion = LiveRegionMode.Polite },
         )
     }
 }

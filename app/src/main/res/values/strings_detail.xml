@@ -36,7 +36,7 @@
     </plurals>
     <string name="detail_comment_liked_by_channel">Liked by the channel</string>
 
-    <!-- detail: action sheet, toasts and download picker -->
+    <!-- detail: action sheet, download toasts and download picker -->
     <string name="detail_play_next">Play next</string>
     <string name="detail_added_to_queue">Added to queue</string>
     <string name="detail_already_in_queue">Already in queue</string>
@@ -50,7 +50,7 @@
     <string name="detail_download_quality">Download quality</string>
     <string name="detail_download_failed_title">Cannot download this video</string>
 
-    <!-- detail: action row toasts (four words max, docs/copy.md) -->
+    <!-- detail: action row messages, shown as a pill under the row (four words max, docs/copy.md) -->
     <string name="detail_like_added">Liked</string>
     <string name="detail_like_removed">Unliked</string>
     <string name="detail_sponsor_skipping_on">Skipping on this channel</string>
