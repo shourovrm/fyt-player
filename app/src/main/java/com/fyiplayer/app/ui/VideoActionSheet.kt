@@ -90,9 +90,12 @@ class VideoActions internal constructor(
      *  dialog may still be showing when it lands, but if it isn't, nothing was written yet --
      *  resolving alone touches no row. */
     fun startDownload() {
-        downloadPicker = DownloadPickerState.Resolving
+        downloadPicker = DownloadPickerState.Resolving()
         scope.launch {
-            downloadPicker = when (val outcome = downloads.resolveOptions(ref)) {
+            val outcome = downloads.resolveOptions(ref) {
+                downloadPicker = DownloadPickerState.Resolving(engineFallback = true)
+            }
+            downloadPicker = when (outcome) {
                 is ResolveOutcome.Ready -> DownloadPickerState.Options(outcome.options)
                 is ResolveOutcome.Failed -> DownloadPickerState.Error(outcome.message)
             }

@@ -47,6 +47,7 @@
     <string name="detail_captions_none">No captions</string>
     <string name="detail_captions_unsupported">Captions not supported</string>
     <string name="detail_download_checking">Checking quality</string>
+    <string name="detail_download_checking_more">Checking more qualities. This takes a moment.</string>
     <string name="detail_download_quality">Download quality</string>
     <string name="detail_download_failed_title">Cannot download this video</string>
 

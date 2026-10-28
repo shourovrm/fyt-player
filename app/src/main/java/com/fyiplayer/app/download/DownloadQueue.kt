@@ -17,6 +17,7 @@ import com.fyiplayer.app.data.repo.DownloadRepository
 import com.fyiplayer.app.data.repo.DownloadState
 import com.fyiplayer.app.data.repo.withTitleIfBlank
 import com.fyiplayer.app.engine.EngineGate
+import com.fyiplayer.app.engine.EngineResolver
 import com.fyiplayer.app.engine.mapEngineError
 import com.fyiplayer.app.player.FormatSelection
 import com.fyiplayer.app.player.FormatSelector
@@ -53,6 +54,13 @@ import okhttp3.Request
  *  is refused up front as a typed, honest failure instead. */
 private const val WEBVIEW_FORMAT_ID = "webview"
 
+/** Marks a formatId that came from the engine fallback for a YouTube video. A row's formatId is the
+ *  only per-row field the download path reads, and a flag column would need a migration for one
+ *  bit. Engine selectors (`137+140`, `best`) never start with this, so it cannot collide. */
+private const val ENGINE_FORMAT_PREFIX = "engine:"
+
+private const val NO_TRACK_MESSAGE = "No downloadable video or audio track found."
+
 sealed class EnqueueOutcome {
     object Queued : EnqueueOutcome()
     data class Failed(val message: String) : EnqueueOutcome()
@@ -60,8 +68,9 @@ sealed class EnqueueOutcome {
 
 /**
  * One user-choosable quality/size. Deliberately plain data -- no [MediaFormat], no URL: [formatId]
- * is the engine's own `-f` selector text (e.g. `"137+140"`), which is safe to hold and pass around
- * because it identifies a format *choice*, not a signed media location. Never persisted anywhere
+ * is the engine's own `-f` selector text (e.g. `"137+140"`), prefixed with [ENGINE_FORMAT_PREFIX]
+ * when the engine fallback produced it. Safe to hold and pass around because it identifies a
+ * format *choice*, not a signed media location. Never persisted anywhere
  * except as the [com.fyiplayer.app.data.repo.DownloadItem.formatId] of the row the user picked.
  */
 data class DownloadOption(
@@ -97,6 +106,7 @@ class DownloadQueue private constructor(
     private val appContext: Context,
     private val treeUri: () -> String?,
     private val kickService: () -> Unit,
+    private val engineResolver: StreamResolver,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val engineGate = Semaphore(1)
@@ -170,14 +180,46 @@ class DownloadQueue private constructor(
      * from -- every download asks, never a silent fall-back to the playback resolution preference.
      * Returns plain [DownloadOption]s only; the [MediaFormat]s backing them never leave this class.
      */
-    suspend fun resolveOptions(ref: VideoRef): ResolveOutcome {
+    suspend fun resolveOptions(ref: VideoRef, onEngineFallback: () -> Unit = {}): ResolveOutcome {
         val resolved = try {
             resolver.resolve(ref)
         } catch (e: ExtractionError) {
             return ResolveOutcome.Failed(e.userMessage())
         }
+        if (shouldFallBackToEngine(resolved.formats, ref.sourceId)) {
+            return resolveWithEngine(ref, onEngineFallback)
+        }
         val options = deriveDownloadOptions(resolved.formats, includeManifests = ref.sourceId != "youtube")
-        if (options.isEmpty()) return ResolveOutcome.Failed("No downloadable video or audio track found.")
+        if (options.isEmpty()) return ResolveOutcome.Failed(NO_TRACK_MESSAGE)
+        lastResolve = LastResolve(resolved.ref.pageUrl, resolved.formats)
+        return ResolveOutcome.Ready(resolved.ref, options)
+    }
+
+    /**
+     * Asks the bundled engine (tier 1) for [ref]'s formats directly. The chain is skipped on purpose:
+     * it hands youtube.com to NewPipe, which is the path that just came back empty. The options are
+     * prefixed so [runDownload] later takes the engine route too -- the stream path cannot download
+     * engine selectors. Engine errors (sign-in, rate limit, age) surface as-is, never retried here.
+     */
+    private suspend fun resolveWithEngine(ref: VideoRef, onEngineFallback: () -> Unit): ResolveOutcome {
+        DiagLog.log("DownloadQueue", "download: no formats, falling back to yt-dlp")
+        onEngineFallback()
+        val startedAt = System.currentTimeMillis()
+        val resolved = try {
+            engineResolver.resolve(ref)
+        } catch (e: ExtractionError) {
+            val failedMillis = System.currentTimeMillis() - startedAt
+            DiagLog.log("DownloadQueue", "yt-dlp fallback failed in ${failedMillis}ms: ${e::class.simpleName}")
+            return ResolveOutcome.Failed(e.userMessage())
+        }
+        val elapsedMillis = System.currentTimeMillis() - startedAt
+        val options = deriveDownloadOptions(resolved.formats, includeManifests = false)
+            .map { it.copy(formatId = ENGINE_FORMAT_PREFIX + it.formatId) }
+        if (options.isEmpty()) {
+            DiagLog.log("DownloadQueue", "yt-dlp fallback found no tracks in ${elapsedMillis}ms")
+            return ResolveOutcome.Failed(NO_TRACK_MESSAGE)
+        }
+        DiagLog.log("DownloadQueue", "yt-dlp fallback ok in ${elapsedMillis}ms formats=${resolved.formats.size}")
         lastResolve = LastResolve(resolved.ref.pageUrl, resolved.formats)
         return ResolveOutcome.Ready(resolved.ref, options)
     }
@@ -192,7 +234,7 @@ class DownloadQueue private constructor(
         val formats = lastResolve?.formats ?: return@withContext null
         var total = 0L
         var any = false
-        option.formatId.split('+').forEach { id ->
+        option.formatId.removePrefix(ENGINE_FORMAT_PREFIX).split('+').forEach { id ->
             val format = formats.firstOrNull { it.formatId == id } ?: return@forEach
             headContentLength(httpClient, format)?.let { total += it; any = true }
         }
@@ -463,14 +505,19 @@ class DownloadQueue private constructor(
 
     /** YouTube rows download through the extractor chain (the only signed-in path — an engine
      *  subprocess is anonymous and hits the same age wall playback used to); every other source
-     *  keeps the engine, which is still the only downloader that knows their extractors. */
+     *  keeps the engine, which is still the only downloader that knows their extractors. The one
+     *  YouTube exception is a row whose quality came from the engine fallback: its selector only
+     *  means something to the engine. */
     private suspend fun runDownload(
         item: DownloadItem,
         run: ActiveRun,
         onProgress: (DownloadProgress) -> Unit,
     ): EngineOutcome =
-        if (item.ref.sourceId == "youtube") runStream(item, run.signal, onProgress)
-        else runEngine(item, run, onProgress)
+        if (item.ref.sourceId == "youtube" && !item.formatId.startsWith(ENGINE_FORMAT_PREFIX)) {
+            runStream(item, run.signal, onProgress)
+        } else {
+            runEngine(item, run, onProgress)
+        }
 
     private suspend fun runStream(
         item: DownloadItem,
@@ -533,7 +580,7 @@ class DownloadQueue private constructor(
                 addOption("--no-playlist")
                 addOption("--no-warnings")
                 addOption("--continue")
-                addOption("-f", item.formatId)
+                addOption("-f", item.formatId.removePrefix(ENGINE_FORMAT_PREFIX))
                 addOption("--merge-output-format", "mp4")
                 addOption("-o", destTemplate(dir, item.ref))
                 // Without --newline the engine rewrites one progress line with \r, so the line
@@ -571,6 +618,7 @@ class DownloadQueue private constructor(
                     dir = dir,
                     appContext = appContext,
                     treeUri = app::currentDownloadTreeUri,
+                    engineResolver = EngineResolver(),
                     kickService = {
                         // Once the dataSync foreground budget for the day is spent, starting the
                         // service again throws ForegroundServiceStartNotAllowedException. The row
@@ -702,6 +750,15 @@ internal fun deriveDownloadOptions(formats: List<MediaFormat>, includeManifests:
     }
     return videoOptions + listOfNotNull(audioOption)
 }
+
+/**
+ * True when a YouTube resolve left no downloadable video or audio track, so [DownloadQueue]
+ * should ask the engine. Made-for-kids videos resolve to SABR formats only, and a `sabr://`
+ * sentinel cannot be fetched. Manifests count as not downloadable here, same as the stream path.
+ * Other sources never fall back: the engine already serves them, so an empty list is final.
+ */
+internal fun shouldFallBackToEngine(formats: List<MediaFormat>, sourceId: String): Boolean =
+    sourceId == "youtube" && deriveDownloadOptions(formats, includeManifests = false).isEmpty()
 
 /** Best-effort Content-Length probe for the quality picker's "…" -> real size upgrade, and for
  *  [StreamDownloader]'s progress total (visionos URLs often carry no clen). Never logs

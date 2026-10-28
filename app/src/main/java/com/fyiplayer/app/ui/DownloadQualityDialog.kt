@@ -1,7 +1,7 @@
 package com.fyiplayer.app.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +34,9 @@ import kotlinx.coroutines.launch
  *  [com.fyiplayer.app.core.MediaFormat] -- [DownloadOption] already strips that down to a label,
  *  an approximate size and an opaque selector string. */
 sealed class DownloadPickerState {
-    object Resolving : DownloadPickerState()
+    /** [engineFallback] is true while the slower engine lookup runs (17-24 s); the first lookup
+     *  came back with no downloadable track, so the wait needs a reason on screen. */
+    data class Resolving(val engineFallback: Boolean = false) : DownloadPickerState()
     data class Options(val options: List<DownloadOption>) : DownloadPickerState()
     data class Error(val message: String) : DownloadPickerState()
 }
@@ -57,8 +59,17 @@ fun DownloadQualityDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.detail_download_checking)) },
             text = {
-                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     CircularProgressIndicator()
+                    if (state.engineFallback) {
+                        Text(
+                            stringResource(R.string.detail_download_checking_more),
+                            modifier = Modifier.padding(top = Spacing.s8),
+                        )
+                    }
                 }
             },
             confirmButton = {},

@@ -2,6 +2,8 @@
 
 ## Current state
 
+2026-10-29 (0.2.31 fix, built-unverified on device): a YouTube resolve with no downloadable video or audio track (made-for-kids, SABR only) falls back to the bundled yt-dlp engine (`resolveWithEngine`, `shouldFallBackToEngine`). Options carry an `engine:` formatId prefix so runDownload takes the engine route; playback untouched. Device-verified on the engine alone: 144p-1080p for XqZsoesa55w, 1080p download+merge ~43 s after a ~17-24 s lookup.
+
 2026-10-07 DEVICE-VERIFIED (v0.2.24): quality sheet shows sizes at once (no HEAD); 1080p
 started, cancelled at 12% with "Remove from list" (parts kept), row did not come back; same
 video then downloaded at 720p -> "Downloaded 28.6 MB" against a published 28.5 MB, i.e. no
@@ -55,6 +57,7 @@ lambda.
 
 ## Gotchas
 
+- A YouTube row whose formatId starts with `engine:` downloads through yt-dlp; its selector is the text after the prefix. Do not strip the prefix anywhere except before the engine `-f`.
 - Since v0.2.24 the resolver fills `MediaFormat.filesizeBytes` for YouTube adaptive formats
   (itag contentLength), so the quality sheet and StreamDownloader skip their HEAD for those.
 - `processNext` picks from the `rows` StateFlow snapshot, which trails Room. A row that is no

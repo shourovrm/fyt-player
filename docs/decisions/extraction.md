@@ -158,7 +158,7 @@ Paging via PageToken (JSON-serialized NewPipe Page).
   session = network) -> PO token minted by `LocalDomPoTokenProvider` (BotGuard JS in
   `SharedWebViewRuntime`, `assets/sabr_po_token.js`) registered by `SabrRuntime` in FyiApp.
   `FormatSelector`: a SABR format strictly taller than the best progressive candidate wins;
-  equal height keeps progressive. Downloads exclude SABR (kids downloads stay 360p).
+  equal height keeps progressive. Downloads exclude SABR; a YouTube download with no non-SABR track falls back to the bundled yt-dlp (see downloads.md Current state).
   Device checklist: Peppa Pig TTx0EHaSMgc and Cocomelon 020g-0hhCAU play above 360p to the end;
   quality sheet lists 144-1080 and switching works; a normal video still starts on visionos HLS
   (no mweb retry in the trace); an old genuinely-360p upload retries mweb once and still plays;
