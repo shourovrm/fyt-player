@@ -190,7 +190,7 @@ edge dead zones (24dp sides / 32dp bottom for system back/home), 24px slop befor
 full-height-drag ≈ 150% range sensitivity (float accumulator); h:mm:ss time labels
 (`formatPosition` seam, feeds mini player too); tap in fullscreen shows system bars with the
 chrome (entering fullscreen seeds controlsVisible=false or paused video would pin bars on) --
-REVERTED since, see Tried / rejected; PipePipe queue semantics — row taps everywhere open Detail
+REVERTED since, see Tried / rejected; PipePipe queue semantics — row taps everywhere open Detail [SUPERSEDED 2026-10-28: playlist row taps now queue the whole playlist from that position; other lists keep single-video taps]
 (single-item play), whole-list play only via explicit Play All/Background; autoplay-next pref (off
 default, title-search based, honest subtitle) via injected `autoplayNext` lambda + STATE_ENDED
 latch.

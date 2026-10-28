@@ -41,11 +41,13 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
     val vm: ListingViewModel = viewModel()
     // Queue sheet title for anything started from this list; same resolution as the top bar.
     val listingQueueTitle = listing.title.ifBlank { vm.resolvedTitle ?: stringResource(R.string.listing_title_fallback) }
-    // Detail opens on the first video; otherwise the list stays put and only the queue bar shows.
-    fun playFromFirstAndOpen(refs: List<VideoRef>) {
-        val first = refs.firstOrNull() ?: return
-        PlaybackSession.play(refs, 0, queueTitle = listingQueueTitle)
-        onOpenDetail(first)
+    // The whole list is the queue, so auto-advance continues past the tapped video; Detail then
+    // shows that video.
+    fun playFromAndOpen(refs: List<VideoRef>, startIndex: Int) {
+        val tapped = refs[startIndex]
+        PlaybackSession.play(refs, startIndex, queueTitle = listingQueueTitle)
+        RefCache.put(tapped)
+        onOpenDetail(tapped)
     }
     var selection by remember { mutableStateOf(emptySet<String>()) }
     val selecting = selection.isNotEmpty()
@@ -84,7 +86,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                             }
                         }
                         if (vm.items.isNotEmpty()) {
-                            IconButton(onClick = { playFromFirstAndOpen(vm.items) }) {
+                            IconButton(onClick = { playFromAndOpen(vm.items, 0) }) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                             }
                         }
@@ -97,7 +99,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                 PlaySelectionFab(selection.size) {
                     val refs = selectedInOrder(vm.items, selection)
                     selection = emptySet()
-                    playFromFirstAndOpen(refs)
+                    playFromAndOpen(refs, 0)
                 }
             }
         },
@@ -120,9 +122,9 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                 isLoadingMore = vm.loading && vm.items.isNotEmpty(),
                 onLoadMore = { vm.loadMore(listing) },
                 selection = selection,
-                // Row tap opens Detail only -- Detail autoplays the single video (PipePipe queue
-                // model, CLAUDE.md). "Play all" above is the one explicit whole-list play.
-                onTap = onOpenDetail,
+                // Tap starts the playlist from that row, so the queue keeps going after it. Selection
+                // mode never reaches onTap: SelectableVideoList routes taps to toggle while selecting.
+                onTap = { tapped -> playFromAndOpen(vm.items, vm.items.indexOfFirst { it.pageUrl == tapped.pageUrl }) },
                 onToggle = { selection = selection.toggled(it.pageUrl) },
                 modifier = Modifier.fillMaxSize().padding(padding),
             )

@@ -86,12 +86,13 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
     var confirmingDelete by remember { mutableStateOf(false) }
     BackHandler(enabled = selecting) { selection = emptySet() }
 
-    // Detail opens on the first video; otherwise the list stays put and only the queue bar shows.
-    fun playFromFirstAndOpen(refs: List<VideoRef>) {
-        val first = refs.firstOrNull() ?: return
-        PlaybackSession.play(refs, 0, queueTitle = name ?: defaultTitle)
-        RefCache.put(first)
-        onOpenDetail(first.pageUrl)
+    // The whole list is the queue, so auto-advance continues past the tapped video; Detail then
+    // shows that video.
+    fun playFromAndOpen(refs: List<VideoRef>, startIndex: Int) {
+        val tapped = refs[startIndex]
+        PlaybackSession.play(refs, startIndex, queueTitle = name ?: defaultTitle)
+        RefCache.put(tapped)
+        onOpenDetail(tapped.pageUrl)
     }
 
     Scaffold(
@@ -146,7 +147,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                 PlaySelectionFab(selection.size) {
                     val refs = selectedInOrder(videos, selection)
                     selection = emptySet()
-                    playFromFirstAndOpen(refs)
+                    playFromAndOpen(refs, 0)
                 }
             }
         },
@@ -163,9 +164,9 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(onClick = { playFromFirstAndOpen(videos) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
+                    Button(onClick = { playFromAndOpen(videos, 0) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
                     OutlinedButton(
-                        onClick = { playFromFirstAndOpen(videos.shuffled()) },
+                        onClick = { playFromAndOpen(videos.shuffled(), 0) },
                         contentPadding = PaddingValues(horizontal = Spacing.s16),
                         modifier = Modifier.padding(start = Spacing.s8),
                     ) { Text(stringResource(R.string.playlist_shuffle)) }
@@ -182,7 +183,7 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                                     ref,
                                     onClick = {
                                         if (selecting) selection = selection.toggled(ref.pageUrl)
-                                        else { RefCache.put(ref); onOpenDetail(ref.pageUrl) }
+                                        else playFromAndOpen(videos, index)
                                     },
                                     onLongPress = { selection = selection.toggled(ref.pageUrl) },
                                     selected = ref.pageUrl in selection,
