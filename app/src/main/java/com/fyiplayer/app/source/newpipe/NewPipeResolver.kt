@@ -48,6 +48,8 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
 
     override suspend fun resolve(ref: VideoRef): Resolved = withContext(Dispatchers.IO) {
         NewPipeInit.ensure(client)
+        // Needs the downloader that ensure() just installed; overlaps the visionos fetch below.
+        LocalDomPoTokenProvider.warmUp()
         val fetchStartedAt = System.currentTimeMillis()
         val info = try {
             guardedWithRetry { StreamInfoCache.get(ref.pageUrl) }.also {

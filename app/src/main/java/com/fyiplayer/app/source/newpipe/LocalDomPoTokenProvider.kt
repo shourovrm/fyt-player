@@ -82,6 +82,8 @@ object LocalDomPoTokenProvider {
                     }
                 }
                 val cause = error.cause ?: error
+                // Class name only: messages can carry URLs.
+                Log.w(TAG, "PO token warm-up failed: ${cause::class.simpleName}")
                 throw SabrProtocolException(
                     "Global PO token initialization failed: ${cause.message}",
                     cause,
@@ -180,7 +182,8 @@ object LocalDomPoTokenProvider {
                 appContext = context.applicationContext
             }
         }
-        warmUp()
+        // No warm-up here: the bootstrap GET needs NewPipe's downloader, which does not exist at
+        // Application.onCreate. The first resolve warms up after NewPipeInit.ensure instead.
     }
 
     private const val TAG = "YoutubeGlobalPoToken"

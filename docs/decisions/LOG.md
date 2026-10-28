@@ -264,3 +264,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-28 | Vendored extractor v5.2.5 -> v5.5.0 (1a09d20e) | SABR/PO-token API the TubePipe port needs; same pin as TubePipe
 2026-10-28 | SABR playback + in-app PO token for 360p-only results (mweb retry) | kids videos cap at itag 18 on visionos; TubePipe port, Media3 1.9.4 kept
 2026-10-28 | FormatSelector: SABR beats a strictly shorter progressive stream, never an equal one | SABR is the ladder for kids videos; keeps the progressive-first startup win elsewhere
+2026-10-28 | PO-token warm-up moved from Application.onCreate to the first resolve (after NewPipeInit.ensure); failure logs the exception class | at launch the downloader did not exist, the cached failure made the first mweb retry throw SabrProtocolException in 2 ms and kids videos stayed 360p; device-verified: Grizzy kids video now source=sabr 1080p
