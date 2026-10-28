@@ -39,6 +39,25 @@ internal fun seekPreviewLabel(positionMs: Long, durationMs: Long, chapter: Chapt
     return SeekPreviewLabel(timeText, chapter.title, trailingIsChapter = true)
 }
 
+/** Left edge, in container pixels, of a scrub label centred over the card. The card is
+ *  [cardLeftPx] .. [cardLeftPx] + [cardWidthPx] inside a container [containerWidthPx] wide. The
+ *  label is shifted toward the middle only as far as needed to keep [marginPx] clear of both
+ *  container edges. A label wider than the container minus both margins can never fit, so it is
+ *  pinned to the left margin and the caller ellipsises its title. */
+internal fun seekPreviewLabelLeftPx(
+    cardLeftPx: Int,
+    cardWidthPx: Int,
+    labelWidthPx: Int,
+    containerWidthPx: Int,
+    marginPx: Int,
+): Int {
+    val lowestLeftPx = marginPx
+    val highestLeftPx = containerWidthPx - marginPx - labelWidthPx
+    if (highestLeftPx < lowestLeftPx) return lowestLeftPx
+    val centredLeftPx = cardLeftPx + (cardWidthPx - labelWidthPx) / 2
+    return centredLeftPx.coerceIn(lowestLeftPx, highestLeftPx)
+}
+
 /** Each chapter start as a fraction of [durationMs], for the seek-bar notches. A chapter at 0
  *  gets no notch because the bar's own left edge already marks it, and a start at or past the end
  *  has no place on the bar. */

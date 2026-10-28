@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -42,8 +41,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -153,6 +155,10 @@ fun SeekThumbnailTile(image: SeekPreviewImage?, width: Dp, height: Dp, modifier:
     }
 }
 
+/** Where the scrub label sits when it is not simply centred on the card: the card's left edge and
+ *  the container it lives in, in pixels, plus the gap kept from each container edge. */
+data class SeekLabelPlacement(val cardLeftPx: Int, val containerWidthPx: Int, val marginPx: Int)
+
 /** Scrub preview floating above the scrubber thumb: the frame plus its timestamp. [image] null —
  *  the sheet is still in flight, or this source publishes none — drops the frame box entirely and
  *  shows only the timestamp pill, so an early scrub reads as "3:07", never an empty grey square.
@@ -166,19 +172,44 @@ fun SeekThumbnailPreview(
     width: Dp = Sizes.seekPreviewWidth,
     /** Drawn after [timestampText]: "/ total" or a chapter title. Null draws the time alone. */
     trailingText: String? = null,
-    trailingIsChapter: Boolean = false,
+    /** Null centres the label on the card with no clamping (the Shorts caller). Set, the label is
+     *  placed by [seekPreviewLabelLeftPx] so it stays inside the container. */
+    labelPlacement: SeekLabelPlacement? = null,
 ) {
     // A tile under MIN_PREVIEW_TILE_PX wide (YouTube's 25x45 shorts level, seen live) is pure
     // blur at card size -- the pill alone reads better than a smeared frame.
     val shown = image?.takeIf { it !is SeekPreviewImage.Tile || it.sheet.tileWidth >= MIN_PREVIEW_TILE_PX }
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    val density = LocalDensity.current
+    val widthPx = with(density) { width.roundToPx() }
+    val labelMaxWidthPx = if (labelPlacement == null) {
+        widthPx
+    } else {
+        labelPlacement.containerWidthPx - 2 * labelPlacement.marginPx
+    }
+    // Fixed to the card width: the label below is zero-width, so the column must not size itself
+    // from it, and the card has to keep its x-position whatever the title length.
+    Column(modifier = modifier.width(width), horizontalAlignment = Alignment.Start) {
         // Timestamp ABOVE the frame, large (PipePipe/YouTube both do this): the eye is on the
         // frame, and the number must be readable at arm's length without looking under the card.
-        // A chapter title is capped at the card width so it cannot widen the card; the total is
-        // not capped, because the old label was never capped and must stay exactly as it was.
-        val pillCap = if (trailingIsChapter) Modifier.widthIn(max = width) else Modifier
+        // The label is measured with its own max width, so only a chapter title that cannot fit
+        // in the container is cut; the clock is never cut.
+        val labelLayout = Modifier.layout { measurable, _ ->
+            val label = measurable.measure(Constraints(maxWidth = labelMaxWidthPx.coerceAtLeast(0)))
+            val labelLeftPx = if (labelPlacement == null) {
+                (widthPx - label.width) / 2
+            } else {
+                seekPreviewLabelLeftPx(
+                    cardLeftPx = labelPlacement.cardLeftPx,
+                    cardWidthPx = widthPx,
+                    labelWidthPx = label.width,
+                    containerWidthPx = labelPlacement.containerWidthPx,
+                    marginPx = labelPlacement.marginPx,
+                ) - labelPlacement.cardLeftPx
+            }
+            layout(0, label.height) { label.place(labelLeftPx, 0) }
+        }
         Row(
-            modifier = pillCap
+            modifier = labelLayout
                 .background(MaterialTheme.fyiExtras.videoScrim, RoundedCornerShape(6.dp))
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,

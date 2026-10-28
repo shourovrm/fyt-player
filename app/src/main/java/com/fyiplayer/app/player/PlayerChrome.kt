@@ -95,6 +95,9 @@ internal fun ControlBar(
     val progress by PlaybackSession.progress.collectAsState()
     val sponsorMarkers by PlaybackSession.sponsorMarkers.collectAsState()
     var sliderWidthPx by remember { mutableStateOf(0) }
+    // The whole seek row, not the inset slider: the scrub label may reach into the side insets
+    // but must stay inside the row's edges.
+    var containerWidthPx by remember { mutableStateOf(0) }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubValueMs by remember { mutableStateOf(0L) }
     val shownMs = if (isScrubbing) scrubValueMs else progress.positionMs
@@ -113,7 +116,12 @@ internal fun ControlBar(
         // is a sibling shown only while scrubbing; an unbounded Box would size itself to that
         // preview's natural height the instant a drag starts, shoving the slider up the screen
         // mid-drag so the thumb jumped out from under the finger (reported: several times).
-        Box(modifier = Modifier.fillMaxWidth().height(Spacing.s40)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(Spacing.s40)
+                .onGloballyPositioned { containerWidthPx = it.size.width },
+        ) {
             Slider(
                 value = shownMs.toFloat(),
                 valueRange = 0f..durationMs.toFloat(),
@@ -204,7 +212,11 @@ internal fun ControlBar(
                     image = seekThumbs?.imageFor(scrubValueMs / 1000.0),
                     timestampText = seekLabel.timeText,
                     trailingText = seekLabel.trailingText,
-                    trailingIsChapter = seekLabel.trailingIsChapter,
+                    labelPlacement = SeekLabelPlacement(
+                        cardLeftPx = xPx,
+                        containerWidthPx = containerWidthPx,
+                        marginPx = with(density) { Spacing.pageMargin.roundToPx() },
+                    ),
                     width = previewWidth,
                     modifier = Modifier
                         .align(Alignment.TopStart)

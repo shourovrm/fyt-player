@@ -1,6 +1,12 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
+2026-10-28 (c): the slider preview label pill is as wide as its text, centred on the thumbnail card and
+clamped inside the player (`seekPreviewLabelLeftPx`, 5 unit tests); the title is cut only if wider than the
+player minus margins. The card keeps its 160 dp width. Still not device-verified (adb cannot start a slider
+drag that shows the card): a hand drag confirmed the chapter name shows, the first version cut it at the
+card width, which this replaces.
+
 2026-10-28 (b): while the slider is dragged, the preview card label reads "2:00 One small file" (position, then
 the chapter at the scrub position, title ellipsised, card stays 160 dp) when the video has chapters, and keeps
 "2:00 / 8:00" otherwise (`seekPreviewLabel` in ChapterMarkers.kt, 6 unit tests). The horizontal-swipe seek HUD
