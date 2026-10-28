@@ -12,8 +12,12 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-10-28 round (icon player bar, dub, chapters, channel header, Shorts grid, recency order, vendored
+  extractor in third_party/) is built, 548 unit tests green, installed on the A059 and device-checked for
+  controls, action row, description, chapters sheet, dub, channel header. NOT yet confirmed on device:
+  History hiding shorts (isShort column, DB v9), shorts slot order, downloads on the vendored extractor.
 - v0.2.26 (Material 3 rebuild) and v0.2.27 (Settings hub, copy cut) released UNverified: no
-  device attached. First device run: clean install, walk Home/Detail/player More menu/Downloads/
+  device attached. First device run: clean install, walk Home/Detail/player controls/Downloads/
   every Settings page at font scale 1.0 and 1.3; ui.md newest entries list what changed.
 - Extractor v5.3.1 (`fyt-patches`) NOT shipped: progressive googlevideo URLs 403, cause unknown
   (PO token ruled out). Upgrade target is v5.4.0. Shipped = v5.2.5 + 2 patches. See extraction.md.
