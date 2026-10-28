@@ -11,30 +11,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.zIndex
-import androidx.compose.ui.layout.boundsInParent
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.offset
-import androidx.compose.runtime.mutableFloatStateOf
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -100,6 +88,21 @@ fun ChannelScreen(
     LaunchedEffect(listing) { vm.ensureChannel(listing) }
 
     val subscribed by vm.isSubscribed(listing.key).collectAsStateWithLifecycle(initialValue = false)
+    val subscribedMessage = stringResource(R.string.channel_subscribed)
+    val unsubscribedMessage = stringResource(R.string.channel_unsubscribed)
+    var message by remember { mutableStateOf<ActionMessage?>(null) }
+    var messageVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(message) {
+        if (message == null) return@LaunchedEffect
+        messageVisible = true
+        delay(ACTION_MESSAGE_MILLIS)
+        messageVisible = false
+    }
+    // The message names the state the tap moves to, so it reads the value before the toggle lands.
+    fun onHeartTapped() {
+        message = ActionMessage(if (subscribed) unsubscribedMessage else subscribedMessage)
+        vm.toggleSubscription(listing)
+    }
     var selection by remember { mutableStateOf(emptySet<String>()) }
     val selecting = selection.isNotEmpty()
     // A fresh selection never survives a tab switch -- it was made against a different list.
@@ -124,7 +127,7 @@ fun ChannelScreen(
     fun playAndOpen(ref: VideoRef) {
         // Shorts are vertical clips: open the swipe pager, which needs the whole tab's list. A
         // regular row tap just opens Detail now -- Detail autoplays the single video (PipePipe
-        // queue model, CLAUDE.md); the header's "Play all" keeps the whole-tab queue.
+        // queue model, CLAUDE.md); the top bar's "Play all" keeps the whole-tab queue.
         val sel = vm.selected
         if (sel is ChannelUiTab.Content && sel.tab == ChannelTab.SHORTS) {
             val index = currentVideos.indexOfFirst { it.pageUrl == ref.pageUrl }.coerceAtLeast(0)
@@ -160,7 +163,7 @@ fun ChannelScreen(
                     },
                 )
             } else {
-                ChannelTopBar(listing.title, currentVideos, onBack)
+                ChannelTopBar(listing.title, currentVideos, subscribed, onBack, ::onHeartTapped)
             }
         },
         floatingActionButton = {
@@ -173,31 +176,42 @@ fun ChannelScreen(
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            ChannelHeader(listing, subscribed) { vm.toggleSubscription(listing) }
-            ChannelTabRow(vm.availableTabs, vm.selected) { vm.selectTab(listing, it) }
-            when (val sel = vm.selected) {
-                is ChannelUiTab.Content -> when {
-                    sel.tab in CONTAINER_TABS -> ContainerTabBody(
-                        vm.containerTab(sel.tab), listState = listStateByTab.getValue(sel), onOpen = onOpenListing,
-                        onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
-                    )
-                    sel.tab == ChannelTab.SHORTS -> ChannelShortsGrid(
-                        state = vm.videoTab(sel.tab), selection = selection, gridState = shortsGridState,
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize()) {
+                ChannelTabRow(vm.availableTabs, vm.selected) { vm.selectTab(listing, it) }
+                when (val sel = vm.selected) {
+                    is ChannelUiTab.Content -> when {
+                        sel.tab in CONTAINER_TABS -> ContainerTabBody(
+                            vm.containerTab(sel.tab), listState = listStateByTab.getValue(sel), onOpen = onOpenListing,
+                            onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
+                        )
+                        sel.tab == ChannelTab.SHORTS -> ChannelShortsGrid(
+                            state = vm.videoTab(sel.tab), selection = selection, gridState = shortsGridState,
+                            onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
+                            onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
+                        )
+                        else -> VideoTabBody(
+                            state = vm.videoTab(sel.tab), selection = selection, listState = listStateByTab.getValue(sel),
+                            onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
+                            onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
+                        )
+                    }
+                    ChannelUiTab.Search -> ChannelSearchBody(
+                        listing = listing, vm = vm, state = vm.searchState, selection = selection,
+                        listState = listStateByTab.getValue(ChannelUiTab.Search),
                         onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
-                        onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
-                    )
-                    else -> VideoTabBody(
-                        state = vm.videoTab(sel.tab), selection = selection, listState = listStateByTab.getValue(sel),
-                        onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
-                        onLoadMore = { vm.loadMoreTab(listing, sel.tab) }, onRetry = { vm.retryTab(listing, sel.tab) },
                     )
                 }
-                ChannelUiTab.Search -> ChannelSearchBody(
-                    listing = listing, vm = vm, state = vm.searchState, selection = selection,
-                    listState = listStateByTab.getValue(ChannelUiTab.Search),
-                    onTap = ::playAndOpen, onToggle = { selection = selection.toggled(it.pageUrl) },
-                )
+            }
+            // Takes no layout space. Drawn after the Column so it sits over the tab row. The end padding
+            // is one touch target: the heart is the icon left of the play-all button, which occupies the last one.
+            AnimatedVisibility(
+                visible = messageVisible,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = Spacing.s8, end = Sizes.touchTarget),
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                ActionMessagePill(message?.text.orEmpty())
             }
         }
     }
@@ -208,72 +222,16 @@ fun ChannelScreen(
 private fun ChannelTopBar(
     title: String,
     videos: List<VideoRef>,
+    subscribed: Boolean,
     onBack: () -> Unit,
+    onToggleSubscribe: () -> Unit,
 ) {
+    val heartTint = if (subscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     TopAppBar(
         title = { Text(title.ifBlank { stringResource(R.string.channel_title_fallback) }, maxLines = 1) },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } },
         actions = {
-            if (videos.isNotEmpty()) {
-                IconButton(onClick = { PlaybackSession.play(videos, 0) }) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
-                }
-            }
-        },
-    )
-}
-
-/**
- * Channel name, avatar and a heart that toggles the subscription, under the app bar (the bar keeps
- * only back, title and play-all). The avatar is drawn only when the listing already carried one;
- * no lookup is made for it. A tap shows "Subscribed" or "Unsubscribed" in a pill under the heart,
- * the same overlay the video page uses, so the pill takes no layout space and the tabs stay put.
- * The Box has zIndex so the pill is drawn over the tab row below it.
- */
-@Composable
-private fun ChannelHeader(listing: Listing, subscribed: Boolean, onToggleSubscribe: () -> Unit) {
-    val subscribedMessage = stringResource(R.string.channel_subscribed)
-    val unsubscribedMessage = stringResource(R.string.channel_unsubscribed)
-    val heartTint = if (subscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    var message by remember { mutableStateOf<ActionMessage?>(null) }
-    var messageVisible by remember { mutableStateOf(false) }
-    var heartBottomPx by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(message) {
-        if (message == null) return@LaunchedEffect
-        messageVisible = true
-        delay(ACTION_MESSAGE_MILLIS)
-        messageVisible = false
-    }
-
-    Box(Modifier.fillMaxWidth().zIndex(1f)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            listing.thumbnailUrl?.let { avatarUrl ->
-                AsyncImage(
-                    model = avatarUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(Sizes.channelAvatar).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
-                )
-                Spacer(Modifier.width(Spacing.s16))
-            }
-            Text(
-                listing.title.ifBlank { stringResource(R.string.channel_title_fallback) },
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.width(Spacing.s16))
-            IconButton(
-                onClick = {
-                    message = ActionMessage(if (subscribed) unsubscribedMessage else subscribedMessage)
-                    onToggleSubscribe()
-                },
-                modifier = Modifier.onGloballyPositioned { heartBottomPx = it.boundsInParent().bottom },
-            ) {
+            IconButton(onClick = onToggleSubscribe) {
                 Icon(
                     if (subscribed) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = stringResource(if (subscribed) R.string.action_unsubscribe else R.string.action_subscribe),
@@ -281,20 +239,13 @@ private fun ChannelHeader(listing: Listing, subscribed: Boolean, onToggleSubscri
                     modifier = Modifier.size(Sizes.icon),
                 )
             }
-        }
-        // Takes no layout space: it is placed at the heart's bottom edge and does not size the Box.
-        AnimatedVisibility(
-            visible = messageVisible,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(horizontal = Spacing.pageMargin)
-                .offset { IntOffset(0, heartBottomPx.roundToInt()) },
-            enter = fadeIn(),
-            exit = fadeOut(),
-        ) {
-            ActionMessagePill(message?.text.orEmpty())
-        }
-    }
+            if (videos.isNotEmpty()) {
+                IconButton(onClick = { PlaybackSession.play(videos, 0) }) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
+                }
+            }
+        },
+    )
 }
 
 @StringRes
