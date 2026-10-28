@@ -251,3 +251,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-28 | Queue sheet rows show a 64x36 thumbnail after the position number | user request
 2026-10-28 | Queue sheet header: queue title (playlist/channel name) + small (n/N) + current channel line, icon-only blue Shuffle and Clear-all (hand-drawn path glyphs), 8 dp drag handle replaces the tall default | user-chosen variant 2
 2026-10-28 | Queue title: channel Play-all = 'Uploads'; playlist/listing Play-all, selection play and add-to-queue pass the playlist name; a row tap opens a one-video queue (title 'Queue') | channel name was shown twice; playlist showed 'Queue'
+2026-10-28 | Playlist Play-all/Shuffle/selection play (ListingScreen, PlaylistDetailScreen) start the queue then open the first video's Detail page, like channel Play-all | user request

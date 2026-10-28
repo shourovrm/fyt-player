@@ -41,6 +41,12 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
     val vm: ListingViewModel = viewModel()
     // Queue sheet title for anything started from this list; same resolution as the top bar.
     val listingQueueTitle = listing.title.ifBlank { vm.resolvedTitle ?: stringResource(R.string.listing_title_fallback) }
+    // Detail opens on the first video; otherwise the list stays put and only the queue bar shows.
+    fun playFromFirstAndOpen(refs: List<VideoRef>) {
+        val first = refs.firstOrNull() ?: return
+        PlaybackSession.play(refs, 0, queueTitle = listingQueueTitle)
+        onOpenDetail(first)
+    }
     var selection by remember { mutableStateOf(emptySet<String>()) }
     val selecting = selection.isNotEmpty()
     BackHandler(enabled = selecting) { selection = emptySet() }
@@ -78,7 +84,7 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
                             }
                         }
                         if (vm.items.isNotEmpty()) {
-                            IconButton(onClick = { PlaybackSession.play(vm.items, 0, queueTitle = listingQueueTitle) }) {
+                            IconButton(onClick = { playFromFirstAndOpen(vm.items) }) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
                             }
                         }
@@ -90,8 +96,8 @@ fun ListingScreen(listing: Listing, onOpenDetail: (VideoRef) -> Unit, onBack: ()
             if (selecting) {
                 PlaySelectionFab(selection.size) {
                     val refs = selectedInOrder(vm.items, selection)
-                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0, queueTitle = listingQueueTitle)
                     selection = emptySet()
+                    playFromFirstAndOpen(refs)
                 }
             }
         },

@@ -86,6 +86,14 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
     var confirmingDelete by remember { mutableStateOf(false) }
     BackHandler(enabled = selecting) { selection = emptySet() }
 
+    // Detail opens on the first video; otherwise the list stays put and only the queue bar shows.
+    fun playFromFirstAndOpen(refs: List<VideoRef>) {
+        val first = refs.firstOrNull() ?: return
+        PlaybackSession.play(refs, 0, queueTitle = name ?: defaultTitle)
+        RefCache.put(first)
+        onOpenDetail(first.pageUrl)
+    }
+
     Scaffold(
         topBar = {
             if (selecting) {
@@ -137,8 +145,8 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
             if (selecting) {
                 PlaySelectionFab(selection.size) {
                     val refs = selectedInOrder(videos, selection)
-                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0, queueTitle = name ?: defaultTitle)
                     selection = emptySet()
+                    playFromFirstAndOpen(refs)
                 }
             }
         },
@@ -155,9 +163,9 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(onClick = { PlaybackSession.play(videos, 0, queueTitle = name ?: defaultTitle) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
+                    Button(onClick = { playFromFirstAndOpen(videos) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
                     OutlinedButton(
-                        onClick = { PlaybackSession.play(videos.shuffled(), 0, queueTitle = name ?: defaultTitle) },
+                        onClick = { playFromFirstAndOpen(videos.shuffled()) },
                         contentPadding = PaddingValues(horizontal = Spacing.s16),
                         modifier = Modifier.padding(start = Spacing.s8),
                     ) { Text(stringResource(R.string.playlist_shuffle)) }
