@@ -219,6 +219,8 @@ class NewPipeYoutubeSource(
             // MARKDOWN or plain text both render as plain -- only HTML needs a parser, so that's the
             // only case worth flagging (honest degradation for MARKDOWN, not a lie).
             descriptionIsHtml = info.description?.type == Description.HTML,
+            // The raw microformat date is ISO-8601 with the uploader's offset: DetailScreen shows that
+            // local day, and parseUploadEpochMs (shorts feed slots) reads the same string.
             uploadDate = info.textualUploadDate,
             likeCount = info.likeCount.takeIf { it >= 0 },
             // -1 unless the user opted in (NewPipeInit.updateFetchDislike) and the lookup answered.

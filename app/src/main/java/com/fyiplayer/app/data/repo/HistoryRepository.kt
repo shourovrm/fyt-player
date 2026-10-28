@@ -18,6 +18,7 @@ fun WatchHistoryEntity.toVideoRef(): VideoRef = VideoRef(
     durationSeconds = durationSeconds,
     uploader = uploader,
     uploaderUrl = uploaderUrl,
+    isShort = isShort,
 )
 
 fun VideoRef.toWatchHistoryEntity(watchedAt: Long): WatchHistoryEntity = WatchHistoryEntity(
@@ -29,6 +30,7 @@ fun VideoRef.toWatchHistoryEntity(watchedAt: Long): WatchHistoryEntity = WatchHi
     thumbnailUrl = canonicalThumbnailUrl(thumbnailUrl),
     watchedAt = watchedAt,
     uploaderUrl = uploaderUrl,
+    isShort = isShort,
 )
 
 class HistoryRepository(private val dao: WatchHistoryDao) {

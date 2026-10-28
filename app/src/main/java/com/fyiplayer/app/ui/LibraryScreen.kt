@@ -623,7 +623,9 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
                 modifier = Modifier.padding(Spacing.pageMargin),
             )
         }
-        val list = entries
+        // Shorts are recorded as "seen" for feed ordering (ShortsViewModel.recordShown); the History
+        // list stays for videos. Page URLs are all /watch?v=, so the stored isShort flag decides.
+        val list = entries?.filterNot { it.isShort }
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_history_empty))

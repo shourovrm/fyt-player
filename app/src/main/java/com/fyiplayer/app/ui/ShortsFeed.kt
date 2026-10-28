@@ -3,14 +3,21 @@ package com.fyiplayer.app.ui
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.SearchPage
 import com.fyiplayer.app.core.TAB_UNAVAILABLE_PREFIX
+import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import kotlinx.coroutines.CancellationException
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import kotlin.random.Random
 
 /**
  * The Shorts feed is the union of the shorts tabs of the channels a user subscribes to -- YouTube
  * publishes no global shorts feed (source/youtube/YoutubeSource.kt), so this composes one here at
  * the UI layer exactly like [HomeFeed.kt] composes Home's feed from watch history.
- * excludeWatched already lives in HomeFeed.kt (same package) and is reused as-is.
+ * Shorts does NOT use excludeWatched: seen clips are ordered last instead (see [orderShortsFeed]).
  */
 
 /** [loading] true while at least one channel's fetch is still in flight -- items fill in
@@ -39,7 +46,9 @@ internal data class ShortsFeedState(
 /**
  * Where one channel's shorts tab paging stands. [buffer] holds fetched-but-not-yet-shown items
  * (a tab page is ~48 clips; the feed serves [SHORTS_ITEMS_PER_CHANNEL] per round so every channel
- * keeps its round-robin slot). [nextPage] null with [exhausted] false = first page not fetched yet.
+ * keeps its place in the feed). [nextPage] null with [exhausted] false = first page not fetched yet.
+ * [newestDateMillis] is the upload instant of the channel's newest short, carried so load-more
+ * rounds land in the same recency slot as the first page.
  */
 internal data class ChannelShortsCursor(
     val sourceId: String,
@@ -47,27 +56,118 @@ internal data class ChannelShortsCursor(
     val buffer: List<VideoRef> = emptyList(),
     val nextPage: String? = null,
     val exhausted: Boolean = false,
+    val newestDateMillis: Long? = null,
 ) {
     val hasMore: Boolean get() = buffer.isNotEmpty() || !exhausted
 }
 
-/** Clips per channel per round. The Shorts tab lists newest first but carries no upload date
- *  (YoutubeShortsInfoItemExtractor returns null), so "recent" can only mean "top of the tab". */
+/** Clips per channel per round. The Shorts tab carries no upload date per clip, so a channel's
+ *  date comes from one detail lookup of its newest short (see [lookupUploadMillis]). */
 internal const val SHORTS_ITEMS_PER_CHANNEL = 4
 
-/**
- * Merges channels' batches into one randomly ordered list. Each clip's sort key is drawn once and
- * kept in [keys], so re-running as more channels arrive never reorders clips already shown -- new
- * ones only slot in among them. Duplicates (same pageUrl) keep the first occurrence.
- */
-internal fun shuffledPool(
-    bySource: List<List<VideoRef>>,
-    keys: MutableMap<String, Double>,
-    random: kotlin.random.Random = kotlin.random.Random.Default,
-): List<VideoRef> =
-    bySource.flatten().distinctBy { it.pageUrl }.sortedBy { keys.getOrPut(it.pageUrl) { random.nextDouble() } }
+/** Width of one recency slot: three days. Channels whose newest short is at most three days old
+ *  share slot 0; each further three days is the next slot. */
+internal const val SHORTS_SLOT_MILLIS = 3L * 24 * 60 * 60 * 1000
 
-/** Refills per round: watched-exclusion can empty a whole page, so one retry -- never a storm. */
+/** Slot of a channel whose newest short has no known date. Larger than every dated slot, so such
+ *  channels come last: a missing date must never promote a channel. */
+internal const val UNKNOWN_DATE_SLOT = Int.MAX_VALUE
+
+/**
+ * Slot index of a channel from the age of its newest short. Slot 0 is ages up to three days; slot k
+ * is ages in (3k, 3k+3] days, so exactly six days old is slot 1. Written as ceiling(age / slot) - 1
+ * in integers to avoid floating-point edge cases at the boundaries. Negative ages (a clock behind
+ * the server) fall into slot 0.
+ */
+internal fun shortsSlotFor(newestDateMillis: Long?, nowMillis: Long): Int {
+    if (newestDateMillis == null) return UNKNOWN_DATE_SLOT
+    val ageMillis = nowMillis - newestDateMillis
+    if (ageMillis <= SHORTS_SLOT_MILLIS) return 0
+    return ((ageMillis + SHORTS_SLOT_MILLIS - 1) / SHORTS_SLOT_MILLIS - 1).toInt()
+}
+
+/** One channel's clips for the feed: [shorts] are its first-page clips in tab order, and
+ *  [newestDateMillis] is the upload instant of its newest short (null when unknown). */
+internal data class ChannelShorts(val newestDateMillis: Long?, val shorts: List<VideoRef>)
+
+/**
+ * The Shorts feed order. Channels are grouped by the recency slot of their newest short, and slots
+ * are emitted from newest to oldest. Within a slot, unseen clips come first and seen clips last,
+ * because a clip already watched should not block a fresh one, but it stays in the feed rather
+ * than vanishing. Each part is shuffled by the per-session keys in [keys]: the order is random
+ * per session, and a repeat call never reorders clips whose keys were already drawn. A clip listed
+ * by two channels keeps the first channel's slot.
+ */
+internal fun orderShortsFeed(
+    channels: List<ChannelShorts>,
+    nowMillis: Long,
+    seenPageUrls: Set<String>,
+    keys: MutableMap<String, Double>,
+    random: Random = Random.Default,
+): List<VideoRef> {
+    val clipsBySlot = sortedMapOf<Int, MutableList<VideoRef>>()
+    val placed = HashSet<String>()
+    for (channel in channels) {
+        val clips = clipsBySlot.getOrPut(shortsSlotFor(channel.newestDateMillis, nowMillis)) { mutableListOf() }
+        for (clip in channel.shorts) {
+            if (placed.add(clip.pageUrl)) clips.add(clip)
+        }
+    }
+    return clipsBySlot.values.flatMap { clips -> orderWithinSlot(clips, seenPageUrls, keys, random) }
+}
+
+/** Unseen clips shuffled, then seen clips shuffled. Keys are drawn for every clip before sorting,
+ *  so the draw order does not depend on the sort algorithm. */
+private fun orderWithinSlot(
+    clips: List<VideoRef>,
+    seenPageUrls: Set<String>,
+    keys: MutableMap<String, Double>,
+    random: Random,
+): List<VideoRef> {
+    val keyed = clips.map { clip -> clip to keys.getOrPut(clip.pageUrl) { random.nextDouble() } }
+    val (seen, unseen) = keyed.partition { (clip, _) -> clip.pageUrl in seenPageUrls }
+    val unseenInOrder = unseen.sortedBy { (_, key) -> key }.map { (clip, _) -> clip }
+    val seenInOrder = seen.sortedBy { (_, key) -> key }.map { (clip, _) -> clip }
+    return unseenInOrder + seenInOrder
+}
+
+/**
+ * Upload instant in epoch millis from the date text a [VideoDetail] carries, or null when the text
+ * is absent or in a shape not listed here. yt-dlp gives `YYYYMMDD`, read as UTC midnight, so an
+ * upload near a day boundary can land up to a day off. NewPipe gives the microformat date, ISO-8601
+ * with the uploader's offset (or `...Z`). Other shapes, such as "3 days ago" or "Oct 5, 2026", are null: a guessed
+ * date would put a channel in the wrong slot silently.
+ */
+internal fun parseUploadEpochMs(uploadDate: String?): Long? {
+    val text = uploadDate?.trim().orEmpty()
+    return try {
+        when {
+            text.length == 8 -> LocalDate.parse(text, DateTimeFormatter.BASIC_ISO_DATE)
+                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            text.contains('T') -> OffsetDateTime.parse(text).toInstant().toEpochMilli()
+            else -> null
+        }
+    } catch (e: DateTimeParseException) {
+        null
+    }
+}
+
+/**
+ * Upload instant of one short from its own detail page, or null when the lookup fails. A failure is
+ * "date unknown" and is never retried here: the caller caches the null. Logged by error class only,
+ * because an engine message can echo the page URL. Cancellation passes through.
+ */
+internal suspend fun lookupUploadMillis(fetchDetail: suspend () -> VideoDetail): Long? =
+    try {
+        parseUploadEpochMs(fetchDetail().uploadDate)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        runCatching { android.util.Log.d("ShortsFeed", "newest-short date lookup failed: ${e::class.simpleName}") }
+        null
+    }
+
+/** Refills per round: a page whose clips are all already buffered adds nothing, so one retry -- never a storm. */
 internal const val MAX_REFILLS_PER_ROUND = 2
 
 /**
@@ -78,7 +178,6 @@ internal const val MAX_REFILLS_PER_ROUND = 2
  */
 internal suspend fun ChannelShortsCursor.next(
     n: Int,
-    watched: Set<String>,
     fetch: suspend (String?) -> SearchPage,
 ): Pair<List<VideoRef>, ChannelShortsCursor> {
     var cur = this
@@ -95,7 +194,7 @@ internal suspend fun ChannelShortsCursor.next(
             break
         }
         val seen = cur.buffer.mapTo(HashSet()) { it.pageUrl }
-        val fresh = excludeWatched(page.items, watched).filter { seen.add(it.pageUrl) }
+        val fresh = page.items.filter { seen.add(it.pageUrl) }
         val token = page.nextPage?.takeIf { it != cur.nextPage }
         cur = cur.copy(buffer = cur.buffer + fresh, nextPage = token, exhausted = token == null)
     }
@@ -103,13 +202,13 @@ internal suspend fun ChannelShortsCursor.next(
 }
 
 /**
- * One channel's shorts tab first page, already-watched excluded -- NOT capped: the caller shows
- * [SHORTS_ITEMS_PER_CHANNEL] and buffers the rest in a [ChannelShortsCursor]. Neither failure mode
- * fails the whole feed, but they are reported apart: only a genuine tab-unavailable means "this
- * channel posts no shorts". [fetch] is injected so this stays a pure, network-free unit under test.
+ * One channel's shorts tab first page, in tab order -- NOT capped and NOT filtered: the caller shows
+ * [SHORTS_ITEMS_PER_CHANNEL], buffers the rest in a [ChannelShortsCursor], and uses the first clip as
+ * the channel's newest short. Neither failure mode fails the whole feed, but they are reported apart:
+ * only a genuine tab-unavailable means "this channel posts no shorts". [fetch] is injected so this
+ * stays a pure, network-free unit under test.
  */
 internal suspend fun fetchChannelShorts(
-    watched: Set<String>,
     fetch: suspend () -> SearchPage,
 ): ChannelFetchOutcome {
     val page = try {
@@ -128,5 +227,5 @@ internal suspend fun fetchChannelShorts(
         runCatching { android.util.Log.d("ShortsFeed", "channel fetch failed: ${e::class.simpleName}") }
         return ChannelFetchOutcome.Failed
     }
-    return ChannelFetchOutcome.Ok(excludeWatched(page.items, watched), page.nextPage)
+    return ChannelFetchOutcome.Ok(page.items, page.nextPage)
 }

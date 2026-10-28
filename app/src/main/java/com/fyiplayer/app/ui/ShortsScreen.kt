@@ -98,6 +98,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
                 onOpenDetail = onOpenDetail,
                 onOpenChannel = onOpenChannel,
                 onLoadMore = vm::loadMore,
+                onPageSettled = vm::recordShown,
             )
         } else {
             PullToRefreshBox(
@@ -161,6 +162,9 @@ internal fun ShortsPager(
     onOpenChannel: (Listing) -> Unit,
     /** Called when the swipe nears the end of [items]; no-op for finite listings (channel tab). */
     onLoadMore: () -> Unit = {},
+    /** Called with the clip the pager has settled on. Default no-op: the Shorts channel-tab route
+     *  passes nothing, so its clips are not written to watch history. */
+    onPageSettled: (VideoRef) -> Unit = {},
 ) {
     val playerState by PlaybackSession.state.collectAsState()
     val pagerState = rememberPagerState(initialPage = page.coerceIn(0, items.size - 1)) { items.size }
@@ -184,7 +188,7 @@ internal fun ShortsPager(
     // Start (or resync) the shared session on this feed. A returning composition -- nav back from
     // Detail with nothing else having taken the player -- finds the same queue already loaded and
     // is a no-op; clips the feed gained since are appended (matched by page URL: the feed
-    // re-interleaves as channels land, so "the tail" is not the new part), never re-played from the top.
+    // re-orders as channels land, so "the tail" is not the new part), never re-played from the top.
     LaunchedEffect(items) {
         if (items.isEmpty()) return@LaunchedEffect
         val sessionQueue = PlaybackSession.state.value.queue
@@ -200,6 +204,7 @@ internal fun ShortsPager(
     LaunchedEffect(pagerState, items) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             onPageChange(page)
+            onPageSettled(items[page])
             // Near the tail: ask for more. The pageCount lambda above reads items.size live, so
             // appended clips extend the pager in place; LaunchedEffect(items) enqueues them.
             if (page >= items.size - 3) onLoadMore()

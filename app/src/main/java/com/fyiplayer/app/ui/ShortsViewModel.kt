@@ -36,13 +36,23 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
     private var feedJob: Job? = null
     private var moreJob: Job? = null
 
-    // Paging state behind [feed]: one cursor per subscribed channel, the watched set read once at
-    // refresh (a clip watched mid-session stays in the feed -- the grid already shows it), and the
-    // source map the cursors resolve against. All rebuilt by refreshFeed.
+    // Paging state behind [feed]: one cursor per subscribed channel, the seen set read once at
+    // refresh, and the source map the cursors resolve against. All rebuilt by refreshFeed. The seen
+    // set is NOT re-read mid-session: a clip watched now keeps its place until the next refresh, so
+    // nothing moves under the pager.
     private var cursors: List<ChannelShortsCursor> = emptyList()
-    private var watched: Set<String> = emptySet()
+    private var seenPageUrls: Set<String> = emptySet()
     private var sourcesById: Map<String, VideoSource> = emptyMap()
     private val shuffleKeys = HashMap<String, Double>()
+
+    /** Newest-short page URL -> its upload instant (null = lookup failed). Kept across refreshes so
+     *  a channel whose newest short is unchanged is not looked up again. Failed (null) entries are
+     *  dropped at each refresh, so a manual refresh retries them once. */
+    private val newestDateByPageUrl = HashMap<String, Long?>()
+
+    /** Clips already written to watch history this session, so the pager settling on one clip
+     *  twice writes it once. */
+    private val recordedThisSession = HashSet<String>()
 
     /** Which page the pager last settled on -- restored as the pager's `initialPage` so leaving
      *  and returning to the tab doesn't snap back to the first clip, and also what a grid tap
@@ -77,6 +87,8 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         sourcesById = byId
         cursors = emptyList()
         shuffleKeys.clear() // new random order per refresh (app start / pull-to-refresh only)
+        // A failed lookup may have been a transient network error, so each refresh retries it once.
+        newestDateByPageUrl.values.removeAll { it == null }
         feed = ShortsFeedState(loading = true)
         feedJob = viewModelScope.launch {
             // Every subscription, same as Home: the old newest-8 cap silently left older
@@ -86,13 +98,15 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                 feed = ShortsFeedState(loaded = true, hasSubscriptions = false)
                 return@launch
             }
-            val watched = historyRepo.observe().first().mapTo(HashSet()) { it.pageUrl }
-            this@ShortsViewModel.watched = watched
+            seenPageUrls = historyRepo.observe().first().mapTo(HashSet()) { it.pageUrl }
             // Mutated only from this coroutine's children, all on the Main dispatcher
             // (viewModelScope's default) -- same shape as HomeViewModel.refreshFeed.
             val outcomes = MutableList<ChannelFetchOutcome>(channels.size) {
                 ChannelFetchOutcome.Ok(emptyList())
             }
+            // A channel lands here only once its newest-short date is settled, so no clip is shown
+            // in the unknown slot and then moved to its real slot.
+            val settled = MutableList<ChannelShorts?>(channels.size) { null }
             val gate = Semaphore(FEED_CONCURRENCY)
             val jobs = channels.mapIndexed { i, channel ->
                 launch {
@@ -106,11 +120,20 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                         ChannelFetchOutcome.Failed
                     } else {
                         gate.withPermit {
-                            fetchChannelShorts(watched) { src.channelTab(channel.key, ChannelTab.SHORTS) }
+                            fetchChannelShorts { src.channelTab(channel.key, ChannelTab.SHORTS) }
                         }
                     }
-                    // Append as each channel returns rather than waiting for the slowest one.
-                    feed = feed.copy(items = shuffledPool(outcomes.map { itemsOf(it).take(SHORTS_ITEMS_PER_CHANNEL) }, shuffleKeys))
+                    val ok = outcomes[i] as? ChannelFetchOutcome.Ok
+                    val newest = ok?.items?.firstOrNull()
+                    val newestDate = if (src != null && newest != null) {
+                        gate.withPermit { newestShortDateMillis(src, newest) }
+                    } else {
+                        null
+                    }
+                    if (ok != null) {
+                        settled[i] = ChannelShorts(newestDate, ok.items.take(SHORTS_ITEMS_PER_CHANNEL))
+                    }
+                    feed = feed.copy(items = orderShortsFeed(settled.filterNotNull(), System.currentTimeMillis(), seenPageUrls, shuffleKeys))
                 }
             }
             jobs.joinAll()
@@ -121,6 +144,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                     sourceId = channel.sourceId, key = channel.key,
                     buffer = ok?.items?.drop(SHORTS_ITEMS_PER_CHANNEL).orEmpty(),
                     nextPage = ok?.nextPage, exhausted = ok?.nextPage == null,
+                    newestDateMillis = settled[i]?.newestDateMillis,
                 )
             }
             feed = feed.copy(
@@ -134,9 +158,18 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** One more round: [SHORTS_ITEMS_PER_CHANNEL] per channel that still has any, shuffled and
-     *  APPENDED -- never re-merged over what's already shown, a reshuffle under the pager would
-     *  move the clip the user is watching. */
+    /** Upload instant of a channel's newest short, from the session cache when that short was
+     *  already looked up. One detail call per newest short, never per clip. */
+    private suspend fun newestShortDateMillis(source: VideoSource, newest: VideoRef): Long? {
+        if (newest.pageUrl in newestDateByPageUrl) return newestDateByPageUrl[newest.pageUrl]
+        val dateMillis = lookupUploadMillis { source.detail(newest) }
+        newestDateByPageUrl[newest.pageUrl] = dateMillis
+        return dateMillis
+    }
+
+    /** One more round: [SHORTS_ITEMS_PER_CHANNEL] per channel that still has any, ordered like the
+     *  first page and APPENDED -- never re-merged over what's already shown, a reshuffle under the
+     *  pager would move the clip the user is watching. */
     fun loadMore() {
         if (!feed.hasMore || feed.loading || feed.loadingMore) return
         if (feedJob?.isActive == true || moreJob?.isActive == true) return
@@ -148,14 +181,26 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                     val src = sourcesById[cursor.sourceId]
                     if (src == null || !cursor.hasMore) emptyList<VideoRef>() to cursor.copy(exhausted = true)
                     else gate.withPermit {
-                        cursor.next(SHORTS_ITEMS_PER_CHANNEL, watched) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
+                        cursor.next(SHORTS_ITEMS_PER_CHANNEL) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
                     }
                 }
             }.awaitAll()
             cursors = rounds.map { it.second }
             val seen = feed.items.mapTo(HashSet()) { it.pageUrl }
-            val fresh = shuffledPool(rounds.map { it.first }, shuffleKeys).filter { seen.add(it.pageUrl) }
+            val batches = rounds.map { (served, after) -> ChannelShorts(after.newestDateMillis, served) }
+            val fresh = orderShortsFeed(batches, System.currentTimeMillis(), seenPageUrls, shuffleKeys)
+                .filter { seen.add(it.pageUrl) }
             feed = feed.copy(items = feed.items + fresh, loadingMore = false, hasMore = cursors.any { it.hasMore })
+        }
+    }
+
+    /** Writes a short to watch history once per session, when the pager settles on it. Honours the
+     *  recordWatchHistory preference as DetailScreen does. A blank title means a bare share link,
+     *  which would show as an empty Library row, so it is skipped. */
+    fun recordShown(ref: VideoRef) {
+        if (ref.title.isBlank() || !recordedThisSession.add(ref.pageUrl)) return
+        viewModelScope.launch {
+            if (app.prefs.recordWatchHistory.first()) historyRepo.record(ref.copy(isShort = true))
         }
     }
 }

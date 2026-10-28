@@ -184,4 +184,11 @@ class MapperTest {
         assertEquals(entity.channelUrl, listing.key)
         assertEquals(entity.title, listing.title)
     }
+
+    @Test
+    fun watchHistoryKeepsTheShortFlag() {
+        val short = ref.copy(isShort = true)
+        assertEquals(true, short.toWatchHistoryEntity(watchedAt = 1L).toVideoRef().isShort)
+        assertEquals(false, ref.toWatchHistoryEntity(watchedAt = 1L).toVideoRef().isShort)
+    }
 }
