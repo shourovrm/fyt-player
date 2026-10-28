@@ -141,6 +141,33 @@ Paging via PageToken (JSON-serialized NewPipe Page).
   it is the only known route to >360p for made-for-kids videos (visionos gets itag 18 only).
 - Chunked-source probe for clen-less PROGRESSIVE URLs is live but not yet exercised on device
   (playback rides HLS manifests now) — verify when a progressive-only video shows up.
+- Made-for-kids videos >360p (study 2026-10-28, read-only, nothing built): visionos returns only
+  muxed itag 18 for kids content (Peppa Pig TTx0EHaSMgc, Cocomelon 020g-0hhCAU); mweb returns
+  SABR-only 144p-1080p, which `NewPipeResolver.toResolved` drops (PROGRESSIVE/HLS filter) and
+  `MediaItemFactory` cannot play. TubePipe (~/repos/tubepipe, read-only) solves it as: detect
+  360p-only by height (`LowQualityOffer`: no HLS master and max height <= 360; no kids flag exists
+  in any extractor) -> re-extract with mweb -> `SabrDashMediaSource` (Media3 port of PipePipeClient's
+  SABR player, 1.6k lines) + PO token minted by BotGuard JS in the shared WebView
+  (`LocalDomPoTokenProvider` 554 + `YoutubePageAttestationBootstrap` 251 + `sabr_po_token.js` 265,
+  all "Ported from PipePipeClient") registered via `NewPipe.setYoutubePoTokenResolver`. Attestation
+  retry 3, reload 2/session, 30 s backoff; TubePipe box-tested a kids video offering 1080-144 but
+  recorded no full-length run and has no attestation UI. Port plan, in order:
+  1. Extractor bump 5.2.5 -> 5.5.0 (TubePipe pins stock PipePipeExtractor 1a09d20e, NO extractor
+     patch; our vendored 5.2.5 has the OLDER SABR API: `SabrPoTokenProvider` /
+     `setYoutubeSessionPoTokenProvider`, no `YoutubePoTokenResult`, `SabrInfoReloader`,
+     `YoutubeSabrResponse`, `YoutubeSabrRequestHelper`, `fetchSabrInfoForReload`). Re-apply the 2
+     patches, `./gradlew clean`, device-verify progressive + HLS + downloads first (v5.3.1 403 cause
+     is still unknown). This step is independently due and is the risky one.
+  2. Port TubePipe's `core/player/sabr/*` + `youtube/*` (Media3 1.11.1; every media3 import is a
+     class present in 1.9.4, compile unverified) and the PO-token trio. `SharedWebViewRuntime`
+     already exists here (same PipePipeClient origin as `WebViewJsDecoder`); reuse it.
+  3. Glue: a `Protocol.SABR` MediaFormat carrying the in-memory `YoutubeSabrInfo` handle (never
+     persisted), a `MediaItemFactory` branch, and a one-shot mweb retry on 360p-only results via the
+     existing `NewPipeInit.withSignedInPlayerClient` pattern (TubePipe flips the process-wide client,
+     which races concurrent resolves). Downloads stay 360p (SABR download is a separate 1k-line port).
+  Constraints: PO tokens are bound to visitorData (session) or video id (content) and identify —
+  memory only, redacted from DiagLog; the hard-coded `x-goog-api-key` is YouTube's public web key,
+  not a secret. Interim UI: label 360p-only results honestly (~100 lines).
 
 ## Gotchas
 

@@ -260,3 +260,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-28 | Transport buttons (prev/play/next) all sit in scrim circles | prev/next vanished on bright frames
 2026-10-28 | Caption size setting: four steps, separate prefs for videos and Shorts, Settings group + chips in the caption sheet; applied via SubtitleView fractional text size | user request
 2026-10-28 | "No access-control bypass" rule dropped from CLAUDE.md and DESIGN.md | user: it blocked needed manoeuvres (PO token / SABR for kids videos); older rejections citing it are historical
+2026-10-28 | Kids-video >360p route = extractor 5.5.0 + TubePipe SABR/PO-token port (3 steps in extraction.md Open items) | visionos is capped at itag 18 for kids content; only mweb/SABR gives 1080p; TubePipe needs no extractor patch
