@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 
 /**
@@ -24,4 +25,12 @@ object RefCache {
 
     @Synchronized
     fun get(pageUrl: String): VideoRef? = map[pageUrl]
+
+    /** The stashed ref, or a bare one the Detail fetch fills in. */
+    fun getOrBare(pageUrl: String): VideoRef = get(pageUrl) ?: VideoRef(
+        sourceId = SourceRegistry.forUrl(pageUrl)?.id ?: "",
+        pageUrl = pageUrl,
+        remoteId = pageUrl,
+        title = "",
+    )
 }

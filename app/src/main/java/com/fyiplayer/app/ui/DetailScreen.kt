@@ -109,14 +109,7 @@ fun DetailScreen(
     playerSurface: @Composable (ref: VideoRef, fullscreen: Boolean, onToggleFullscreen: () -> Unit, similarSuggestion: VideoRef?) -> Unit = { _, _, _, _ -> },
 ) {
     val app = rememberFyiApp()
-    val ref = remember(pageUrl) {
-        RefCache.get(pageUrl) ?: VideoRef(
-            sourceId = SourceRegistry.forUrl(pageUrl)?.id ?: "",
-            pageUrl = pageUrl,
-            remoteId = pageUrl,
-            title = "",
-        )
-    }
+    val ref = remember(pageUrl) { RefCache.getOrBare(pageUrl) }
     val source = remember(pageUrl) { SourceRegistry.bySourceId(ref.sourceId) }
     val tabsVm: DetailTabsViewModel = viewModel()
     val showCommentsTab = source?.providesComments == true

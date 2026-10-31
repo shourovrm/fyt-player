@@ -69,10 +69,13 @@ fun NavController.closeDetailChain() {
 
 /** Route of the back stack entry directly under [entry], or null at the bottom of the stack. Reads
  *  the observable stack list rather than previousBackStackEntry, so the Previous button recomposes. */
-private fun routeBelow(stack: List<NavBackStackEntry>, entry: NavBackStackEntry): String? {
+private fun entryBelow(stack: List<NavBackStackEntry>, entry: NavBackStackEntry): NavBackStackEntry? {
     val index = stack.indexOfFirst { it.id == entry.id }
-    return stack.getOrNull(index - 1)?.destination?.route
+    return stack.getOrNull(index - 1)
 }
+
+private fun routeBelow(stack: List<NavBackStackEntry>, entry: NavBackStackEntry): String? =
+    entryBelow(stack, entry)?.destination?.route
 
 fun NavController.openListing(listing: Listing) = navigate(
     "listing/${Uri.encode(listing.key)}" +
@@ -171,13 +174,22 @@ fun AppShell(navController: NavHostController) {
     val trailPrevious = topEntry != null && detailOnTop &&
         WatchTrail.canGoPrevious(routeBelow(navBackStack, topEntry))
     val trailForward = watchTrail.nextForward().takeIf { detailOnTop }
-    LaunchedEffect(trailPrevious, trailForward) {
+    // They also start the video themselves: a hidden app does not recompose, so the Detail page
+    // that normally starts playback would not run until the user comes back.
+    val pageBelow = topEntry?.let { entryBelow(navBackStack, it) }?.arguments?.getString("pageUrl")?.let(Uri::decode)
+    LaunchedEffect(trailPrevious, trailForward, pageBelow) {
         PlaybackSession.setTrailSkips(
-            previous = goPrevious.takeIf { trailPrevious },
+            previous = pageBelow?.takeIf { trailPrevious }?.let { below ->
+                {
+                    goPrevious()
+                    PlaybackSession.play(listOf(RefCache.getOrBare(below)), 0)
+                }
+            },
             next = trailForward?.let { target ->
                 {
                     watchTrail = watchTrail.popForward()
                     navController.openDetail(target)
+                    PlaybackSession.play(listOf(target), 0)
                 }
             },
         )

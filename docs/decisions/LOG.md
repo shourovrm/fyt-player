@@ -274,3 +274,6 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-31 | Comment links inert + own tap hit-test (glyph box) | Compose link tap area is the bounding box, swallowed plain-text taps beside a wrapped link
 2026-10-31 | walls retry visionos then mweb, except geo/paid | YouTube walls one client while another plays; user asked for TubePipe's fallback
 2026-10-31 | MediaSession wraps SessionPlayer; Next/Prev from the shade = in-app rules | ExoPlayer's 2-item window made Next missing/desynced; autoplay and trail were invisible to the session
+2026-10-31 | autoplay toggle moved to a switch in the player bottom bar, next to Repeat | approved mock A: the Refresh icon in the top corner did not read as on/off
+2026-10-31 | History multi-select Remove = undo snackbar, no confirm dialog; Clear history keeps its dialog | removal is cheap to reverse (rows kept in memory, re-upserted), Clear cannot be undone
+2026-10-31 | shade skips start playback + force notification redraw | hidden app never recomposed; Media3 ignores commands-only changes

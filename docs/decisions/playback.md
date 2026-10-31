@@ -264,6 +264,9 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   sponsored-segment skip is still user-unverified.
 
 ## Gotchas
+- Media3 notification redraws on playback/metadata events only, not on available-commands change: PlaybackService calls triggerNotificationUpdate() on onAvailableCommandsChanged.
+- A hidden app does not recompose: session Previous/trail-Next must start playback themselves (AppShell), not rely on the Detail page's play effect. Device-verified 2026-10-31.
+- Open item: a video opened from a link plays with a bare ref, so notification/mini-player show no title until re-opened.
 - ExoPlayer holds <=2 items, so its own hasNext/seekToNext is wrong for the session (jumps into the
   prefetch slot without moving `index`; reason SEEK so onMediaItemTransition ignores it). Never hand
   the raw ExoPlayer to MediaSession; Next/Previous belong to `SessionPlayer`. Command changes outside

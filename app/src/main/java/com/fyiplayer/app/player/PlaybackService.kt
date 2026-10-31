@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
 import androidx.annotation.OptIn
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
@@ -45,12 +46,21 @@ class PlaybackService : MediaSessionService() {
             // media3's notification manager never attaches — no media notification, no foreground
             // promotion, ever (observed on device: startForegroundCount stayed 0 while playing).
             .also(::addSession)
+        PlaybackSession.sessionPlayer.addListener(commandsListener)
+    }
+
+    // Media3's notification redraws on playback and metadata events, not on a change of available
+    // commands, so toggling autoplay would leave Next missing until the next pause/play.
+    private val commandsListener = object : Player.Listener {
+        @OptIn(UnstableApi::class)
+        override fun onAvailableCommandsChanged(availableCommands: Player.Commands) = triggerNotificationUpdate()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onDestroy() {
         // the player is process-scoped and outlives this service; only the session wrapper dies
+        PlaybackSession.sessionPlayer.removeListener(commandsListener)
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()
