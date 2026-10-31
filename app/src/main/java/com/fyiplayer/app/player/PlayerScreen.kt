@@ -57,20 +57,21 @@ import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.SeekThumbnails
 import kotlinx.coroutines.delay
 import com.fyiplayer.app.settings.WallSignInButton
+import com.fyiplayer.app.ui.retryHelps
+import com.fyiplayer.app.ui.signInHelps
+import com.fyiplayer.app.ui.userMessage
 
 /** One friendly line per failure kind -- never a stack trace, never the dead signed URL a
  *  Network/Expired message could otherwise carry. */
 @Composable
-private fun friendlyMessage(e: ExtractionError): String = stringResource(
-    when (e) {
-        is ExtractionError.Network -> R.string.error_no_connection
-        is ExtractionError.ContentUnavailable -> R.string.error_content_unavailable
-        is ExtractionError.AccessChallenge -> R.string.error_access_wall
-        // Never claim a retry here: by the time this renders, the one permitted re-resolve is spent.
-        is ExtractionError.Expired -> R.string.error_link_expired
-        is ExtractionError.Unsupported -> R.string.player_error_cannot_play
-    },
-)
+private fun friendlyMessage(e: ExtractionError): String = when (e) {
+    is ExtractionError.Network -> stringResource(R.string.error_no_connection)
+    is ExtractionError.ContentUnavailable -> stringResource(R.string.error_content_unavailable)
+    is ExtractionError.AccessChallenge -> e.userMessage()
+    // Never claim a retry here: by the time this renders, the one permitted re-resolve is spent.
+    is ExtractionError.Expired -> stringResource(R.string.error_link_expired)
+    is ExtractionError.Unsupported -> stringResource(R.string.player_error_cannot_play)
+}
 
 /**
  * The full player: shared surface, gesture layer, HUDs, centred transport and the one-row bottom
@@ -256,12 +257,10 @@ fun PlayerScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(friendlyMessage(error), color = extras.onVideo)
-                // An AccessChallenge is an honest wall (login/CAPTCHA/age) -- re-resolving can't
-                // pass it, so no Retry there, same convention as ResultsList's onRetry = null.
-                if (error is ExtractionError.AccessChallenge) {
-                    Spacer(Modifier.height(Spacing.s16))
-                    WallSignInButton(onSignedIn = { PlaybackSession.retryCurrent() })
-                } else {
+                // An AccessChallenge is an honest wall: Sign in only where signing in can lift it,
+                // Retry only where waiting can (rate limit, unknown). Geo and paid walls get neither.
+                val wall = (error as? ExtractionError.AccessChallenge)?.reason
+                if (wall == null || wall.retryHelps()) {
                     Spacer(Modifier.height(Spacing.s16))
                     // The reported "stuck play button": an error used to render dead-end text with
                     // no way forward short of leaving the screen. retryCurrent() re-resolves the
@@ -271,6 +270,9 @@ fun PlayerScreen(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.onVideo),
                         border = BorderStroke(1.dp, extras.onVideoDim),
                     ) { Text(stringResource(R.string.action_retry)) }
+                } else if (wall.signInHelps()) {
+                    Spacer(Modifier.height(Spacing.s16))
+                    WallSignInButton(onSignedIn = { PlaybackSession.retryCurrent() })
                 }
             }
             else -> {

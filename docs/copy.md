@@ -189,7 +189,7 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Settings | Nothing new to add. Everything in this file is already in your library. | Nothing new to add. | shorter |
 | Shared | No connection. Check your network and try again. | No connection. | shorter |
 | Shared | This video is gone, private, or never existed. | This video is unavailable. | shorter |
-| Shared | This page needs a sign-in, a CAPTCHA, or a region the app cannot reach. | This video needs a sign-in or is blocked here. | shorter |
+| Shared | one line per wall cause (bot check, rate limit, age, sign-in, region, paid, unknown) from `ErrorMessages.kt`, shared by player and lists | "This page needs a sign-in, a CAPTCHA, or a region the app cannot reach." / "This video needs a sign-in or is blocked here." | one cause, one next step; Sign in only where it helps |
 | Shared | This link expired. Open the video again to get a new one. | Link expired. Open the video again. | shorter |
 | Empty states | second sentences on Home, Shorts, Channel, Listing, Library, Playlist, Downloads ("Subscribe to a channel to fill your feed", "Videos you download appear here and play offline", …) | deleted; "No <noun> yet." stands alone | explaining is slop |
 | Errors | Could not load N channels. Check your connection and pull down to refresh. | N channels did not load. | shorter |
