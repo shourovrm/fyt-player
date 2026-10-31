@@ -1001,7 +1001,7 @@ object PlaybackSession {
             applyCaptionSelection(language)
             _state.update {
                 it.copy(
-                    current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
+                    current = playRef, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
                     selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats),
                     availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                     availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
