@@ -1,6 +1,7 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-31 (built-unverified): speed sheet = mock speed.html option F (`SpeedSheet.kt`, pure maths in `SpeedMath.kt`): big value + -/+ (0.05), slider 0.1-3 that snaps to 0.25 marks when within 0.05, six presets (0.5 1 1.25 1.5 2 3), Reset to 1x; applies live, sheet stays open; bar shows a filled primary pill when speed != 1x. Speed still not persisted.
 2026-10-31 (built-unverified): Library History multi-select (mock .design-mockups/history-select.html, d1): long-press selects, rows get checkboxes, `SelectionTopBar(allState=)` shows a tri-state checkbox (other tabs keep the "All" text button), trash Remove -> `HistoryRepository.removeAll` returns the full rows, snackbar "N videos removed" + Undo -> `restore` re-upserts them (same watchedAt). Long-press no longer opens the action sheet on History. Deselecting every row exits selection (empty set == off), unlike the mock's "stays in selection mode".
 2026-10-31 (built-unverified): Detail Download button is a plain neutral IconButton like Like/Save/Share; it turns
 primary only when the video has a COMPLETED download row (`VideoActions.downloadedFlow` <- `DownloadQueue.isDownloaded`,

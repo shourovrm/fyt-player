@@ -724,8 +724,9 @@ object PlaybackSession {
 
     fun setSpeed(speed: Float) {
         ensureInit()
-        player.setPlaybackSpeed(speed)
-        _state.update { it.copy(speed = speed) }
+        val rounded = roundSpeed(speed)
+        player.setPlaybackSpeed(rounded)
+        _state.update { it.copy(speed = rounded) }
     }
 
     /** Reselects a format from the current item's already-resolved list — no re-resolve, no

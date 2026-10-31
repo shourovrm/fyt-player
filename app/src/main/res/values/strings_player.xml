@@ -30,7 +30,11 @@
     <!-- sheet rows -->
     <string name="player_quality_auto">Auto</string>
     <string name="player_quality_height">%1$dp</string>
-    <string name="player_speed_value">%1$sx</string>
+    <string name="player_speed_reset">Reset to 1x</string>
+    <string name="player_speed_minus">&#8722;</string>
+    <string name="player_speed_plus">+</string>
+    <string name="player_speed_slower">Slower</string>
+    <string name="player_speed_faster">Faster</string>
     <string name="player_captions_off">Off</string>
 
     <!-- mini player -->

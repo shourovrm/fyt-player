@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.SeekThumbnails
+import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
@@ -84,6 +85,7 @@ internal fun ControlBar(
     onOpenQuality: () -> Unit,
     qualityButtonText: String,
     speedLabel: String,
+    speedChanged: Boolean,
     onOpenSpeed: () -> Unit,
     looping: Boolean,
     onToggleLoop: () -> Unit,
@@ -254,7 +256,20 @@ internal fun ControlBar(
             )
             Box(modifier = Modifier.weight(1f))
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
-                Text(speedLabel, color = extras.onVideo, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                // Lit like Repeat: a filled pill marks any non-default speed.
+                Text(
+                    speedLabel,
+                    color = if (speedChanged) MaterialTheme.colorScheme.onPrimary else extras.onVideo,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    modifier = if (speedChanged) {
+                        Modifier
+                            .background(playedColor, RoundedCornerShape(Radius.m))
+                            .padding(horizontal = Spacing.s8, vertical = 4.dp)
+                    } else {
+                        Modifier
+                    },
+                )
             }
             ControlIcon(description = stringResource(R.string.player_menu_quality), onClick = onOpenQuality) {
                 QualityBadge(qualityButtonText)

@@ -419,7 +419,8 @@ fun PlayerScreen(
                         isAuto = state.qualityIsAuto,
                         autoText = stringResource(R.string.player_quality_auto),
                     ),
-                    speedLabel = stringResource(R.string.player_speed_value, trimSpeed(state.speed)),
+                    speedLabel = formatSpeed(state.speed),
+                    speedChanged = state.speed != 1f,
                     onOpenSpeed = { interact(); showSpeedSheet = true },
                     looping = state.repeatMode == RepeatMode.ONE,
                     onToggleLoop = { interact(); PlaybackSession.toggleLoop() },
@@ -450,7 +451,7 @@ fun PlayerScreen(
                 if (showSpeedSheet) {
                     SpeedSheet(
                         current = state.speed,
-                        onSelect = { PlaybackSession.setSpeed(it); showSpeedSheet = false },
+                        onChange = PlaybackSession::setSpeed,
                         onDismiss = { showSpeedSheet = false },
                     )
                 }

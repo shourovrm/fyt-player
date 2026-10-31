@@ -82,7 +82,7 @@ import com.fyiplayer.app.player.SeekThumbnailPreview
 import com.fyiplayer.app.player.SpeedSheet
 import com.fyiplayer.app.player.fetchSeekThumbnails
 import com.fyiplayer.app.player.imageFor
-import com.fyiplayer.app.player.trimSpeed
+import com.fyiplayer.app.player.formatSpeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -349,7 +349,7 @@ internal fun ShortsPage(
     if (showSpeedSheet) {
         SpeedSheet(
             current = playerState.speed,
-            onSelect = { PlaybackSession.setSpeed(it); showSpeedSheet = false },
+            onChange = PlaybackSession::setSpeed,
             onDismiss = { showSpeedSheet = false },
         )
     }
@@ -415,7 +415,7 @@ private fun ShortsActionRail(
         }
         if (onSpeed != null) {
             RailButton(onClick = onSpeed) {
-                Text("${trimSpeed(speed)}x", color = extras.onVideo, style = MaterialTheme.typography.labelMedium)
+                Text(formatSpeed(speed), color = extras.onVideo, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
