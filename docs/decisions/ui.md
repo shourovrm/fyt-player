@@ -1,6 +1,14 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-31 (built-unverified): Detail Download button is a plain neutral IconButton like Like/Save/Share; it turns
+primary only when the video has a COMPLETED download row (`VideoActions.downloadedFlow` <- `DownloadQueue.isDownloaded`,
+derived from the in-memory `rows`, no I/O). No in-progress state existed, none added. Comment bodies (`CommentBody`
+in CommentsSection.kt) draw links inert (colour only) and one `detectTapGestures` handler decides: tap inside a link
+glyph's box while expanded opens it, anything else toggles collapse. Cause: Compose's per-link tap area is the link's
+bounding box, so a wrapped link also swallowed plain text beside it. Gotcha: `getOffsetForPosition` is nearest-char, so
+also check `getBoundingBox(offset).contains(position)` or blank space after a line end hits the last char.
+2026-10-31: wall errors read per cause (`ErrorMessages.kt`, shared by player and lists); player shows Sign in for bot check/age/login, Retry for rate limit/unknown, neither for region/paid.
 2026-10-31: player centre skip buttons (Prev/Next) shrunk to a 48dp circle with a 32dp glyph (were 64dp /
 40dp); the 64dp play button is unchanged. The top-right corner gained an autoplay toggle (Refresh glyph,
 primary colour while on, onVideo while off, descriptions "Autoplay next video" / "Stop autoplay next").

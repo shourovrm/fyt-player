@@ -82,7 +82,10 @@ class FyiApp : Application() {
         combine(prefs.sponsorBlock, prefs.sponsorModes, prefs.sponsorWhitelist) { enabled, modes, whitelist ->
             SponsorPolicy(enabled = enabled, modes = modes, whitelistedChannels = whitelist)
         }.onEach { sponsorPolicy = it }.launchIn(appScope)
-        prefs.autoplayNext.onEach { autoplayNextEnabled = it }.launchIn(appScope)
+        prefs.autoplayNext.onEach {
+            autoplayNextEnabled = it
+            PlaybackSession.refreshSessionCommands() // the shade's Next button follows the toggle
+        }.launchIn(appScope)
         prefs.savePlayPosition.onEach { savePlayPositionEnabled = it }.launchIn(appScope)
 
         // Latched in NewPipeInit (off until the setting says otherwise) so the extractor never
@@ -129,6 +132,7 @@ class FyiApp : Application() {
         PlaybackSession.init(
             this, resolver, maxHeight = ::currentMaxHeight,
             sponsorPolicy = { sponsorPolicy }, autoplayNext = ::autoplayNextFor,
+            autoplayEnabled = { autoplayNextEnabled },
             loadPosition = ::loadPositionFor, savePosition = ::savePositionFor,
             saveLastPlayed = prefs::setLastPlayed, loadLastPlayed = ::lastPlayedRef,
         )

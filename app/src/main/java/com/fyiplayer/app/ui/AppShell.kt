@@ -157,6 +157,32 @@ fun AppShell(navController: NavHostController) {
     var watchTrail by remember { mutableStateOf(WatchTrail()) }
     LaunchedEffect(navBackStack.size) { watchTrail = watchTrail.onBackStackDepthChanged(navBackStack.size) }
 
+    // One level back: the Detail below replays its own video through its entry guard, the same
+    // as system Back. The video being left is remembered first so Next can return to it.
+    val goPrevious: () -> Unit = {
+        val session = PlaybackSession.state.value
+        session.queue.getOrNull(session.index)?.let { watchTrail = watchTrail.recordLeft(it) }
+        navController.popBackStack()
+    }
+    // The notification, lockscreen and headset Previous/Next walk the same trail as the in-app
+    // buttons, and exist only while a Detail page is on top, as those buttons do.
+    val topEntry = navBackStack.lastOrNull()
+    val detailOnTop = topEntry != null && topEntry.destination.route == Routes.DETAIL
+    val trailPrevious = topEntry != null && detailOnTop &&
+        WatchTrail.canGoPrevious(routeBelow(navBackStack, topEntry))
+    val trailForward = watchTrail.nextForward().takeIf { detailOnTop }
+    LaunchedEffect(trailPrevious, trailForward) {
+        PlaybackSession.setTrailSkips(
+            previous = goPrevious.takeIf { trailPrevious },
+            next = trailForward?.let { target ->
+                {
+                    watchTrail = watchTrail.popForward()
+                    navController.openDetail(target)
+                }
+            },
+        )
+    }
+
     CompositionLocalProvider(LocalPlaybackPositions provides positions) {
     NavHost(
         navController = navController,
@@ -218,13 +244,6 @@ fun AppShell(navController: NavHostController) {
             val captionSize by prefs.captionSizeVideo.collectAsState(initial = CaptionSize.DEFAULT)
             val autoplayNext by prefs.autoplayNext.collectAsState(initial = false)
             val canGoPrevious = WatchTrail.canGoPrevious(routeBelow(navBackStack, entry))
-            // One level back: the Detail below replays its own video through its entry guard, the same
-            // as system Back. The video being left is remembered first so Next can return to it.
-            val goPrevious: () -> Unit = {
-                val session = PlaybackSession.state.value
-                session.queue.getOrNull(session.index)?.let { watchTrail = watchTrail.recordLeft(it) }
-                navController.popBackStack()
-            }
             DetailScreen(
                 pageUrl = pageUrl,
                 onOpenDetail = { navController.openDetail(it) },

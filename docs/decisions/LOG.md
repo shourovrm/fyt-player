@@ -269,3 +269,8 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-31 | Next on a single video = forward trail, or first Similar only while autoplay is on; player gets an autoplay toggle; skip buttons smaller | supersedes 2026-10-28 "Watch trail": Next always offering Similar looked like forced autoplay
 2026-10-31 | Comments render YouTube HTML via the Description tab's fromHtml and link routing (Comment.isHtml) | extractor returns HTML; plain Text showed raw <br>/<a> tags
 2026-10-31 | README links the versioned APK asset directly, bumped each release | asset name carries the version, so releases/latest/download/<name> cannot work
+2026-10-31 | Wall message per AccessChallengeReason in ErrorMessages.kt (player + lists); Sign in only for bot check/age/login, Retry only for rate limit/unknown | one generic wall text gave a useless Sign in button for region/paid/rate-limit walls
+2026-10-31 | Detail Download button neutral, primary only when downloaded | filled blue circle was too loud next to outline icons
+2026-10-31 | Comment links inert + own tap hit-test (glyph box) | Compose link tap area is the bounding box, swallowed plain-text taps beside a wrapped link
+2026-10-31 | walls retry visionos then mweb, except geo/paid | YouTube walls one client while another plays; user asked for TubePipe's fallback
+2026-10-31 | MediaSession wraps SessionPlayer; Next/Prev from the shade = in-app rules | ExoPlayer's 2-item window made Next missing/desynced; autoplay and trail were invisible to the session

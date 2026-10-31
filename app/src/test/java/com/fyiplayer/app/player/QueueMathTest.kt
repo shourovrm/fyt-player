@@ -1,6 +1,7 @@
 package com.fyiplayer.app.player
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -145,5 +146,29 @@ class QueueMathTest {
         val newCurrent = 3 // D stays at index 3
         assertEquals(2, QueueMath.nextIndex(newCurrent, 4, RepeatMode.OFF, remapped))
         assertEquals(1, QueueMath.previousIndex(newCurrent, 4, RepeatMode.OFF, remapped))
+    }
+
+    @Test fun `queue next is offered only while the queue has a next item`() {
+        assertTrue(QueueMath.canSkipNext(0, 3, RepeatMode.OFF, null, autoplay = false, hasTrailNext = false))
+        assertFalse(QueueMath.canSkipNext(2, 3, RepeatMode.OFF, null, autoplay = true, hasTrailNext = true))
+        assertTrue(QueueMath.canSkipNext(2, 3, RepeatMode.ALL, null, autoplay = false, hasTrailNext = false))
+    }
+
+    @Test fun `single video next needs a trail entry or autoplay`() {
+        assertFalse(QueueMath.canSkipNext(0, 1, RepeatMode.OFF, null, autoplay = false, hasTrailNext = false))
+        assertTrue(QueueMath.canSkipNext(0, 1, RepeatMode.OFF, null, autoplay = true, hasTrailNext = false))
+        assertTrue(QueueMath.canSkipNext(0, 1, RepeatMode.OFF, null, autoplay = false, hasTrailNext = true))
+    }
+
+    @Test fun `nothing playing offers no skip`() {
+        assertFalse(QueueMath.canSkipNext(-1, 0, RepeatMode.OFF, null, autoplay = true, hasTrailNext = true))
+        assertFalse(QueueMath.canSkipPrevious(-1, 0, RepeatMode.OFF, null, hasTrailPrevious = true))
+    }
+
+    @Test fun `previous follows the queue, or the trail for a single video`() {
+        assertFalse(QueueMath.canSkipPrevious(0, 3, RepeatMode.OFF, null, hasTrailPrevious = true))
+        assertTrue(QueueMath.canSkipPrevious(1, 3, RepeatMode.OFF, null, hasTrailPrevious = false))
+        assertTrue(QueueMath.canSkipPrevious(0, 1, RepeatMode.OFF, null, hasTrailPrevious = true))
+        assertFalse(QueueMath.canSkipPrevious(0, 1, RepeatMode.OFF, null, hasTrailPrevious = false))
     }
 }

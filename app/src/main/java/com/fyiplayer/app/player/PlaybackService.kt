@@ -36,7 +36,7 @@ class PlaybackService : MediaSessionService() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
         }
-        mediaSession = MediaSession.Builder(this, PlaybackSession.exoPlayer)
+        mediaSession = MediaSession.Builder(this, PlaybackSession.sessionPlayer)
             .apply { openApp?.let(::setSessionActivity) }
             .setCallback(CloseButtonCallback())
             .build()

@@ -148,6 +148,12 @@ object PlaybackSession {
     // Injected by FyiApp; returns null when the pref is off, the search fails, or nothing
     // qualifies -- STATE_ENDED's handler treats null as "nothing to autoplay", same as no queue.
     private var autoplayNext: suspend (VideoRef) -> VideoRef? = { null }
+    // Synchronous mirror of the autoplay pref: only for deciding whether the session offers Next.
+    private var autoplayEnabled: () -> Boolean = { false }
+    // Previous/Next along the watch trail (ui/WatchTrail.kt), set by AppShell while a Detail page
+    // is on top. The trail lives in navigation, so the session can only call it, not own it.
+    private var trailPrevious: (() -> Unit)? = null
+    private var trailNext: (() -> Unit)? = null
     // Position persistence seams (FyiApp gates on the pref and owns the near-end-clears rule);
     // the session only decides WHEN: resume lookup at item start, save on tick/pause/end.
     private var loadPosition: suspend (String) -> Long? = { null }
@@ -182,6 +188,10 @@ object PlaybackSession {
     val chapterSource: StateFlow<PageChapters> = _chapterSource.asStateFlow()
 
     val exoPlayer: ExoPlayer get() = player
+
+    /** What [PlaybackService]'s media session wraps: [player] with Next/Previous owned by this object. */
+    internal lateinit var sessionPlayer: SessionPlayer
+        private set
 
     private var queue: List<VideoRef> = emptyList()
     private var order: List<Int>? = null // shuffle order; null = queue order
@@ -243,6 +253,7 @@ object PlaybackSession {
         maxHeight: () -> Int = { 1080 },
         sponsorPolicy: () -> SponsorPolicy = { SponsorPolicy() },
         autoplayNext: suspend (VideoRef) -> VideoRef? = { null },
+        autoplayEnabled: () -> Boolean = { false },
         loadPosition: suspend (String) -> Long? = { null },
         savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> },
         saveLastPlayed: suspend (pageUrl: String, title: String) -> Unit = { _, _ -> },
@@ -253,6 +264,7 @@ object PlaybackSession {
         this.maxHeight = maxHeight
         this.sponsorPolicy = sponsorPolicy
         this.autoplayNext = autoplayNext
+        this.autoplayEnabled = autoplayEnabled
         this.loadPosition = loadPosition
         this.savePosition = savePosition
         this.saveLastPlayed = saveLastPlayed
@@ -337,6 +349,7 @@ object PlaybackSession {
         }
         // A second Prefs instance is fine: preferencesDataStore's delegate is keyed on the
         // (shared) applicationContext, so this and FyiApp's Prefs share one underlying store.
+        sessionPlayer = SessionPlayer(player)
         Prefs(appContext).backgroundPlayback
             .onEach { backgroundPlaybackAllowed = it }
             .launchIn(scope)
@@ -364,27 +377,81 @@ object PlaybackSession {
     /** Looks up what plays after [endedIndex] finished, and starts it unless the user moved on
      *  meanwhile. startAt/clear cancel [autoplayJob]; the re-check covers a replay or a seek that
      *  left the same item un-ended without going through them. */
+    private suspend fun lookUpAutoplay(endedRef: VideoRef): VideoRef? = try {
+        autoplayNext(endedRef)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (e: Exception) {
+        diag("autoplay lookup failed error=${e.javaClass.simpleName}")
+        null
+    }
+
+    /** Plays [next] as a new single-video queue; Detail follows through [PlayerState.autoAdvances].
+     *  The calling coroutine is [autoplayJob], which play() -> startAt() would cancel, so detach first. */
+    private fun playAutoplayed(next: VideoRef) {
+        autoplayJob = null
+        play(listOf(next), 0)
+        _state.update { it.copy(autoAdvances = it.autoAdvances + 1) }
+    }
+
+    /** Looks up what plays after [endedIndex] finished, and starts it unless the user moved on
+     *  meanwhile. startAt/clear cancel [autoplayJob]; the re-check covers a replay or a seek that
+     *  left the same item un-ended without going through them. */
     private fun startAutoplay(endedRef: VideoRef, endedIndex: Int) {
         autoplayJob?.cancel()
         autoplayJob = scope.launch {
-            val lookedUp: VideoRef? = try {
-                autoplayNext(endedRef)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (e: Exception) {
-                diag("autoplay lookup failed error=${e.javaClass.simpleName}")
-                null
-            }
-            val next = lookedUp ?: return@launch
+            val next = lookUpAutoplay(endedRef) ?: return@launch
             val stillOnEndedItem = index == endedIndex &&
                 queue.getOrNull(index)?.pageUrl == endedRef.pageUrl &&
                 player.playbackState == Player.STATE_ENDED
             if (!stillOnEndedItem) return@launch
-            // play() -> startAt() cancels autoplayJob; this coroutine is it, so detach first.
-            autoplayJob = null
-            play(listOf(next), 0)
-            _state.update { it.copy(autoAdvances = it.autoAdvances + 1) }
+            playAutoplayed(next)
         }
+    }
+
+    /** Next pressed in the shade, on the lockscreen or a headset while the item is still playing:
+     *  the in-app Next, except a single video's Similar pick is looked up here, where no watch
+     *  page exists to supply it. */
+    fun skipNextFromSession() {
+        ensureInit()
+        if (queue.size > 1) return skipNext()
+        trailNext?.let { return it() }
+        val ref = queue.getOrNull(index) ?: return
+        if (!autoplayEnabled()) return
+        autoplayJob?.cancel()
+        autoplayJob = scope.launch {
+            val next = lookUpAutoplay(ref) ?: return@launch
+            if (queue.getOrNull(index)?.pageUrl != ref.pageUrl) return@launch // user moved on
+            playAutoplayed(next)
+        }
+    }
+
+    fun skipPreviousFromSession() {
+        ensureInit()
+        if (queue.size > 1) return skipPrevious()
+        trailPrevious?.invoke()
+    }
+
+    fun canSkipNext(): Boolean = QueueMath.canSkipNext(
+        index, queue.size, _state.value.repeatMode, order, autoplayEnabled(), trailNext != null,
+    )
+
+    fun canSkipPrevious(): Boolean = QueueMath.canSkipPrevious(
+        index, queue.size, _state.value.repeatMode, order, trailPrevious != null,
+    )
+
+    /** AppShell reports the watch trail's Previous/Next (null = none) while a Detail page is on top. */
+    fun setTrailSkips(previous: (() -> Unit)?, next: (() -> Unit)?) {
+        trailPrevious = previous
+        trailNext = next
+        refreshSessionCommands()
+    }
+
+    /** Call when anything Next/Previous availability depends on changed outside the queue itself
+     *  (the autoplay pref). Safe before [init] and from any thread. */
+    fun refreshSessionCommands() {
+        if (!::scope.isInitialized || !::sessionPlayer.isInitialized) return
+        scope.launch { sessionPlayer.notifyCommandsChanged() }
     }
 
     fun play(refs: List<VideoRef>, startIndex: Int, queueTitle: String? = null) {
@@ -422,6 +489,7 @@ object PlaybackSession {
             autoAdvances = _state.value.autoAdvances, // a counter, must survive the reset
         )
         _progress.value = PlaybackProgress()
+        refreshSessionCommands()
         startAt(index)
     }
 
@@ -839,6 +907,7 @@ object PlaybackSession {
         player.clearMediaItems()
         _state.value = PlayerState()
         _progress.value = PlaybackProgress()
+        refreshSessionCommands()
         // nothing left to play: drop the notification/session instead of leaving a stale one up
         appContext.stopService(Intent(appContext, PlaybackService::class.java))
     }
@@ -853,6 +922,7 @@ object PlaybackSession {
         _state.update {
             it.copy(index = index, queueSize = queue.size, queue = queue, current = queue.getOrNull(index))
         }
+        refreshSessionCommands()
     }
 
     // ponytail: the tier2 WebView fallback (engine/WebViewResolver.kt) returns one formatless

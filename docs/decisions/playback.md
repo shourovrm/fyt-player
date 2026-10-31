@@ -1,6 +1,12 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
+2026-10-31 (b): the media session wraps `SessionPlayer` (ForwardingPlayer over ExoPlayer), not ExoPlayer.
+Notification/lockscreen/headset Next+Previous = `QueueMath.canSkipNext/Previous` (queue: next/prev index;
+single video: watch-trail entry or autoplay on) and run `skipNextFromSession/skipPreviousFromSession`
+(queue -> skipNext/skipPrevious; single -> AppShell's trail lambdas via `setTrailSkips`, else the autoplay
+lookup). Buttons refresh on queue change, trail change and the autoplay pref. Device-UNverified; test per
+the 2026-10-31 LOG line.
 2026-10-31: single-video Next = the forward trail first, then the first non-Short Similar video, the
 latter only while autoplay is on (`WatchTrail.nextTarget`, 2 unit tests). Autoplay off and no trail = Next
 is HIDDEN, not disabled. Prev unchanged (only when the entry below is a Detail page). Queue Next/Prev
@@ -258,6 +264,10 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   sponsored-segment skip is still user-unverified.
 
 ## Gotchas
+- ExoPlayer holds <=2 items, so its own hasNext/seekToNext is wrong for the session (jumps into the
+  prefetch slot without moving `index`; reason SEEK so onMediaItemTransition ignores it). Never hand
+  the raw ExoPlayer to MediaSession; Next/Previous belong to `SessionPlayer`. Command changes outside
+  the player's events need `refreshSessionCommands()`, or the notification keeps stale buttons.
 
 - Retry re-arm after 30 s healthy play means a host that serves ~30 s then 403s every fresh URL
   re-resolves once per >=30 s, unbounded. Accepted (PipePipe has no bound at all); cap it if a

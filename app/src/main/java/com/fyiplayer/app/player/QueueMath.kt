@@ -96,6 +96,31 @@ object QueueMath {
     }
 
     /**
+     * Whether Next is worth offering, for the notification, lockscreen and headset. A multi-item
+     * queue answers by the queue alone. A single video has no queue to walk, so Next exists only
+     * when the watch trail has a forward entry or autoplay will pick one -- the same rule the
+     * in-app Next button follows.
+     */
+    fun canSkipNext(
+        currentIndex: Int, size: Int, repeat: RepeatMode, order: List<Int>?,
+        autoplay: Boolean, hasTrailNext: Boolean,
+    ): Boolean = when {
+        size <= 0 -> false
+        size == 1 -> hasTrailNext || autoplay
+        else -> nextIndex(currentIndex, size, repeat, order) != null
+    }
+
+    /** Previous counterpart of [canSkipNext]: a single video can only step back along the trail. */
+    fun canSkipPrevious(
+        currentIndex: Int, size: Int, repeat: RepeatMode, order: List<Int>?,
+        hasTrailPrevious: Boolean,
+    ): Boolean = when {
+        size <= 0 -> false
+        size == 1 -> hasTrailPrevious
+        else -> previousIndex(currentIndex, size, repeat, order) != null
+    }
+
+    /**
      * Which queue indices need a resolved stream right now: the current item, and at most one
      * ahead. Never more — signed URLs expire, so resolving item 40 while item 3 plays hands the
      * player dead links by the time it gets there.
