@@ -12,25 +12,17 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- 2026-10-28 SABR/kids-video round + extractor v5.5.0: built, 598 tests green, NOT installed or
-  device-checked. Checklist in extraction.md Open items ("Made-for-kids"). Run it before anything
-  else lands on top.
-- 2026-10-28 round (icon player bar, dub, chapters, channel header, Shorts grid, recency order, vendored
-  extractor in third_party/) is built, 548 unit tests green, installed on the A059 and device-checked for
-  controls, action row, description, chapters sheet, dub, channel header. NOT yet confirmed on device:
-  History hiding shorts (isShort column, DB v9), shorts slot order, downloads on the vendored extractor.
-- v0.2.26 (Material 3 rebuild) and v0.2.27 (Settings hub, copy cut) released UNverified: no
-  device attached. First device run: clean install, walk Home/Detail/player controls/Downloads/
-  every Settings page at font scale 1.0 and 1.3; ui.md newest entries list what changed.
-- Extractor: tree is now v5.5.0 + 2 patches (device-unverified); last device-verified = v5.2.5.
-  The v5.3.1 progressive-403 cause is still unknown -- check progressive + downloads first.
-- v0.2.25 (segment-start resume) is RELEASED and installed on the A059 but its new path has
-  never been exercised on a device. Verify per playback.md newest entry before building on it.
-- Three 2026-10-06 waves (review x2 + PipePipe port) are committed; partly device-verified 2026-10-07 -- each topic's newest
-  Current state entry lists what was and was NOT verified. Remaining review items: ui.md Open items.
-- Shorts age/CAPTCHA wall not reproduced; on the next report read the `wall:` log line first. See shorts.md.
-- Shorts in Similar wait on a signed-in watch-next. See shorts.md.
-- Device-unverified backlog (v0.2.2 / v0.2.3 items, shorts "all caught up" footer, SponsorBlock skip): build.md, shorts.md, playback.md "Open items".
+- 2026-10-31 (v0.2.33 + 8 commits, unreleased): wall retry visionos->mweb, per-cause wall copy,
+  shade Next/Prev = app rules (device-verified), autoplay switch, History multi-select + undo
+  (device-verified), neutral Download button, comment tap fix. Playback on extractor v5.5.0 now
+  device-verified (A059, Wi-Fi + mobile data, no VPN).
+- Other user's phone (Robi 4G, signed out) gets a wall we can't reproduce; next report: screenshot of
+  the new per-cause message tells which wall. Speed control 0.1-3x: mock at .design-mockups/speed.html.
+- Open: Samsung A13 install fails (need `getprop ro.product.cpu.abilist`; armeabi-v7a build?);
+  "10 Levels of Jev" download shows Failed; kids-video 1080p download + pause/resume unverified;
+  link-opened videos show no title in notification (playback.md); lintRelease 138 errors.
+- History rewritten 2026-10-31 (noreply email, .playwright-mcp dropped); backup bundle at
+  ~/fyt-player-pre-rewrite-2026-10-31.bundle. Older backlog: topic files' Open items.
 
 ## Gotchas (cross-cutting)
 - UI spec = `docs/design-system.md`, copy = `docs/copy.md`; gate tests fail on raw dp/sp/colour
