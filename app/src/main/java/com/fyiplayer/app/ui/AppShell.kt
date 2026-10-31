@@ -216,6 +216,7 @@ fun AppShell(navController: NavHostController) {
             val brightnessGesture by prefs.gestureBrightness.collectAsState(initial = true)
             val volumeGesture by prefs.gestureVolume.collectAsState(initial = true)
             val captionSize by prefs.captionSizeVideo.collectAsState(initial = CaptionSize.DEFAULT)
+            val autoplayNext by prefs.autoplayNext.collectAsState(initial = false)
             val canGoPrevious = WatchTrail.canGoPrevious(routeBelow(navBackStack, entry))
             // One level back: the Detail below replays its own video through its entry guard, the same
             // as system Back. The video being left is remembered first so Next can return to it.
@@ -232,8 +233,9 @@ fun AppShell(navController: NavHostController) {
                 onBack = { navController.popBackStack() },
                 playerSurface = { surfaceRef, fullscreen, onToggleFullscreen, similarSuggestion ->
                     // The forward list wins over the Similar suggestion: Next walks back down a trail
-                    // the user already went up, and only then offers something new.
+                    // the user already went up, and only then, with autoplay on, offers something new.
                     val forwardTarget = watchTrail.nextForward()
+                    val nextTarget = watchTrail.nextTarget(similarSuggestion, autoplayNext)
                     PlayerScreen(
                         fullscreen = fullscreen,
                         onToggleFullscreen = onToggleFullscreen,
@@ -257,12 +259,14 @@ fun AppShell(navController: NavHostController) {
                         },
                         watchTrailEnabled = true,
                         onTrailPrevious = if (canGoPrevious) goPrevious else null,
-                        onTrailNext = (forwardTarget ?: similarSuggestion)?.let { target ->
+                        onTrailNext = nextTarget?.let { target ->
                             {
                                 if (forwardTarget != null) watchTrail = watchTrail.popForward()
                                 navController.openDetail(target)
                             }
                         },
+                        autoplayNext = autoplayNext,
+                        onToggleAutoplayNext = { app.appScope.launch { prefs.setAutoplayNext(!autoplayNext) } },
                     )
                 },
             )

@@ -19,6 +19,13 @@ data class WatchTrail(
     /** The video Next opens from the forward list, or null when there is nothing to go forward to. */
     fun nextForward(): VideoRef? = forward.lastOrNull()
 
+    /**
+     * What Next opens on a single-video page: the forward trail first, then the first Similar video
+     * but only while autoplay is on. With autoplay off and no trail, Next is hidden, not guessed.
+     */
+    fun nextTarget(similar: VideoRef?, autoplayNext: Boolean): VideoRef? =
+        nextForward() ?: similar.takeIf { autoplayNext }
+
     /** Previous leaves [ref] behind, so it becomes the newest forward entry. */
     fun recordLeft(ref: VideoRef): WatchTrail = copy(forward = forward + ref)
 

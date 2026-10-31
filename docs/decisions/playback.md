@@ -1,6 +1,12 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
+2026-10-31: single-video Next = the forward trail first, then the first non-Short Similar video, the
+latter only while autoplay is on (`WatchTrail.nextTarget`, 2 unit tests). Autoplay off and no trail = Next
+is HIDDEN, not disabled. Prev unchanged (only when the entry below is a Detail page). Queue Next/Prev
+unchanged. The autoplay pref (`autoplay_next`, same one as Settings) has a toggle in the player's top-right
+corner (`PlayerTopActions`, Refresh glyph, lit while on). NOT device-verified: check the glyph reads as
+autoplay and that Next appears and disappears as the toggle flips.
 2026-10-28 (c): the slider preview label pill is as wide as its text, centred on the thumbnail card and
 clamped inside the player (`seekPreviewLabelLeftPx`, 5 unit tests); the title is cut only if wider than the
 player minus margins. The card keeps its 160 dp width. Still not device-verified (adb cannot start a slider

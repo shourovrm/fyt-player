@@ -104,11 +104,14 @@ fun PlayerScreen(
     onClose: (() -> Unit)? = null,
     onMinimize: (() -> Unit)? = null,
     // Watch trail (ui/WatchTrail.kt): Previous/Next over the videos opened one after another from
-    // Detail. Only read while the queue holds at most one item. A null [onTrailPrevious] hides the
-    // button (no Detail page below); a null [onTrailNext] shows it disabled (nothing to open yet).
+    // Detail. Only read while the queue holds at most one item. A null [onTrailPrevious] or
+    // [onTrailNext] hides that button (no Detail page below / nothing to open yet).
     watchTrailEnabled: Boolean = false,
     onTrailPrevious: (() -> Unit)? = null,
     onTrailNext: (() -> Unit)? = null,
+    // Autoplay-next pref, shown as a toggle in the top-right corner; the caller owns the pref.
+    autoplayNext: Boolean,
+    onToggleAutoplayNext: () -> Unit,
     // The watch page's own video, when embedded in one: with the session cleared (notification
     // Close) the surface shows this ref's poster + replay instead of a dead "Nothing playing".
     pageRef: VideoRef? = null,
@@ -352,16 +355,18 @@ fun PlayerScreen(
                     ) {
                         if (trailActive) {
                             if (onTrailPrevious != null) {
-                                TransportSkipButton(forward = false, enabled = true) { onTrailPrevious(); interact() }
+                                TransportSkipButton(forward = false) { onTrailPrevious(); interact() }
                             }
                         } else if (state.index > 0) {
-                            TransportSkipButton(forward = false, enabled = true) { PlaybackSession.skipPrevious(); interact() }
+                            TransportSkipButton(forward = false) { PlaybackSession.skipPrevious(); interact() }
                         }
                         CenterPlayButton(onClick = { PlaybackSession.togglePlayPause(); interact() }, playing = state.isPlaying, ended = state.ended)
                         if (trailActive) {
-                            TransportSkipButton(forward = true, enabled = onTrailNext != null) { onTrailNext?.invoke(); interact() }
+                            if (onTrailNext != null) {
+                                TransportSkipButton(forward = true) { onTrailNext(); interact() }
+                            }
                         } else if (state.index + 1 < state.queueSize) {
-                            TransportSkipButton(forward = true, enabled = true) { PlaybackSession.skipNext(); interact() }
+                            TransportSkipButton(forward = true) { PlaybackSession.skipNext(); interact() }
                         }
                     }
                     // Top-right corner, both orientations: chapters, captions, dub. Hidden with the rest
@@ -374,6 +379,8 @@ fun PlayerScreen(
                         captionsAvailable = state.availableCaptions.isNotEmpty(),
                         captionsSelected = state.selectedCaptionLanguage != null,
                         onOpenCaptions = { interact(); showCaptionSheet = true },
+                        autoplayNext = autoplayNext,
+                        onToggleAutoplayNext = { interact(); onToggleAutoplayNext() },
                         modifier = Modifier.align(Alignment.TopEnd),
                     )
                     // Top-left close / minimize, portrait only (PipePipe hides its X in
@@ -478,23 +485,19 @@ fun PlayerScreen(
     }
 }
 
-/** Prev/next glyph button for the centre transport row. A disabled glyph is dimmed, not hidden,
- *  so the user can see that the control exists but has nothing to go to yet. */
+/** Prev/next glyph button for the centre transport row. Smaller than the 64dp play button, which
+ *  stays the row's focus. Callers show it only when there is somewhere to go. */
 @Composable
-private fun TransportSkipButton(forward: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun TransportSkipButton(forward: Boolean, onClick: () -> Unit) {
     val extras = MaterialTheme.fyiExtras
-    val tint = if (enabled) extras.onVideo else extras.onVideo.copy(alpha = DISABLED_GLYPH_ALPHA)
     // Same scrim circle as CenterPlayButton, so a bright frame cannot wash out the glyph.
     IconButton(
         onClick = onClick,
-        enabled = enabled,
         modifier = Modifier
-            .size(Sizes.transportButton)
+            .size(Sizes.touchTarget)
             .clip(CircleShape)
             .background(extras.videoScrimLight),
     ) {
-        SkipGlyph(forward = forward, tint = tint, size = Sizes.transportGlyph)
+        SkipGlyph(forward = forward, tint = extras.onVideo, size = Sizes.iconLarge)
     }
 }
-
-private const val DISABLED_GLYPH_ALPHA = 0.4f

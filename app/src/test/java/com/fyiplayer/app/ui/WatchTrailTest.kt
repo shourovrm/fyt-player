@@ -69,6 +69,14 @@ class WatchTrailTest {
         assertNull(afterOtherPush.nextForward())
     }
 
+    @Test fun `Next goes to the trail first, then to Similar only while autoplay is on`() {
+        val trail = WatchTrail().recordLeft(video("a"))
+
+        assertEquals(video("a"), trail.nextTarget(similar = video("s"), autoplayNext = false))
+        assertEquals(video("s"), WatchTrail().nextTarget(similar = video("s"), autoplayNext = true))
+        assertNull(WatchTrail().nextTarget(similar = video("s"), autoplayNext = false))
+    }
+
     @Test fun `cleared drops the forward list`() {
         val trail = WatchTrail().recordLeft(video("a")).cleared()
 

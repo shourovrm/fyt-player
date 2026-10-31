@@ -1,6 +1,11 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-31: player centre skip buttons (Prev/Next) shrunk to a 48dp circle with a 32dp glyph (were 64dp /
+40dp); the 64dp play button is unchanged. The top-right corner gained an autoplay toggle (Refresh glyph,
+primary colour while on, onVideo while off, descriptions "Autoplay next video" / "Stop autoplay next").
+Behaviour of Next is in playback.md. MiniPlayer's Next is a 48dp target with a 24dp icon, not oversized, so
+it is unchanged. NOT device-verified.
 2026-10-28 (c): About page rebuilt as mockup variant C (`settings/About*.kt`; `AppSettings.kt` and
 `EngineSettings.kt` deleted, only About used them): hero (logo tile, name, version, update-status chip), a
 strip of round buttons Update / Site support / Reports (Reports only when a crash or playback log exists),
