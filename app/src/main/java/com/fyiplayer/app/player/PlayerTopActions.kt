@@ -94,7 +94,10 @@ internal fun PlayerTopActions(
         )
         IconButton(
             onClick = onToggleAutoplayNext,
-            colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim),
+            // Filled when on: a primary-coloured glyph alone vanishes against the dark video scrim.
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = if (autoplayNext) MaterialTheme.colorScheme.primary else extras.videoScrim,
+            ),
             modifier = Modifier
                 .size(Sizes.touchTarget)
                 .semantics { contentDescription = autoplayDescription },
@@ -102,7 +105,7 @@ internal fun PlayerTopActions(
             Icon(
                 Icons.Filled.Refresh,
                 contentDescription = null,
-                tint = if (autoplayNext) MaterialTheme.colorScheme.primary else extras.onVideo,
+                tint = if (autoplayNext) MaterialTheme.colorScheme.onPrimary else extras.onVideo,
                 modifier = Modifier.size(Sizes.icon),
             )
         }
