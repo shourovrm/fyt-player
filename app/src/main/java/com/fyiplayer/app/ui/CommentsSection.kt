@@ -150,7 +150,9 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
             }
         }
         Text(
-            body,
+            // Links past the 3-line cut-off still get tap targets, which swallowed taps on the visible
+            // text. Keep them live only once expanded; collapsed, a tap just expands.
+            if (expanded) body else AnnotatedString(body.text),
             style = MaterialTheme.typography.bodyMedium,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,
