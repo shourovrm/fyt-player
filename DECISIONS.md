@@ -12,12 +12,12 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- 2026-10-31 (v0.2.33 + 8 commits, unreleased): wall retry visionos->mweb, per-cause wall copy,
+- 2026-10-31 released v0.2.34 + v0.2.35 (speed 0.1-3x, sheet fits fullscreen; release APK sha256 = local = installed): wall retry visionos->mweb, per-cause wall copy,
   shade Next/Prev = app rules (device-verified), autoplay switch, History multi-select + undo
   (device-verified), neutral Download button, comment tap fix. Playback on extractor v5.5.0 now
   device-verified (A059, Wi-Fi + mobile data, no VPN).
 - Other user's phone (Robi 4G, signed out) gets a wall we can't reproduce; next report: screenshot of
-  the new per-cause message tells which wall. Speed control 0.1-3x: mock at .design-mockups/speed.html.
+  the new per-cause message tells which wall.
 - Open: Samsung A13 install fails (need `getprop ro.product.cpu.abilist`; armeabi-v7a build?);
   "10 Levels of Jev" download shows Failed; kids-video 1080p download + pause/resume unverified;
   lintRelease 138 errors.
