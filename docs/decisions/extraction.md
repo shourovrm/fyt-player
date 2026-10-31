@@ -2,6 +2,8 @@
 
 ## Current state
 
+2026-10-31: wall second chance (`WallRetry.kt`): any wall except GEO_BLOCK/PAID gets visionos again after 1s, then mweb + PO token (TubePipe's order), for resolve AND detail (shared lock, so one retry per page). PipePipe itself has no client fallback; same extractor v5.5.0 (`1a09d20e` = upstream main). NOT device-verified on a walled network.
+
 2026-10-28: vendored extractor bumped to PipePipeExtractor v5.5.0 (1a09d20e; TubePipe's pin), two
 patches re-ported (search patch shrank to the reelShelfRenderer branch: upstream now walks
 gridShelfViewModel itself). App-side API change: `CommentsInfoItem.getCommentText()` returns a

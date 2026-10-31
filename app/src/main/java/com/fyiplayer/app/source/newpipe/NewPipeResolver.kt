@@ -65,10 +65,10 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
                     "${mapped::class.simpleName} reason=$wallReason",
             )
             // Age/login wall + signed in: retry once on the TVHTML5 client, whose player responses
-            // honour the account's age verification. Any other wall (rate limit, bot check, geo,
-            // paid) is not about the account, and a second request with the cookie attached would
-            // be a retry through it. Everything else resolves on visionos -- TVHTML5 URLs are
-            // ciphered and googlevideo 403s them for popular videos.
+            // honour the account's age verification. Other walls are not about the account (see
+            // signedInRetryMayHelp). Everything else resolves on visionos -- TVHTML5 URLs are
+            // ciphered and googlevideo 403s them for popular videos. Then fetchAfterWall tries
+            // visionos again and mweb, for any wall another client may clear.
             val retryAllowed = wallReason?.signedInRetryMayHelp() == true
             if (retryAllowed && YoutubeAuth.cookieHeader() != null) {
                 val retryStartedAt = System.currentTimeMillis()
@@ -88,11 +88,14 @@ class NewPipeResolver(private val client: OkHttpClient) : UrlScopedResolver {
                         TAG,
                         "signed-in retry failed in ${System.currentTimeMillis() - retryStartedAt}ms: ${e2::class.simpleName}",
                     )
-                    throw mapped // the wall is the honest reason, not the retry's failure
                 }
+            } else if (wallReason != null) {
+                DiagLog.log(TAG, "signed-in retry skipped: allowed=$retryAllowed")
             }
-            if (wallReason != null) DiagLog.log(TAG, "signed-in retry skipped: allowed=$retryAllowed")
-            throw mapped
+            if (wallReason?.otherClientMayHelp() == true) {
+                fetchAfterWall(ref.pageUrl)?.let { return@withContext toResolved(ref, withSabrIfLowQuality(ref, it)) }
+            }
+            throw mapped // the wall is the honest reason, not a retry's failure
         }
         toResolved(ref, withSabrIfLowQuality(ref, info))
     }

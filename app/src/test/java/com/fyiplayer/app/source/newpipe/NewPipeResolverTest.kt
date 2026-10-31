@@ -83,6 +83,17 @@ class NewPipeResolverTest {
     }
 
     @Test
+    fun otherClientRetrySkipsOnlyRegionAndPaid() {
+        assertTrue(AccessChallengeReason.BOT_CHECK.otherClientMayHelp())
+        assertTrue(AccessChallengeReason.RATE_LIMIT.otherClientMayHelp())
+        assertTrue(AccessChallengeReason.LOGIN_REQUIRED.otherClientMayHelp())
+        assertTrue(AccessChallengeReason.AGE_RESTRICTION.otherClientMayHelp())
+        assertTrue(AccessChallengeReason.UNKNOWN.otherClientMayHelp())
+        assertFalse(AccessChallengeReason.GEO_BLOCK.otherClientMayHelp())
+        assertFalse(AccessChallengeReason.PAID.otherClientMayHelp())
+    }
+
+    @Test
     fun contentGoneExceptionsMapToContentUnavailable() {
         assertTrue(mapNewPipeError(PrivateContentException("gone")) is ExtractionError.ContentUnavailable)
         assertTrue(mapNewPipeError(ContentNotAvailableException("gone")) is ExtractionError.ContentUnavailable)

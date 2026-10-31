@@ -198,7 +198,14 @@ class NewPipeYoutubeSource(
         NewPipeInit.ensure(client)
         // Shared with NewPipeResolver.resolve/seekThumbnails: one StreamInfo fetch per video url,
         // not three (see StreamInfoCache).
-        val info = guardedWithRetry { StreamInfoCache.get(ref.pageUrl) }
+        val info = try {
+            guardedWithRetry { StreamInfoCache.get(ref.pageUrl) }
+        } catch (wall: ExtractionError.AccessChallenge) {
+            // Same second chance as NewPipeResolver.resolve, else the page falls back to the
+            // listing's few fields while playback recovers.
+            if (!wall.reason.otherClientMayHelp()) throw wall
+            fetchAfterWall(ref.pageUrl) ?: throw wall
+        }
         val uploaderListing = info.uploaderUrl?.let {
             Listing(sourceId = SOURCE_ID, kind = Listing.Kind.CHANNEL, key = it, title = info.uploaderName ?: "")
         }

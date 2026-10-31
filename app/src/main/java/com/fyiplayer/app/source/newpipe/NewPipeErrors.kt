@@ -65,10 +65,15 @@ private fun wallReason(e: Exception): AccessChallengeReason = when (e) {
     else -> AccessChallengeReason.UNKNOWN
 }
 
-/** Only these two walls are about the account; a signed-in session can clear them. Retrying
- *  through a rate limit or a bot check would be a retry through the wall, which is forbidden. */
+/** Only these two walls are about the account; a signed-in session can clear them. Sending the
+ *  cookie through a rate limit or a bot check would tie the account to the flagged request. */
 internal fun AccessChallengeReason.signedInRetryMayHelp(): Boolean =
     this == AccessChallengeReason.AGE_RESTRICTION || this == AccessChallengeReason.LOGIN_REQUIRED
+
+/** YouTube walls one client while another plays (TubePipe falls back visionos -> mweb on any
+ *  failure). Region and payment walls hold for every client, so retrying them only costs time. */
+internal fun AccessChallengeReason.otherClientMayHelp(): Boolean =
+    this != AccessChallengeReason.GEO_BLOCK && this != AccessChallengeReason.PAID
 
 /** Bounded cause-chain walk (8 deep, same spirit as [logged]'s 6-frame cap) so a cyclic or very
  *  deep chain can't hang this check. */
