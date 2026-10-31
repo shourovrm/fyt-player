@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -28,7 +27,6 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  * button shows only when it has something to offer: Chapters when the video has any, Captions
  * when it has subtitle tracks, Dub when there is more than one audio language to switch between.
  * Captions draws filled while a subtitle language is selected, so the state reads without a sheet.
- * Autoplay is always offered; it is lit while on, the same way Loop shows its state.
  */
 @Composable
 internal fun PlayerTopActions(
@@ -39,8 +37,6 @@ internal fun PlayerTopActions(
     captionsAvailable: Boolean,
     captionsSelected: Boolean,
     onOpenCaptions: () -> Unit,
-    autoplayNext: Boolean,
-    onToggleAutoplayNext: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val extras = MaterialTheme.fyiExtras
@@ -88,26 +84,6 @@ internal fun PlayerTopActions(
             ) {
                 GlobeGlyph(tint = extras.onVideo, size = Sizes.icon)
             }
-        }
-        val autoplayDescription = stringResource(
-            if (autoplayNext) R.string.player_autoplay_stop else R.string.player_autoplay,
-        )
-        IconButton(
-            onClick = onToggleAutoplayNext,
-            // Filled when on: a primary-coloured glyph alone vanishes against the dark video scrim.
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = if (autoplayNext) MaterialTheme.colorScheme.primary else extras.videoScrim,
-            ),
-            modifier = Modifier
-                .size(Sizes.touchTarget)
-                .semantics { contentDescription = autoplayDescription },
-        ) {
-            Icon(
-                Icons.Filled.Refresh,
-                contentDescription = null,
-                tint = if (autoplayNext) MaterialTheme.colorScheme.onPrimary else extras.onVideo,
-                modifier = Modifier.size(Sizes.icon),
-            )
         }
     }
 }

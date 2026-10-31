@@ -87,6 +87,8 @@ internal fun ControlBar(
     onOpenSpeed: () -> Unit,
     looping: Boolean,
     onToggleLoop: () -> Unit,
+    autoplayNext: Boolean,
+    onToggleAutoplayNext: () -> Unit,
     chapters: List<Chapter>,
     onScrubbingChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -257,6 +259,7 @@ internal fun ControlBar(
             ControlIcon(description = stringResource(R.string.player_menu_quality), onClick = onOpenQuality) {
                 QualityBadge(qualityButtonText)
             }
+            AutoplaySwitch(checked = autoplayNext, onToggle = onToggleAutoplayNext)
             ControlIcon(
                 description = stringResource(if (looping) R.string.player_loop_stop else R.string.player_loop),
                 onClick = onToggleLoop,

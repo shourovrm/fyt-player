@@ -44,6 +44,11 @@ object Sizes {
     val transportButton: Dp = 64.dp
     val progressTrack: Dp = 4.dp
     val progressThin: Dp = 2.dp
+    // Autoplay switch in the player bar (YouTube-style small track with a knob).
+    val switchTrackWidth: Dp = 36.dp
+    val switchTrackHeight: Dp = 20.dp
+    val switchKnob: Dp = 16.dp
+    val switchGlyph: Dp = 10.dp
 
     // 16:9 thumbnails snapped to the 4 dp grid.
     val thumbWidth: Dp = 120.dp

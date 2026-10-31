@@ -381,8 +381,6 @@ fun PlayerScreen(
                         captionsAvailable = state.availableCaptions.isNotEmpty(),
                         captionsSelected = state.selectedCaptionLanguage != null,
                         onOpenCaptions = { interact(); showCaptionSheet = true },
-                        autoplayNext = autoplayNext,
-                        onToggleAutoplayNext = { interact(); onToggleAutoplayNext() },
                         modifier = Modifier.align(Alignment.TopEnd),
                     )
                     // Top-left close / minimize, portrait only (PipePipe hides its X in
@@ -425,6 +423,8 @@ fun PlayerScreen(
                     onOpenSpeed = { interact(); showSpeedSheet = true },
                     looping = state.repeatMode == RepeatMode.ONE,
                     onToggleLoop = { interact(); PlaybackSession.toggleLoop() },
+                    autoplayNext = autoplayNext,
+                    onToggleAutoplayNext = { interact(); onToggleAutoplayNext() },
                     chapters = chapters,
                     onScrubbingChange = { scrubbing = it; if (it) interact() },
                     modifier = Modifier.align(Alignment.BottomStart),

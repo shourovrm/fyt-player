@@ -24,8 +24,8 @@
     <string name="player_menu_captions">Captions</string>
     <string name="player_loop">Loop video</string>
     <string name="player_loop_stop">Stop looping</string>
-    <string name="player_autoplay">Autoplay next video</string>
-    <string name="player_autoplay_stop">Stop autoplay next</string>
+    <string name="player_autoplay_on">Autoplay on</string>
+    <string name="player_autoplay_off">Autoplay off</string>
 
     <!-- sheet rows -->
     <string name="player_quality_auto">Auto</string>
