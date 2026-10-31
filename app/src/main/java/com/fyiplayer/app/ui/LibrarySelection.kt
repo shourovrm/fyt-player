@@ -11,8 +11,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
@@ -33,6 +35,14 @@ internal fun selectAllOrNone(items: List<VideoRef>, selection: Set<String>): Set
     val all = items.mapTo(LinkedHashSet()) { it.pageUrl }
     return if (selection.containsAll(all) && all.isNotEmpty()) emptySet() else all
 }
+
+/** State of the select-all checkbox: empty, some (dash) or every displayed row selected. */
+internal fun selectAllState(total: Int, selected: Int): ToggleableState =
+    when {
+        selected == 0 || total == 0 -> ToggleableState.Off
+        selected >= total -> ToggleableState.On
+        else -> ToggleableState.Indeterminate
+    }
 
 /** Same toggle as [selectAllOrNone] for rows that aren't a [VideoRef] (channels, followed
  *  playlists) -- named distinctly rather than overloaded: `List<VideoRef>` and `List<String>`
@@ -75,20 +85,26 @@ internal fun sharePlaylist(context: Context, title: String, pageUrl: String?, vi
     context.startActivity(Intent.createChooser(send, context.getString(R.string.library_share_chooser)))
 }
 
-/** Replaces the screen's own top bar while selecting: X · "N selected" · All · caller's actions. */
+/** Replaces the screen's own top bar while selecting: X · "N selected" · select all · caller's actions.
+ *  Select all is a text button, or a tri-state checkbox when the caller passes [allState]. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SelectionTopBar(
     count: Int,
     onClose: () -> Unit,
     onSelectAll: () -> Unit,
+    allState: ToggleableState? = null,
     actions: @Composable () -> Unit = {},
 ) {
     TopAppBar(
         title = { Text(stringResource(R.string.library_selected_count, count)) },
         navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_done)) } },
         actions = {
-            TextButton(onClick = onSelectAll) { Text(stringResource(R.string.library_select_all)) }
+            if (allState == null) {
+                TextButton(onClick = onSelectAll) { Text(stringResource(R.string.library_select_all)) }
+            } else {
+                TriStateCheckbox(state = allState, onClick = onSelectAll)
+            }
             actions()
         },
     )

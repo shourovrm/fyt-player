@@ -41,5 +41,19 @@ class HistoryRepository(private val dao: WatchHistoryDao) {
 
     suspend fun remove(pageUrl: String) = dao.delete(pageUrl)
 
+    /** Deletes the rows and returns them whole (watchedAt included) so [restore] can undo exactly.
+     *  Chunked: SQLite caps the number of bound variables in one IN (...). */
+    suspend fun removeAll(pageUrls: Collection<String>): List<WatchHistoryEntity> {
+        val removed = pageUrls.chunked(IN_CHUNK).flatMap { dao.getByUrls(it) }
+        pageUrls.chunked(IN_CHUNK).forEach { dao.deleteByUrls(it) }
+        return removed
+    }
+
+    suspend fun restore(entries: List<WatchHistoryEntity>) = dao.upsertAll(entries)
+
     suspend fun clear() = dao.clear()
+
+    private companion object {
+        const val IN_CHUNK = 500
+    }
 }

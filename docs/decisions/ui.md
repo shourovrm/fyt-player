@@ -1,6 +1,7 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-10-31 (built-unverified): Library History multi-select (mock .design-mockups/history-select.html, d1): long-press selects, rows get checkboxes, `SelectionTopBar(allState=)` shows a tri-state checkbox (other tabs keep the "All" text button), trash Remove -> `HistoryRepository.removeAll` returns the full rows, snackbar "N videos removed" + Undo -> `restore` re-upserts them (same watchedAt). Long-press no longer opens the action sheet on History. Deselecting every row exits selection (empty set == off), unlike the mock's "stays in selection mode".
 2026-10-31 (built-unverified): Detail Download button is a plain neutral IconButton like Like/Save/Share; it turns
 primary only when the video has a COMPLETED download row (`VideoActions.downloadedFlow` <- `DownloadQueue.isDownloaded`,
 derived from the in-memory `rows`, no I/O). No in-progress state existed, none added. Comment bodies (`CommentBody`
@@ -10,8 +11,8 @@ bounding box, so a wrapped link also swallowed plain text beside it. Gotcha: `ge
 also check `getBoundingBox(offset).contains(position)` or blank space after a line end hits the last char.
 2026-10-31: wall errors read per cause (`ErrorMessages.kt`, shared by player and lists); player shows Sign in for bot check/age/login, Retry for rate limit/unknown, neither for region/paid.
 2026-10-31: player centre skip buttons (Prev/Next) shrunk to a 48dp circle with a 32dp glyph (were 64dp /
-40dp); the 64dp play button is unchanged. The top-right corner gained an autoplay toggle (Refresh glyph,
-primary colour while on, onVideo while off, descriptions "Autoplay next video" / "Stop autoplay next").
+40dp); the 64dp play button is unchanged. The autoplay toggle is now a YouTube-style switch (`AutoplaySwitch`: track + play-glyph knob, primary track while on,
+outlined while off, "Autoplay on/off") in the bottom bar left of Repeat; it left the top-right corner.
 Behaviour of Next is in playback.md. MiniPlayer's Next is a 48dp target with a 24dp icon, not oversized, so
 it is unchanged. NOT device-verified.
 2026-10-28 (c): About page rebuilt as mockup variant C (`settings/About*.kt`; `AppSettings.kt` and

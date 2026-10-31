@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import androidx.compose.ui.state.ToggleableState
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import org.junit.Assert.assertEquals
@@ -10,6 +11,13 @@ private fun ref(url: String) = VideoRef(sourceId = "yt", pageUrl = url, remoteId
 private fun listing(key: String) = Listing(sourceId = "yt", kind = Listing.Kind.PLAYLIST, key = key, title = key)
 
 class LibrarySelectionTest {
+
+    @Test fun `select all state is off, dash or on`() {
+        assertEquals(ToggleableState.Off, selectAllState(total = 3, selected = 0))
+        assertEquals(ToggleableState.Indeterminate, selectAllState(total = 3, selected = 1))
+        assertEquals(ToggleableState.On, selectAllState(total = 3, selected = 3))
+        assertEquals(ToggleableState.Off, selectAllState(total = 0, selected = 0))
+    }
 
     @Test fun `toggle adds then removes`() {
         val a = setOf("a")

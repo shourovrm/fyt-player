@@ -32,6 +32,15 @@ interface WatchHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: WatchHistoryEntity)
 
+    @Query("SELECT * FROM watch_history WHERE pageUrl IN (:pageUrls)")
+    suspend fun getByUrls(pageUrls: List<String>): List<WatchHistoryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(entries: List<WatchHistoryEntity>)
+
+    @Query("DELETE FROM watch_history WHERE pageUrl IN (:pageUrls)")
+    suspend fun deleteByUrls(pageUrls: List<String>)
+
     @Query("DELETE FROM watch_history WHERE pageUrl = :pageUrl")
     suspend fun delete(pageUrl: String)
 

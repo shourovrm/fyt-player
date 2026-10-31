@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -202,6 +203,7 @@ internal fun ResultRow(
     onLongPress: () -> Unit,
     selected: Boolean = false,
     selecting: Boolean = false,
+    showCheckbox: Boolean = false,
 ) {
     Row(
         Modifier
@@ -213,6 +215,8 @@ internal fun ResultRow(
             .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The row itself is the click target, so the box only shows state.
+        if (showCheckbox) Checkbox(checked = selected, onCheckedChange = null, modifier = Modifier.padding(end = Spacing.s16))
         Box(Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             // Library rows (likes/playlist/history) can carry only a bare pageUrl when the add
             // happened before enrichment landed -- fall back to the un-expiring hqdefault so the

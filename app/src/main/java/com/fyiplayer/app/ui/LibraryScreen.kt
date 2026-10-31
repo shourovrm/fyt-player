@@ -41,6 +41,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -88,7 +91,7 @@ import kotlinx.coroutines.launch
 /**
  * Likes / Playlists / History (DESIGN.md §5, §7). Tab + selection live in [LibraryViewModel] so
  * they survive tab switches, a trip to Detail/PlaylistDetail and back, and rotation. Multi-select
- * only exists on Likes -- Playlists has its own CRUD, and History's bulk action is "clear" outright.
+ * exists on Likes, Channels, Playlists and History (History: Remove with an Undo snackbar).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,6 +102,12 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     BackHandler(enabled = selecting) { vm.clearSelection() }
 
     val liked by vm.likes.observe().collectAsStateWithLifecycle(initialValue = emptyList())
+    // Shorts are recorded as "seen" for feed ordering (ShortsViewModel.recordShown); the History
+    // list stays for videos. Hoisted here so the selection bar can count and select-all them.
+    val history by vm.history.observe().collectAsStateWithLifecycle(initialValue = null)
+    val historyVideos = history?.filterNot { it.isShort }
+    val snackbarHost = remember { SnackbarHostState() }
+    val context = LocalContext.current
     val channels by vm.subscriptions.observeAllRows().collectAsStateWithLifecycle(initialValue = emptyList())
     var showAddToPlaylist by remember { mutableStateOf(false) }
     var showUnsubscribeConfirm by remember { mutableStateOf(false) }
@@ -116,9 +125,11 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                         vm.selection = when (vm.tab) {
                             LibraryTab.LIKES -> selectAllOrNone(liked, vm.selection)
                             LibraryTab.CHANNELS -> selectAllOrNoneByKey(channels.map { it.listing.key }, vm.selection)
-                            LibraryTab.PLAYLISTS, LibraryTab.HISTORY -> vm.selection
+                            LibraryTab.HISTORY -> selectAllOrNone(historyVideos.orEmpty(), vm.selection)
+                            LibraryTab.PLAYLISTS -> vm.selection
                         }
                     },
+                    allState = if (vm.tab == LibraryTab.HISTORY) selectAllState(historyVideos.orEmpty().size, vm.selection.size) else null,
                     actions = {
                         when (vm.tab) {
                             LibraryTab.LIKES -> {
@@ -154,7 +165,20 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                             LibraryTab.PLAYLISTS -> IconButton(onClick = { showUnfollowConfirm = true }) {
                                 Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_remove))
                             }
-                            LibraryTab.HISTORY -> {}
+                            LibraryTab.HISTORY -> IconButton(onClick = {
+                                val urls = vm.selection
+                                vm.clearSelection()
+                                scope.launch {
+                                    val removed = vm.history.removeAll(urls)
+                                    val result = snackbarHost.showSnackbar(
+                                        message = context.resources.getQuantityString(R.plurals.library_history_removed, removed.size, removed.size),
+                                        actionLabel = context.getString(R.string.action_undo),
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) vm.history.restore(removed)
+                                }
+                            }) {
+                                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_remove))
+                            }
                         }
                     },
                 )
@@ -162,6 +186,7 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                 TopAppBar(title = { Text(stringResource(R.string.library_title)) })
             }
         },
+        snackbarHost = { SnackbarHost(snackbarHost) },
         floatingActionButton = {
             if (selecting && vm.tab == LibraryTab.LIKES) {
                 PlaySelectionFab(vm.selection.size) {
@@ -196,7 +221,12 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                     selecting = selecting,
                     onToggle = vm::toggleKey,
                 )
-                LibraryTab.HISTORY -> HistoryTab(vm, onOpen = openDetail)
+                LibraryTab.HISTORY -> HistoryTab(
+                    vm = vm,
+                    list = historyVideos,
+                    selecting = selecting,
+                    onOpen = openDetail,
+                )
                 LibraryTab.CHANNELS -> ChannelsTab(
                     channels = channels,
                     selection = vm.selection,
@@ -607,12 +637,10 @@ private fun MonogramDisc(title: String, size: Dp) {
 }
 
 @Composable
-private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
+private fun HistoryTab(vm: LibraryViewModel, list: List<VideoRef>?, selecting: Boolean, onOpen: (VideoRef) -> Unit) {
     val scope = rememberCoroutineScope()
     val recording by vm.prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
-    val entries by vm.history.observe().collectAsStateWithLifecycle(initialValue = null)
     var confirmingClear by remember { mutableStateOf(false) }
-    var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         if (!recording) {
@@ -623,18 +651,26 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
                 modifier = Modifier.padding(Spacing.pageMargin),
             )
         }
-        // Shorts are recorded as "seen" for feed ordering (ShortsViewModel.recordShown); the History
-        // list stays for videos. Page URLs are all /watch?v=, so the stored isShort flag decides.
-        val list = entries?.filterNot { it.isShort }
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_history_empty))
             else -> {
-                Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.library_clear_history)) }
+                if (!selecting) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.library_clear_history)) }
+                    }
                 }
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(list, key = { it.pageUrl }) { ref -> ResultRow(ref, onClick = { onOpen(ref) }, onLongPress = { actionSheetRef = ref }) }
+                    items(list, key = { it.pageUrl }) { ref ->
+                        ResultRow(
+                            ref,
+                            onClick = { if (selecting) vm.toggle(ref) else onOpen(ref) },
+                            onLongPress = { vm.toggle(ref) },
+                            selected = ref.pageUrl in vm.selection,
+                            selecting = selecting,
+                            showCheckbox = selecting,
+                        )
+                    }
                 }
             }
         }
@@ -649,7 +685,6 @@ private fun HistoryTab(vm: LibraryViewModel, onOpen: (VideoRef) -> Unit) {
             onDismiss = { confirmingClear = false },
         )
     }
-    actionSheetRef?.let { ref -> VideoActionSheet(ref, onDismiss = { actionSheetRef = null }) }
 }
 
 @Composable
