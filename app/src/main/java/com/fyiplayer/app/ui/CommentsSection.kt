@@ -23,7 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkInteractionListener
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
@@ -36,6 +41,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.Listing
+import com.fyiplayer.app.core.VideoRef
 
 /**
  * The Comments tab's content. Fetching and error/retry state live in [DetailTabsViewModel] now
@@ -52,8 +59,12 @@ internal fun CommentsSection(
     error: ExtractionError?,
     retryEnabled: Boolean,
     onRetry: () -> Unit,
+    currentRef: VideoRef,
+    onOpenDetail: (VideoRef) -> Unit,
+    onOpenListing: (Listing) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val links = htmlLinkListener(currentRef, onOpenDetail, onOpenListing)
     Column(modifier.fillMaxWidth()) {
         when {
             loading && comments.isEmpty() -> Box(Modifier.fillMaxWidth().padding(Spacing.s24), contentAlignment = Alignment.Center) {
@@ -75,16 +86,16 @@ internal fun CommentsSection(
             else -> {
                 val topLevel = comments.filter { it.parentId == null }
                 val repliesByParent = comments.filter { it.parentId != null }.groupBy { it.parentId }
-                topLevel.forEach { c -> CommentThread(c, repliesByParent[c.id].orEmpty()) }
+                topLevel.forEach { c -> CommentThread(c, repliesByParent[c.id].orEmpty(), links) }
             }
         }
     }
 }
 
 @Composable
-private fun CommentThread(comment: Comment, replies: List<Comment>) {
+private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkInteractionListener) {
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
-        CommentRow(comment)
+        CommentRow(comment, links)
         if (replies.isNotEmpty()) {
             var expanded by remember(comment.id) { mutableStateOf(false) }
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(vertical = 0.dp)) {
@@ -98,7 +109,7 @@ private fun CommentThread(comment: Comment, replies: List<Comment>) {
             }
             if (expanded) {
                 Column(Modifier.padding(start = Spacing.s24)) {
-                    replies.forEach { r -> CommentRow(r) }
+                    replies.forEach { r -> CommentRow(r, links) }
                 }
             }
         }
@@ -106,8 +117,14 @@ private fun CommentThread(comment: Comment, replies: List<Comment>) {
 }
 
 @Composable
-private fun CommentRow(comment: Comment) {
+private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
     var expanded by remember(comment.id) { mutableStateOf(false) }
+    val body = if (comment.isHtml) {
+        val linkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
+        AnnotatedString.fromHtml(comment.text, linkStyles = linkStyles, linkInteractionListener = links)
+    } else {
+        AnnotatedString(comment.text)
+    }
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(comment.author, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
@@ -133,7 +150,7 @@ private fun CommentRow(comment: Comment) {
             }
         }
         Text(
-            comment.text,
+            body,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,

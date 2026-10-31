@@ -265,6 +265,8 @@ data class Comment(
     val isUploader: Boolean = false,
     val isHearted: Boolean = false,
     val authorAvatarUrl: String? = null,
+    /** True when [text] is YouTube HTML (`<a>`, `<br>`) and must be parsed, not shown literally. */
+    val isHtml: Boolean = false,
 )
 
 /** A curated topic shelf on Home's "Explore" chip row -- YouTube's official topic channel per

@@ -97,6 +97,9 @@ internal fun ShortsDetailsSheet(ref: VideoRef, onDismiss: () -> Unit) {
                             error = tabsVm.commentsError,
                             retryEnabled = !tabsVm.commentsBlocked,
                             onRetry = { tabsVm.retryComments(source, ref) },
+                            currentRef = ref,
+                            onOpenDetail = openDetail,
+                            onOpenListing = openListing,
                         )
                     }
                     DetailTab.SIMILAR -> {} // never selected in this sheet

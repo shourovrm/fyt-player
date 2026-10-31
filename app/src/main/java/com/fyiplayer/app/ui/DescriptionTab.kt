@@ -68,14 +68,9 @@ private fun DescriptionText(
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
 ) {
-    val context = LocalContext.current
     val linkColor = MaterialTheme.colorScheme.primary
     val linkStyles = TextLinkStyles(SpanStyle(color = linkColor))
-    val listener = LinkInteractionListener { link ->
-        (link as? LinkAnnotation.Url)?.url?.let { url ->
-            handleDescriptionLink(url, detail.ref, context, onOpenDetail, onOpenListing)
-        }
-    }
+    val listener = htmlLinkListener(detail.ref, onOpenDetail, onOpenListing)
     val parsed = if (detail.descriptionIsHtml) {
         AnnotatedString.fromHtml(description, linkStyles = linkStyles, linkInteractionListener = listener)
     } else {
@@ -86,6 +81,21 @@ private fun DescriptionText(
     val base = stripChapterLines(parsed, detail.chapters)
     SelectionContainer(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
         Text(linkifyGaps(base, detail.ref.pageUrl, linkStyles, listener), style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Tap routing for links parsed out of YouTube HTML. Shared by the Description and Comments tabs. */
+@Composable
+internal fun htmlLinkListener(
+    currentRef: VideoRef,
+    onOpenDetail: (VideoRef) -> Unit,
+    onOpenListing: (Listing) -> Unit,
+): LinkInteractionListener {
+    val context = LocalContext.current
+    return LinkInteractionListener { link ->
+        (link as? LinkAnnotation.Url)?.url?.let { url ->
+            handleDescriptionLink(url, currentRef, context, onOpenDetail, onOpenListing)
+        }
     }
 }
 

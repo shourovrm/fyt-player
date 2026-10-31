@@ -370,6 +370,9 @@ fun DetailScreen(
                                 error = tabsVm.commentsError,
                                 retryEnabled = !tabsVm.commentsBlocked,
                                 onRetry = { tabsVm.retryComments(source, shownRef) },
+                                currentRef = detail.ref,
+                                onOpenDetail = onOpenDetail,
+                                onOpenListing = onOpenListing,
                                 modifier = Modifier.padding(top = 10.dp),
                             )
                         }

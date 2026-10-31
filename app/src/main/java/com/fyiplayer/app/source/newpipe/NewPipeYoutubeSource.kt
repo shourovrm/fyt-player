@@ -474,6 +474,7 @@ private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     isUploader = false,
     isHearted = isHeartedByUploader,
     authorAvatarUrl = uploaderAvatarUrl,
+    isHtml = commentText?.type == Description.HTML,
 )
 
 /** True when [date] is in the future -- a premiere reports its scheduled start time as its
