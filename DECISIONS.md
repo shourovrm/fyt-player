@@ -20,7 +20,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
   the new per-cause message tells which wall. Speed control 0.1-3x: mock at .design-mockups/speed.html.
 - Open: Samsung A13 install fails (need `getprop ro.product.cpu.abilist`; armeabi-v7a build?);
   "10 Levels of Jev" download shows Failed; kids-video 1080p download + pause/resume unverified;
-  link-opened videos show no title in notification (playback.md); lintRelease 138 errors.
+  lintRelease 138 errors.
 - History rewritten 2026-10-31 (noreply email, .playwright-mcp dropped); backup bundle at
   ~/fyt-player-pre-rewrite-2026-10-31.bundle. Older backlog: topic files' Open items.
 

@@ -180,7 +180,14 @@ private fun toResolved(ref: VideoRef, info: StreamInfo): Resolved {
             // diagnostics only
         }
     }
-    return Resolved(ref = ref, formats = formats, resolvedAtMillis = System.currentTimeMillis(), captions = captions)
+    // A link-opened ref is bare (no title); the page info fills it so the notification has one.
+    val resolvedRef = ref.copy(
+        title = info.name?.takeIf { it.isNotBlank() } ?: ref.title,
+        uploader = info.uploaderName ?: ref.uploader,
+        uploaderUrl = info.uploaderUrl ?: ref.uploaderUrl,
+        thumbnailUrl = info.thumbnails.lastOrNull()?.url ?: ref.thumbnailUrl,
+    )
+    return Resolved(ref = resolvedRef, formats = formats, resolvedAtMillis = System.currentTimeMillis(), captions = captions)
 }
 
 private fun genericCodec(codec: String?, fallback: String) = if (codec.isNullOrBlank()) fallback else codec

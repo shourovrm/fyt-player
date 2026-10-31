@@ -971,14 +971,18 @@ object PlaybackSession {
                 null
             }
             val item = resolveItem(i, ref) ?: return@launch
-            val source = MediaItemFactory.createOnIo(item.selection, ref, item.resolved.captions)
+            // A bare ref (opened from a link) has no title until the resolve: take the resolved
+            // one, or the notification and mini player stay blank.
+            val playRef = item.resolved.ref.takeIf { ref.title.isBlank() && it.pageUrl == ref.pageUrl } ?: ref
+            if (playRef !== ref) updateCurrentMeta(playRef)
+            val source = MediaItemFactory.createOnIo(item.selection, playRef, item.resolved.captions)
             // The source starts AT the resume point. Seeking after prepare() let playback begin
             // from 0 first (audible blip, wasted first segment fetch) before jumping.
             val resume = (resumeAtMs ?: savedPositionLookup?.await())?.let { segmentStartFor(item.selection, it) }
             if (resume != null) player.setMediaSource(source, resume) else player.setMediaSource(source)
             player.prepare()
-            loadedRef = ref
-            rememberForResumption(ref)
+            loadedRef = playRef
+            rememberForResumption(playRef)
             awaitingReadyLog = true
             awaitingFirstFrameLog = true
             diag("sourceSet afterLoadStartMs=${msSince(loadBeganAtMs)}")
