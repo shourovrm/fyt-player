@@ -1,7 +1,15 @@
 package com.fyiplayer.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -149,15 +157,7 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
                 )
             }
         }
-        Text(
-            // Links past the 3-line cut-off still get tap targets, which swallowed taps on the visible
-            // text. Keep them live only once expanded; collapsed, a tap just expands.
-            if (expanded) body else AnnotatedString(body.text),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp).clickable { expanded = !expanded },
-        )
+        CommentBody(body, expanded, links, onToggle = { expanded = !expanded })
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             if (comment.likeCount != null && comment.likeCount > 0) {
                 Text(
@@ -176,4 +176,49 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
             }
         }
     }
+}
+
+/**
+ * The comment text. Compose's built-in link tap area is the link's whole bounding box, which on a
+ * wrapped link also covers plain text beside it, and links past the 3-line cut-off stay tappable.
+ * So the links are drawn inert (colour only) and one tap handler decides: a tap exactly on a
+ * link glyph opens it while expanded, anything else toggles the collapse.
+ */
+@Composable
+private fun CommentBody(body: AnnotatedString, expanded: Boolean, links: LinkInteractionListener, onToggle: () -> Unit) {
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val linkColor = MaterialTheme.colorScheme.primary
+    val shown = remember(body, linkColor) { withInertLinks(body, linkColor) }
+    Text(
+        shown,
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = if (expanded) Int.MAX_VALUE else 3,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout = it },
+        modifier = Modifier
+            .padding(top = 2.dp)
+            .pointerInput(body, expanded) {
+                detectTapGestures { position ->
+                    val link = if (expanded) layout?.let { linkAt(body, it, position) } else null
+                    if (link == null) onToggle() else links.onClick(link)
+                }
+            }
+            .semantics { onClick { onToggle(); true } },
+    )
+}
+
+/** [body] with each link's range coloured and its tap annotation removed. */
+private fun withInertLinks(body: AnnotatedString, linkColor: Color): AnnotatedString =
+    buildAnnotatedString {
+        append(body.text)
+        body.spanStyles.forEach { addStyle(it.item, it.start, it.end) }
+        body.getLinkAnnotations(0, body.length).forEach { addStyle(SpanStyle(color = linkColor), it.start, it.end) }
+    }
+
+/** The link under [position], or null. The nearest-character lookup alone would also match blank
+ *  space after a line's last character, so the tap must land inside that character's box. */
+private fun linkAt(body: AnnotatedString, layout: TextLayoutResult, position: Offset): LinkAnnotation? {
+    val offset = layout.getOffsetForPosition(position)
+    if (offset >= body.length || !layout.getBoundingBox(offset).contains(position)) return null
+    return body.getLinkAnnotations(offset, offset + 1).firstOrNull()?.item
 }
