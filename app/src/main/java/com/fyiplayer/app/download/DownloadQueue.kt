@@ -31,10 +31,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -174,6 +177,11 @@ class DownloadQueue private constructor(
     // zero Compose subscribers, or that read would return a stale or empty snapshot.
     val rows: StateFlow<List<DownloadItem>> =
         repository.observe().stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Whether [pageUrl] has a finished download. Derived from [rows], no I/O. */
+    fun isDownloaded(pageUrl: String): Flow<Boolean> =
+        rows.map { items -> items.any { it.ref.pageUrl == pageUrl && it.state == DownloadState.COMPLETED } }
+            .distinctUntilChanged()
 
     /**
      * Resolves [ref] through the app's one resolver seam and derives the sizes the user can pick

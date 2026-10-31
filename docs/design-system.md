@@ -58,8 +58,8 @@ and outlives it. Primary action: the search bar. Refresh is a trailing icon in t
 ## Layout of the Detail page
 
 Pinned 16:9 player, then titleMedium title, bodySmall meta, one row of 40 dp buttons (Like,
-Add to playlist, Download, Share) with Download filled, then tabs (Similar, Description,
-Comments) of 72 dp rows. Primary action: Download.
+Add to playlist, Download, Share), all neutral; Download turns primary only once downloaded (a state,
+like Like), then tabs (Similar, Description, Comments) of 72 dp rows.
 
 ## Layout of the Settings page
 

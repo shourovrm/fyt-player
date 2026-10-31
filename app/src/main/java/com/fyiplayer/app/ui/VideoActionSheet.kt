@@ -61,6 +61,8 @@ class VideoActions internal constructor(
     /** Continuous, not a one-shot read -- a toggle from the sheet must show up in the row (and
      *  vice versa) without leaving and re-entering the page. */
     val likedFlow: Flow<Boolean>,
+    /** True once this video's download row is COMPLETED; read from the queue's in-memory rows. */
+    val downloadedFlow: Flow<Boolean>,
     val playlists: PlaylistRepository,
     private val scope: CoroutineScope,
     private val likes: LikesRepository,
@@ -143,7 +145,7 @@ fun rememberVideoActions(ref: VideoRef): VideoActions {
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val downloads = remember(context) { DownloadQueue.get(context) }
     return remember(ref.pageUrl) {
-        VideoActions(ref, likes.observeIsLiked(ref.pageUrl), playlists, app.appScope, likes, downloads, context)
+        VideoActions(ref, likes.observeIsLiked(ref.pageUrl), downloads.isDownloaded(ref.pageUrl), playlists, app.appScope, likes, downloads, context)
     }
 }
 

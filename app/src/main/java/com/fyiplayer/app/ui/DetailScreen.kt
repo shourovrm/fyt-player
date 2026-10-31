@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -407,7 +406,8 @@ fun DetailScreen(
  * never scrolls. Each button's spoken label is its full name. Like and the Skips toggle confirm
  * with a short message under the row ([onMessage], shown by [ActionMessagePill]). Like shows the
  * accent colour and a filled icon while liked, read from
- * [VideoActions.likedFlow], so a toggle from elsewhere is never stale.
+ * [VideoActions.likedFlow], so a toggle from elsewhere is never stale. Download takes the accent
+ * colour once the video is downloaded ([VideoActions.downloadedFlow]).
  */
 @Composable
 private fun VideoActionRow(
@@ -417,6 +417,7 @@ private fun VideoActionRow(
     modifier: Modifier = Modifier,
 ) {
     val liked by actions.likedFlow.collectAsState(initial = false)
+    val downloaded by actions.downloadedFlow.collectAsState(initial = false)
     var showPlaylistPicker by remember(actions.ref.pageUrl) { mutableStateOf(false) }
     val context = LocalContext.current
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
@@ -446,9 +447,9 @@ private fun VideoActionRow(
         IconButton(onClick = { showPlaylistPicker = true }, modifier = Modifier.semantics { contentDescription = saveLabel }) {
             SaveGlyph(tint = onSurfaceVariant, size = Sizes.icon)
         }
-        // The page's one filled control: Download is the primary action here.
-        FilledIconButton(onClick = { actions.startDownload() }, modifier = Modifier.semantics { contentDescription = downloadLabel }) {
-            DownloadTrayGlyph(tint = MaterialTheme.colorScheme.onPrimary, size = Sizes.icon)
+        // Neutral like the others; accent colour only once the file is saved, as Like does.
+        IconButton(onClick = { actions.startDownload() }, modifier = Modifier.semantics { contentDescription = downloadLabel }) {
+            DownloadTrayGlyph(tint = if (downloaded) MaterialTheme.colorScheme.primary else onSurfaceVariant, size = Sizes.icon)
         }
         IconButton(onClick = { actions.share() }) {
             Icon(
