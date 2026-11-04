@@ -20,16 +20,8 @@
     <string name="settings_about">About</string>
 
     <!-- hub summaries -->
-    <string name="settings_summary_signed_in">Signed in to YouTube</string>
+    <string name="settings_summary_signed_in">Signed in</string>
     <string name="settings_summary_signed_out">Not signed in</string>
-    <string name="settings_summary_locale">%1$s, %2$s</string>
-    <string name="settings_summary_playback">Up to %1$dp on Wi‑Fi, %2$dp on mobile</string>
-    <string name="settings_summary_background_on">background on</string>
-    <string name="settings_summary_skipping">%1$d set to skip, %2$d show a button</string>
-    <string name="settings_summary_history_both">Watch and search history on</string>
-    <string name="settings_summary_history_watch">Watch history on</string>
-    <string name="settings_summary_history_search">Search history on</string>
-    <string name="settings_summary_backup">Export or import your library</string>
     <string name="settings_summary_version">Version %1$s</string>
 
     <!-- group headers -->
@@ -68,7 +60,6 @@
          steps are Media3 fractions of the default caption size; the words are the same everywhere. -->
     <string name="settings_captions">Captions</string>
     <string name="settings_caption_size">Caption size</string>
-    <string name="settings_caption_size_hint">Applies to the text of captions while a video plays</string>
     <string name="settings_caption_size_videos">Videos</string>
     <string name="settings_caption_size_shorts">Shorts</string>
     <string name="settings_caption_sample">This is how captions look</string>

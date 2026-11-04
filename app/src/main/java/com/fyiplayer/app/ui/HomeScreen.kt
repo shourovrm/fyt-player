@@ -32,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -417,7 +417,7 @@ private fun SearchHistorySuggestions(
     Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = Spacing.s16), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.home_recent_searches), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f).padding(vertical = Spacing.s16))
-            TextButton(onClick = onClearAll) { Text(stringResource(R.string.home_clear_history)) }
+            IconButton(onClick = onClearAll) { Icon(painterResource(R.drawable.ic_delete_sweep), contentDescription = stringResource(R.string.home_clear_recent_searches), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         entries.take(10).forEach { q ->
             Row(

@@ -17,7 +17,7 @@
     </plurals>
     <string name="home_feed_nothing_new">No new videos.</string>
     <string name="home_recent_searches">Recent searches</string>
-    <string name="home_clear_history">Clear history</string>
+    <string name="home_clear_recent_searches">Clear recent searches</string>
     <string name="home_remove_search">Remove “%1$s”</string>
 
     <!-- results -->

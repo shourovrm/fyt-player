@@ -37,11 +37,6 @@ fun CaptionSettings(prefs: Prefs) {
     SettingsSection(stringResource(R.string.settings_captions)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin)) {
             Text(stringResource(R.string.settings_caption_size), style = MaterialTheme.typography.bodyMedium)
-            Text(
-                stringResource(R.string.settings_caption_size_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
         CaptionSizeRow(
             label = stringResource(R.string.settings_caption_size_videos),

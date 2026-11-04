@@ -37,33 +37,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.BuildConfig
 import com.fyiplayer.app.R
-import com.fyiplayer.app.core.SourceRegistry
-import com.fyiplayer.app.core.SponsorCategory
-import com.fyiplayer.app.core.SponsorMode
-import com.fyiplayer.app.core.Topic
-import com.fyiplayer.app.data.prefs.Prefs
-import com.fyiplayer.app.settings.prettyTreeUri
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
-private const val SUMMARY_SEPARATOR = " · "
-
-/** One hub row: where it goes, how it looks, and the current value in words. */
+/** One hub row: where it goes, how it looks, and its state in words when the title alone does not say it. */
 private class HubRow(
     val page: String,
     @StringRes val titleRes: Int,
     val icon: ImageVector,
-    val summary: String,
+    val summary: String?,
 )
 
-/** The settings hub: eight rows, each opening its own page (SettingsPageScreen). The summary
- *  under each title is the current value, so most questions are answered without opening a page. */
+/** The settings hub: eight rows, each opening its own page (SettingsPageScreen). Only Account and
+ *  About show a second line, because only their state (signed in, version) is not clear from the title. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onOpenPage: (String) -> Unit) {
-    val prefs = rememberFyiApp().prefs
-    val rows = hubRows(prefs)
+    val rows = hubRows()
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TopAppBar(title = { Text(stringResource(R.string.shell_tab_settings), style = MaterialTheme.typography.titleLarge) })
         LazyColumn(Modifier.fillMaxSize().padding(bottom = Spacing.s24)) {
@@ -76,21 +67,24 @@ fun SettingsScreen(onOpenPage: (String) -> Unit) {
 
 @Composable
 private fun HubRowItem(row: HubRow, onClick: () -> Unit) {
+    val minHeight = if (row.summary == null) Sizes.listOneLine else Sizes.listTwoLine
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = Sizes.listTwoLine)
+        Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = minHeight)
             .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(row.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(Sizes.icon))
         Column(Modifier.weight(1f).padding(horizontal = Spacing.s16)) {
             Text(stringResource(row.titleRes), style = MaterialTheme.typography.bodyLarge)
-            Text(
-                row.summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (row.summary != null) {
+                Text(
+                    row.summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -102,72 +96,19 @@ private fun HubRowItem(row: HubRow, onClick: () -> Unit) {
 }
 
 @Composable
-private fun hubRows(prefs: Prefs): List<HubRow> = listOf(
+private fun hubRows(): List<HubRow> = listOf(
     HubRow(SettingsPage.ACCOUNT, R.string.settings_account, Icons.Filled.Person, accountSummary()),
-    HubRow(SettingsPage.CONTENT, R.string.settings_content, Icons.AutoMirrored.Filled.List, contentSummary(prefs)),
-    HubRow(SettingsPage.PLAYBACK, R.string.settings_playback, Icons.Filled.PlayArrow, playbackSummary(prefs)),
-    HubRow(SettingsPage.SKIPPING, R.string.settings_skipping, Icons.Filled.ArrowForward, skippingSummary(prefs)),
-    HubRow(SettingsPage.DOWNLOADS, R.string.settings_downloads, Icons.Filled.KeyboardArrowDown, downloadsSummary(prefs)),
-    HubRow(SettingsPage.HISTORY, R.string.settings_history, Icons.Filled.Refresh, historySummary(prefs)),
-    HubRow(SettingsPage.BACKUP, R.string.settings_backup, Icons.Filled.Share, stringResource(R.string.settings_summary_backup)),
-    HubRow(SettingsPage.ABOUT, R.string.settings_about, Icons.Filled.Info, stringResource(R.string.settings_summary_version, BuildConfig.VERSION_NAME)),
+    HubRow(SettingsPage.CONTENT, R.string.settings_content, Icons.AutoMirrored.Filled.List, null),
+    HubRow(SettingsPage.PLAYBACK, R.string.settings_playback, Icons.Filled.PlayArrow, null),
+    HubRow(SettingsPage.SKIPPING, R.string.settings_skipping, Icons.Filled.ArrowForward, null),
+    HubRow(SettingsPage.DOWNLOADS, R.string.settings_downloads, Icons.Filled.KeyboardArrowDown, null),
+    HubRow(SettingsPage.HISTORY, R.string.settings_history, Icons.Filled.Refresh, null),
+    HubRow(SettingsPage.BACKUP, R.string.settings_backup, Icons.Filled.Share, null),
+    HubRow(SettingsPage.ABOUT, R.string.settings_about, Icons.Filled.Info, BuildConfig.VERSION_NAME),
 )
 
 @Composable
 private fun accountSummary(): String {
     val signedIn by YoutubeAuth.isLoggedIn.collectAsStateWithLifecycle()
     return stringResource(if (signedIn) R.string.settings_summary_signed_in else R.string.settings_summary_signed_out)
-}
-
-@Composable
-private fun contentSummary(prefs: Prefs): String {
-    val enabledSources by prefs.enabledSources.collectAsStateWithLifecycle(initialValue = emptySet())
-    val topics by prefs.exploreTopics.collectAsStateWithLifecycle(initialValue = emptySet())
-    val language by prefs.contentLanguage.collectAsStateWithLifecycle(initialValue = "en")
-    val country by prefs.contentCountry.collectAsStateWithLifecycle(initialValue = "US")
-    val sourceNames = SourceRegistry.all.filter { it.id in enabledSources }.joinToString(", ") { it.displayName }
-    val topicNames = Topic.entries.filter { it.name in topics }.joinToString(", ") { it.label }
-    val locale = stringResource(R.string.settings_summary_locale, language, country)
-    return listOf(sourceNames, topicNames, locale).filter { it.isNotEmpty() }.joinToString(SUMMARY_SEPARATOR)
-}
-
-@Composable
-private fun playbackSummary(prefs: Prefs): String {
-    val wifiHeight by prefs.maxResolutionWifi.collectAsStateWithLifecycle(initialValue = 1080)
-    val mobileHeight by prefs.maxResolutionMobile.collectAsStateWithLifecycle(initialValue = 720)
-    val background by prefs.backgroundPlayback.collectAsStateWithLifecycle(initialValue = true)
-    val heights = stringResource(R.string.settings_summary_playback, wifiHeight, mobileHeight)
-    if (!background) return heights
-    return heights + SUMMARY_SEPARATOR + stringResource(R.string.settings_summary_background_on)
-}
-
-@Composable
-private fun skippingSummary(prefs: Prefs): String {
-    val enabled by prefs.sponsorBlock.collectAsStateWithLifecycle(initialValue = false)
-    val modes by prefs.sponsorModes.collectAsStateWithLifecycle(
-        initialValue = SponsorCategory.entries.associateWith { it.defaultMode },
-    )
-    if (!enabled) return stringResource(R.string.settings_value_off)
-    val skipped = modes.values.count { it == SponsorMode.AUTO_SKIP }
-    val withButton = modes.values.count { it == SponsorMode.SHOW_BUTTON }
-    return stringResource(R.string.settings_summary_skipping, skipped, withButton)
-}
-
-@Composable
-private fun downloadsSummary(prefs: Prefs): String {
-    val treeUri by prefs.downloadTreeUri.collectAsStateWithLifecycle(initialValue = null)
-    return prettyTreeUri(treeUri, stringResource(R.string.settings_download_folder_default))
-}
-
-@Composable
-private fun historySummary(prefs: Prefs): String {
-    val watch by prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
-    val search by prefs.recordSearchHistory.collectAsStateWithLifecycle(initialValue = true)
-    val summaryRes = when {
-        watch && search -> R.string.settings_summary_history_both
-        watch -> R.string.settings_summary_history_watch
-        search -> R.string.settings_summary_history_search
-        else -> R.string.settings_value_off
-    }
-    return stringResource(summaryRes)
 }

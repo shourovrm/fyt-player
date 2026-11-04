@@ -166,7 +166,7 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Settings | Remember playback position | Remember position | two words |
 | Settings | Clear watch and search history (button) | Clear history (destructive row) / Removes watched videos and past searches. | destructive row with hint |
 | Settings | Clear watch history and search history? | Clear history, body says what is removed | confirm dialog pattern |
-| Settings | Signed in to YouTube / Sign in to YouTube | YouTube account / Signed in, or hint "Lets you play age-restricted and members-only videos." / Sign in | label plus hint |
+| Settings | Signed in / Sign in to YouTube | YouTube account / Signed in, or hint "Lets you play age-restricted and members-only videos." / Sign in | label plus hint |
 | Settings | You'll sign in to your Google account inside the app. The session is stored only on this device. | Sign in with your Google account inside the app. The sign-in stays on this phone. | "session" is banned |
 | Settings | Continue (sign-in dialog) | Sign in | repeats the title verb |
 | Settings | Sign out (no confirm) | Sign out, with a confirm dialog "Sign out of YouTube" | destructive action |

@@ -63,9 +63,10 @@ like Like), then tabs (Similar, Description, Comments) of 72 dp rows.
 
 ## Layout of the Settings page
 
-Hub and spoke. The hub is eight 72 dp two-line rows (leading icon 24 dp, headline bodyLarge,
-supporting bodySmall = the current value in words, trailing chevron): Account, Content, Playback,
-Skipping, Downloads, History, Backup, About. Each opens its own page under a 64 dp top app bar
+Hub and spoke. The hub is eight rows (leading icon 24 dp, headline bodyLarge, trailing chevron).
+Account and About are 72 dp two-line rows: supporting bodySmall = state at a glance (signed in,
+version). The other six are 56 dp one-line rows with no supporting line: Content, Playback,
+Skipping, Downloads, History, Backup. Each opens its own page under a 64 dp top app bar
 with a back arrow and titleLarge title; the bottom nav stays. On a page: 56 dp one-line rows
 (bodyMedium label, switch or value trailing), sub-groups under a labelLarge header in primary
 only where a page joins more than one concern. A choice of up to three values is a trailing
