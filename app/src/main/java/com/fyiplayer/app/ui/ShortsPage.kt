@@ -62,7 +62,7 @@ import com.fyiplayer.app.R
 import com.fyiplayer.app.core.SeekThumbnails
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.LikesRepository
-import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
@@ -222,7 +222,7 @@ internal fun ShortsPage(
             Text(ref.title, color = extras.onVideo, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
             ref.uploader?.let {
                 Text(
-                    if (onOpenChannel != null) "$it  ›" else it,
+                    if (onOpenChannel != null) stringResource(R.string.shorts_channel_link, it) else it,
                     color = extras.onVideoDim,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -239,7 +239,7 @@ internal fun ShortsPage(
                 modifier = Modifier
                     .padding(top = 10.dp)
                     // Clickable sits outside the minimum-size wrapper so the 48 dp touch area is
-                    // the tap target while the pill is drawn at its own smaller size.
+                    // the tap target while the chip is drawn at its own smaller size.
                     .clickable {
                         // Sheet over the still-mounted pager now, not a nav world-switch --
                         // onOpenDetail (curried to this ref by ShortsPager) goes unused here but
@@ -248,7 +248,7 @@ internal fun ShortsPage(
                         showDetailsSheet = true
                     }
                     .minimumInteractiveComponentSize()
-                    .clip(RoundedCornerShape(Radius.l))
+                    .clip(ControlShape)
                     .background(extras.onVideo.copy(alpha = 0.18f))
                     .padding(horizontal = Spacing.s16, vertical = 6.dp),
             )
@@ -406,10 +406,10 @@ private fun ShortsActionRail(
                 CaptionsGlyph(tint = extras.onVideo, size = Sizes.icon, filled = captionsSelected, dim = !captionsAvailable)
             }
         }
-        // A pill, not a circle: the badge is wider than the 48dp round target, and a circle clip
-        // would cut its outline at the corners.
+        // Not a circle: the badge is wider than the 48dp round target, and a circle clip would cut
+        // its outline at the corners. ControlShape keeps it square-cornered like every other control.
         if (onQuality != null) {
-            RailButton(onClick = onQuality, shape = RoundedCornerShape(percent = 50)) {
+            RailButton(onClick = onQuality, shape = ControlShape) {
                 QualityBadge(qualityButtonText)
             }
         }

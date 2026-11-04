@@ -47,6 +47,7 @@ import coil.compose.AsyncImage
 import com.fyiplayer.app.R
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
 import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.VideoRef
@@ -82,7 +83,7 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
     ) {
         Text(
             stringResource(R.string.player_queue_position, state.index + 1, state.queueSize),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
         )
@@ -129,6 +130,7 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                 shuffled = state.shuffled,
                 onShuffle = { PlaybackSession.toggleShuffle() },
                 onClearAll = { PlaybackSession.clearQueue(); expanded = false },
+                onClose = { expanded = false },
             )
             LazyColumn(state = listState, modifier = Modifier.heightIn(max = Spacing.s64 * 7)) {
                 // No pageUrl key: the same video can be enqueued twice, and a duplicate LazyColumn
@@ -147,7 +149,7 @@ fun QueueBar(onOpen: (VideoRef) -> Unit = {}, modifier: Modifier = Modifier) {
                     ) {
                         Text(
                             "${i + 1}",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = Spacing.s16, end = 4.dp),
                         )
@@ -217,10 +219,12 @@ private fun QueueHeader(
     shuffled: Boolean,
     onShuffle: () -> Unit,
     onClearAll: () -> Unit,
+    onClose: () -> Unit,
 ) {
     // Icon-only buttons have no visible label, so these strings are their only accessible name.
     val shuffleLabel = stringResource(if (shuffled) R.string.player_queue_shuffle_on else R.string.player_queue_shuffle)
     val clearLabel = stringResource(R.string.action_clear)
+    val closeLabel = stringResource(R.string.action_close)
     Row(
         Modifier.fillMaxWidth().padding(start = Spacing.s16, end = Spacing.s8, bottom = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
@@ -233,7 +237,7 @@ private fun QueueHeader(
             ) {
                 Text(
                     title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -241,7 +245,7 @@ private fun QueueHeader(
                 )
                 Text(
                     position,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.merge(NumeralStyle),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
@@ -267,6 +271,9 @@ private fun QueueHeader(
             modifier = Modifier.size(Sizes.touchTarget).semantics { contentDescription = clearLabel },
         ) {
             ClearAllGlyph(tint = MaterialTheme.colorScheme.primary)
+        }
+        IconButton(onClick = onClose, modifier = Modifier.size(Sizes.touchTarget)) {
+            Icon(Icons.Filled.Close, contentDescription = closeLabel, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

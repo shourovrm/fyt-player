@@ -2,6 +2,7 @@ package com.fyiplayer.app.data.backup
 
 import android.content.Context
 import android.net.Uri
+import com.fyiplayer.app.R
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
@@ -35,7 +36,7 @@ object BackupIo {
         )
         val html = renderBackupHtml(doc)
         context.contentResolver.openOutputStream(uri)?.use { it.write(html.toByteArray(Charsets.UTF_8)) }
-            ?: throw BackupFormatException("Could not open the chosen file for writing.")
+            ?: throw BackupFormatException(context.getString(R.string.settings_backup_cannot_save))
     }
 
     /** Reads and parses only; writes nothing. Caller shows the [BackupPlan] before calling [apply]. */
@@ -47,7 +48,7 @@ object BackupIo {
         subscriptions: SubscriptionRepository,
     ): Pair<BackupDocument, BackupPlan> {
         val html = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-            ?: throw BackupFormatException("Could not open the chosen file for reading.")
+            ?: throw BackupFormatException(context.getString(R.string.settings_backup_cannot_read))
         val sanitized = sanitizeBackupDocument(parseBackupHtml(html), ::ownerSourceId)
         val doc = sanitized.document
         val existing = readExisting(doc, likes, playlists, subscriptions)

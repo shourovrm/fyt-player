@@ -1,37 +1,43 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.player.PauseGlyph
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.core.content.FileProvider
-import java.io.File
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,12 +47,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -56,10 +68,13 @@ import com.fyiplayer.app.data.repo.DownloadState
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
 import com.fyiplayer.app.download.DownloadProgress
 import com.fyiplayer.app.download.DownloadQueue
+import com.fyiplayer.app.ui.theme.NumeralFontFamily
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
+import androidx.core.content.FileProvider
+import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -68,6 +83,7 @@ import kotlinx.coroutines.launch
  * is a process-scoped singleton (see its doc) so this screen can be entered/left freely without
  * losing track of what's running -- no arguments needed, matching every other bottom-nav tab.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen() {
     val context = LocalContext.current
@@ -77,42 +93,47 @@ fun DownloadsScreen() {
     val progress by queue.progress.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    // Neither dialog defaults to the destructive choice -- see RemoveConfirmDialog.
+    // Neither sheet defaults to the destructive choice -- see RemoveSheet.
     var removeTarget by remember { mutableStateOf<DownloadItem?>(null) }
     var confirmClearCompleted by remember { mutableStateOf(false) }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.downloads_title), style = MaterialTheme.typography.titleLarge)
-                if (rows.any { it.state == DownloadState.COMPLETED }) {
-                    TextButton(onClick = { confirmClearCompleted = true }) { Text(stringResource(R.string.downloads_clear_completed)) }
-                }
-            }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (rows.isEmpty()) {
-                    DownloadsEmptyState()
-                } else {
-                    LazyColumn(
-                        Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = Spacing.s8),
-                    ) {
-                        items(rows, key = { it.ref.pageUrl }) { item ->
-                            DownloadRow(
-                                item = item,
-                                error = errors[item.ref.pageUrl],
-                                liveProgress = progress[item.ref.pageUrl],
-                                onPause = { scope.launch { queue.pause(item.ref.pageUrl) } },
-                                onResume = { scope.launch { queue.resume(item.ref.pageUrl) } },
-                                onCancel = { removeTarget = item },
-                                onRetry = { scope.launch { queue.retry(item.ref.pageUrl) } },
-                                onOpen = { openDownloadedFile(context, item.filePath) },
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.downloads_title)) },
+                actions = {
+                    if (rows.any { it.state == DownloadState.COMPLETED }) {
+                        IconButton(onClick = { confirmClearCompleted = true }) {
+                            Icon(
+                                painterResource(R.drawable.ic_delete_sweep),
+                                contentDescription = stringResource(R.string.downloads_clear_completed),
                             )
                         }
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            if (rows.isEmpty()) {
+                DownloadsEmptyState()
+            } else {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = Spacing.s8),
+                ) {
+                    items(rows, key = { it.ref.pageUrl }) { item ->
+                        DownloadRow(
+                            item = item,
+                            error = errors[item.ref.pageUrl],
+                            liveProgress = progress[item.ref.pageUrl],
+                            onPause = { scope.launch { queue.pause(item.ref.pageUrl) } },
+                            onResume = { scope.launch { queue.resume(item.ref.pageUrl) } },
+                            onRemove = { removeTarget = item },
+                            onRetry = { scope.launch { queue.retry(item.ref.pageUrl) } },
+                            onOpen = { openDownloadedFile(context, item.filePath) },
+                        )
                     }
                 }
             }
@@ -121,7 +142,7 @@ fun DownloadsScreen() {
 
     removeTarget?.let { item ->
         val fileDeleteFailedMessage = stringResource(R.string.downloads_delete_failed)
-        RemoveConfirmDialog(
+        RemoveSheet(
             title = stringResource(R.string.downloads_remove_title),
             body = removeBody(item.totalBytes, fileCount = 1),
             removeLabel = stringResource(R.string.downloads_remove_keep_file),
@@ -142,7 +163,7 @@ fun DownloadsScreen() {
         val count = completed.size
         val totalSize = completed.sumOf { it.totalBytes }
         val someFilesNotDeletedMessage = stringResource(R.string.downloads_delete_some_failed)
-        RemoveConfirmDialog(
+        RemoveSheet(
             title = stringResource(R.string.downloads_clear_title),
             body = removeBody(totalSize, fileCount = count),
             removeLabel = stringResource(R.string.downloads_remove_keep_file),
@@ -161,7 +182,7 @@ fun DownloadsScreen() {
 
 /** The only empty state on this screen -- no placeholder rows, since there's nothing "loading"
  *  about an empty queue. The glyph is a text character, not an Icon: material-icons-core has no
- *  download-tray shape (same gap [GlyphButton] below works around). */
+ *  download-tray shape. */
 @Composable
 private fun DownloadsEmptyState() {
     val extras = MaterialTheme.fyiExtras
@@ -187,14 +208,13 @@ private fun removeBody(totalBytes: Long, fileCount: Int): String {
 }
 
 /**
- * The shared shape for both destructive confirmations (per-row and clear-completed): the safe
- * "remove from list" choice sits first and plain, the file-deleting choice sits second and
- * error-tinted -- deleting a file is irreversible and must never be the default or the visually
- * emphasised option. `confirmButton`/`dismissButton` are left to a bare Cancel; both real choices
- * live in `text` instead, side by side and equally reachable, not stacked as primary/secondary.
+ * The shared sheet for both destructive removals (per-row and clear-completed). The safe "remove
+ * from list" row sits first, the file-deleting row second in error colour: deleting a file is
+ * irreversible, so it is never the default and never the first thing a thumb lands on.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RemoveConfirmDialog(
+private fun RemoveSheet(
     title: String,
     body: String,
     removeLabel: String,
@@ -203,22 +223,41 @@ private fun RemoveConfirmDialog(
     onDeleteToo: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                Text(body)
-                Spacer(Modifier.height(Spacing.s16))
-                TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth()) { Text(removeLabel) }
-                TextButton(onClick = onDeleteToo, modifier = Modifier.fillMaxWidth()) {
-                    Text(deleteLabel, color = MaterialTheme.colorScheme.error)
-                }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+            )
+            Text(
+                body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = Spacing.pageMargin),
+            )
+            SheetRow(label = removeLabel, color = MaterialTheme.colorScheme.onSurface, onClick = onRemove)
+            SheetRow(label = deleteLabel, color = MaterialTheme.colorScheme.error, onClick = onDeleteToo) {
+                Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
             }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
+            SheetRow(label = stringResource(R.string.action_cancel), color = MaterialTheme.colorScheme.onSurface, onClick = onDismiss)
+        }
+    }
+}
+
+@Composable
+private fun SheetRow(label: String, color: Color, onClick: () -> Unit, trailing: @Composable () -> Unit = {}) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .heightIn(min = Sizes.listOneLine)
+            .padding(horizontal = Spacing.pageMargin),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = color, modifier = Modifier.weight(1f))
+        trailing()
+    }
 }
 
 @Composable
@@ -228,7 +267,7 @@ private fun DownloadRow(
     liveProgress: DownloadProgress?,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onCancel: () -> Unit,
+    onRemove: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
 ) {
@@ -236,19 +275,38 @@ private fun DownloadRow(
     Row(
         Modifier
             .fillMaxWidth()
+            // Only a finished download opens; every other state is controlled by its own buttons.
+            .clickable(enabled = item.state == DownloadState.COMPLETED, onClick = onOpen)
             .heightIn(min = Sizes.listTwoLine)
             .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s))
-                .background(extras.surface3),
+            Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.m)).background(extras.surface3),
+            contentAlignment = Alignment.Center,
         ) {
             // Same fallback ResultsList.kt's ResultRow uses for a Library/History row with no
             // stored thumbnail -- youtubeThumbnailFor no-ops for a non-YouTube pageUrl.
             val thumbnailUrl = item.ref.thumbnailUrl ?: youtubeThumbnailFor(item.ref.pageUrl)
             if (thumbnailUrl != null) {
                 AsyncImage(model = thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+            }
+            when (item.state) {
+                DownloadState.RUNNING -> ProgressRing(
+                    progress = progressFraction(item),
+                    label = stringResource(R.string.downloads_pause),
+                    onClick = onPause,
+                ) {
+                    PauseGlyph(tint = MaterialTheme.colorScheme.onSurface)
+                }
+                DownloadState.PAUSED -> ProgressRing(
+                    progress = progressFraction(item),
+                    label = stringResource(R.string.downloads_resume),
+                    onClick = onResume,
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                }
+                else -> Unit
             }
         }
         Column(Modifier.padding(start = Spacing.s16).weight(1f)) {
@@ -258,14 +316,6 @@ private fun DownloadRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (item.state == DownloadState.RUNNING || item.state == DownloadState.PAUSED) {
-                LinearProgressIndicator(
-                    progress = { progressFraction(item) },
-                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.s8).height(Sizes.progressTrack).clip(RoundedCornerShape(2.dp)),
-                    color = if (item.state == DownloadState.PAUSED) extras.ink3 else MaterialTheme.colorScheme.primary,
-                    trackColor = extras.surface3,
-                )
-            }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Failure is the one state worth a colour, and colour goes on a badge, not on body text.
                 if (item.state == DownloadState.FAILED) {
@@ -291,48 +341,65 @@ private fun DownloadRow(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             when (item.state) {
-                DownloadState.QUEUED -> GlyphButton("✕", R.string.action_cancel, onCancel)
-                DownloadState.RUNNING -> {
-                    GlyphButton("⏸", R.string.downloads_pause, onPause)
-                    GlyphButton("✕", R.string.action_cancel, onCancel)
-                }
-                DownloadState.PAUSED -> {
-                    GlyphButton("▶", R.string.downloads_resume, onResume)
-                    GlyphButton("✕", R.string.action_cancel, onCancel)
+                DownloadState.QUEUED, DownloadState.RUNNING, DownloadState.PAUSED -> IconButton(onClick = onRemove) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_cancel))
                 }
                 DownloadState.FAILED -> {
-                    GlyphButton("↻", R.string.action_retry, onRetry)
-                    GlyphButton("✕", R.string.action_clear, onCancel)
+                    IconButton(onClick = onRetry) {
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.action_retry))
+                    }
+                    IconButton(onClick = onRemove) {
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_clear))
+                    }
                 }
-                DownloadState.COMPLETED -> {
-                    GlyphButton("▶", R.string.action_play, onOpen)
-                    GlyphButton("✕", R.string.action_clear, onCancel)
+                DownloadState.COMPLETED -> IconButton(onClick = onRemove) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
                 }
             }
         }
     }
 }
 
+/**
+ * The progress ring is the pause/resume button: a 48 dp target with the ring drawn around its
+ * 24 dp glyph, so the ring shows how far the download has got and the tap changes its state.
+ */
 @Composable
-private fun GlyphButton(glyph: String, labelResource: Int, onClick: () -> Unit) {
-    val label = stringResource(labelResource)
-    // Text glyphs, not Icon: material-icons-core has no Pause/SkipNext-shaped glyph for these
-    // actions (DECISIONS.md gotcha) -- semantics carries the real label for screen readers.
-    // IconButton's own 48dp minimum touch target is kept: narrowing it put Pause and Cancel
-    // within a thumb's width of each other.
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }) {
-        Text(glyph, style = MaterialTheme.typography.titleMedium)
+private fun ProgressRing(progress: Float, label: String, onClick: () -> Unit, glyph: @Composable () -> Unit) {
+    val extras = MaterialTheme.fyiExtras
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(Sizes.touchTarget).semantics { contentDescription = label },
+        colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim, contentColor = extras.onVideo),
+    ) {
+        Box(Modifier.size(Sizes.button), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = extras.onVideoDim,
+            )
+            glyph()
+        }
     }
 }
 
 private fun progressFraction(item: DownloadItem): Float =
     if (item.totalBytes > 0) (item.bytesDownloaded.toFloat() / item.totalBytes).coerceIn(0f, 1f) else 0f
 
+/** Words in the UI face, numbers in the numeral face, joined with a middle dot. */
+private fun statusText(word: String?, numbers: List<String>): AnnotatedString = buildAnnotatedString {
+    if (word != null) append(word)
+    numbers.forEachIndexed { index, number ->
+        if (word != null || index > 0) append(" · ")
+        withStyle(SpanStyle(fontFamily = NumeralFontFamily)) { append(number) }
+    }
+}
+
 @Composable
-private fun statusLine(item: DownloadItem, error: String?, liveProgress: DownloadProgress?): String {
-    val separator = " · "
+private fun statusLine(item: DownloadItem, error: String?, liveProgress: DownloadProgress?): AnnotatedString {
     return when (item.state) {
-        DownloadState.QUEUED -> stringResource(R.string.downloads_state_queued)
+        DownloadState.QUEUED -> statusText(stringResource(R.string.downloads_state_queued), emptyList())
         DownloadState.RUNNING -> {
             val percent = (progressFraction(item) * 100).roundToInt()
             val amount = if (item.totalBytes > 0) {
@@ -344,16 +411,16 @@ private fun statusLine(item: DownloadItem, error: String?, liveProgress: Downloa
                 ?.let { stringResource(R.string.downloads_speed, formatBytes(it.toLong())) }
             val remaining = liveProgress?.etaSeconds?.takeIf { it > 0 }
                 ?.let { stringResource(R.string.downloads_time_left, formatDuration(it.toInt())) }
-            listOfNotNull("$percent%", amount, speed, remaining).joinToString(separator)
+            statusText(null, listOfNotNull("$percent%", amount, speed, remaining))
         }
-        DownloadState.PAUSED -> stringResource(R.string.downloads_state_paused) + separator + formatBytes(item.bytesDownloaded)
+        DownloadState.PAUSED -> statusText(stringResource(R.string.downloads_state_paused), listOf(formatBytes(item.bytesDownloaded)))
         DownloadState.COMPLETED -> {
             val size = if (item.totalBytes > 0) formatBytes(item.totalBytes) else null
             val duration = downloadDuration(item)?.let { formatDuration(it) }
-            listOfNotNull(stringResource(R.string.downloads_state_completed), size, duration).joinToString(separator)
+            statusText(stringResource(R.string.downloads_state_completed), listOfNotNull(size, duration))
         }
         // The Failed badge beside this line already names the state; only the reason is left.
-        DownloadState.FAILED -> error.orEmpty()
+        DownloadState.FAILED -> AnnotatedString(error.orEmpty())
     }
 }
 

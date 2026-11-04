@@ -22,10 +22,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
-/** The three actions of the About page as round buttons with captions. Reports is shown only when
+/** The three actions of the About page as tonal buttons with captions. Reports is shown only when
  *  a report exists; without it the two remaining buttons are spread evenly across the row. */
 @Composable
 internal fun AboutActionStrip(
@@ -69,7 +70,7 @@ internal fun AboutActionStrip(
     }
 }
 
-/** A 56 dp tonal circle with its glyph and a caption under it. While [busy] the glyph becomes a spinner. */
+/** A 56 dp tonal button with its glyph and a caption under it. While [busy] the glyph becomes a spinner. */
 @Composable
 private fun ActionCircle(
     icon: ImageVector,
@@ -81,6 +82,7 @@ private fun ActionCircle(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         FilledTonalIconButton(
+            shape = ControlShape,
             onClick = onClick,
             enabled = enabled,
             modifier = Modifier.size(Sizes.actionButton),

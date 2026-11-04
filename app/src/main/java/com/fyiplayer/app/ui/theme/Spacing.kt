@@ -49,6 +49,10 @@ object Sizes {
     val switchTrackHeight: Dp = 20.dp
     val switchKnob: Dp = 16.dp
     val switchGlyph: Dp = 10.dp
+    // Settings switch: square track, see SquareSwitch.
+    val squareSwitchWidth: Dp = 48.dp
+    val squareSwitchHeight: Dp = 28.dp
+    val squareSwitchKnob: Dp = 20.dp
 
     // 16:9 thumbnails snapped to the 4 dp grid.
     val thumbWidth: Dp = 120.dp

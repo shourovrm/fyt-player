@@ -1,25 +1,25 @@
 package com.fyiplayer.app.player
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
-import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.CaptionTrack
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 
 /**
  * Caption-track picker for the item currently playing -- same shape as [QualitySheet]. [tracks] is
@@ -44,20 +44,19 @@ fun CaptionSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
+            item { SheetTitleRow(stringResource(R.string.player_menu_captions), onClose = onDismiss) }
             item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.player_captions_off)) },
-                    leadingContent = { RadioButton(selected = selectedLanguage == null, onClick = { onSelect(null) }) },
-                    modifier = Modifier.clickable { onSelect(null) },
+                ChoiceListItem(
+                    headline = stringResource(R.string.player_captions_off),
+                    selected = selectedLanguage == null,
+                    onSelect = { onSelect(null) },
                 )
             }
             items(tracks, key = { it.languageCode + it.label }) { track ->
-                ListItem(
-                    headlineContent = { Text(track.label) },
-                    leadingContent = {
-                        RadioButton(selected = track.languageCode == selectedLanguage, onClick = { onSelect(track) })
-                    },
-                    modifier = Modifier.clickable { onSelect(track) },
+                ChoiceListItem(
+                    headline = track.label,
+                    selected = track.languageCode == selectedLanguage,
+                    onSelect = { onSelect(track) },
                 )
             }
             item {
@@ -69,16 +68,13 @@ fun CaptionSheet(
                 )
             }
             item {
-                // A scrolling row, not a wrapping one: four labels such as "Extra large" fit on
-                // most phones, and on a narrow one the last chip scrolls into view instead of clipping.
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = Spacing.pageMargin),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
-                ) {
-                    items(CaptionSize.entries, key = { it.name }) { size ->
-                        FilterChip(
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin)) {
+                    CaptionSize.entries.forEachIndexed { index, size ->
+                        SegmentedButton(
                             selected = size == captionSize,
                             onClick = { onCaptionSizeSelect(size) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = CaptionSize.entries.size, baseShape = ControlShape),
+                            modifier = Modifier.height(Sizes.touchTarget),
                             label = { Text(captionSizeLabel(size)) },
                         )
                     }
@@ -88,7 +84,7 @@ fun CaptionSheet(
     }
 }
 
-/** The shared wording for a [CaptionSize] step, so the sheet chips and the Settings segments match. */
+/** The shared wording for a [CaptionSize] step, so the sheet segments and the Settings segments match. */
 @Composable
 internal fun captionSizeLabel(size: CaptionSize): String = stringResource(
     when (size) {

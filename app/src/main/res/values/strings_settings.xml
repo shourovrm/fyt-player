@@ -120,8 +120,10 @@
     <string name="settings_backup_import">Import library</string>
     <string name="settings_backup_import_confirm">Import</string>
     <string name="settings_backup_exported">Library exported.</string>
-    <string name="settings_backup_export_failed">Export failed.</string>
-    <string name="settings_backup_import_failed">Import failed.</string>
+    <string name="settings_backup_export_failed">Export failed. Try again.</string>
+    <string name="settings_backup_import_failed">Import failed. Try again.</string>
+    <string name="settings_backup_cannot_save">Cannot save the backup here.</string>
+    <string name="settings_backup_cannot_read">Cannot read this file.</string>
     <string name="settings_backup_nothing_new">Nothing new to add.</string>
     <string name="settings_backup_adds">Adds %1$s, %2$s, %3$s, %4$s.</string>
     <string name="settings_backup_added">Added %1$s, %2$s, %3$s, %4$s.</string>

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.R
 import com.fyiplayer.app.update.UpdateCheck
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.update.downloadAndInstall
 import kotlinx.coroutines.launch
@@ -58,10 +59,13 @@ fun UpdateBanner() {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            TextButton(onClick = {
-                downloadAndInstall(context, notice.apkUrl, notice.version)
-                Toast.makeText(context, downloadingMessage, Toast.LENGTH_SHORT).show()
-            }) { Text(stringResource(R.string.update_install)) }
+            TextButton(
+                onClick = {
+                    downloadAndInstall(context, notice.apkUrl, notice.version)
+                    Toast.makeText(context, downloadingMessage, Toast.LENGTH_SHORT).show()
+                },
+                shape = ControlShape,
+            ) { Text(stringResource(R.string.update_install)) }
             IconButton(onClick = { scope.launch { prefs.setDismissedUpdateVersion(notice.version) } }) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.update_dismiss))
             }

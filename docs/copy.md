@@ -203,3 +203,26 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Downloads | This file is no longer on this phone. / No app can open this video. / This file cannot be opened from here. | File missing. / No app can open this. / Cannot open this file. | shorter |
 | Detail | No captions for this video / Caption format not supported / Checking quality options | No captions / Captions not supported / Checking quality | toast, four words |
 | Detail | Stop skipping sponsored segments on this channel / Skip sponsored segments on this channel again | Stop skipping on this channel / Resume skipping on this channel | shorter |
+| Playlist | That name is taken. (rename) | Playlist not renamed. | rename catches every failure, so "taken" is a guess |
+| Playlist | That name is taken. (create) | Playlist not created. | create catches every failure, so "taken" is a guess |
+| Home | New from channels you watch | New from channels | label of three words at most |
+| Home | one: %1$d channel did not load. / other: %1$d channels did not load. | adds "Pull down to refresh." to both forms | error needs one action |
+| Shorts | one: %1$d channel did not load. / other: %1$d channels did not load. | one: Shorts from %1$d channel did not load. Try again. / other: Shorts from %1$d channels did not load. Try again. | names Shorts, gives one action |
+| Downloads | one: Delete erases the file. / other: Delete erases the files. | one: Delete erases the download. / other: Delete erases the downloads. | download, never file |
+| Downloads | one: Delete file / other: Delete files | one: Delete download / other: Delete downloads | button names the object |
+| Downloads | File not deleted. | Download not deleted. | download, never file |
+| Downloads | Some files not deleted. | Some downloads not deleted. | download, never file |
+| Downloads | File missing. | Download missing. | download, never file |
+| Downloads | Cannot open this file. | Cannot open this download. | download, never file |
+| Downloads | No downloads yet | No downloads yet. | empty state, period |
+| Settings | Export failed. | Export failed. Try again. | error needs one action |
+| Settings | Import failed. | Import failed. Try again. | error needs one action |
+| Settings | Cannot save the backup here. (new, from BackupIo) | moved from Could not open the chosen file for writing. | no technical wording, now a resource |
+| Settings | Cannot read this file. (new, from BackupIo) | moved from Could not open the chosen file for reading. | no technical wording, now a resource |
+| Backup | This isn't a FYT Player backup file. | This is not a FYT Player backup file. | no contraction, matches Cannot |
+| Backup | This backup file is truncated. | This backup file is incomplete. | truncated is a technical word |
+| Backup | This backup was made by a newer version of FYT Player. | This backup needs a newer version of the app. | update wording from the vocabulary |
+| Channel | No videos yet | No videos yet. | empty state, period |
+| Channel | No results for “%1$s” | No results for “%1$s”. | same sentence as home, period |
+| Library | No likes yet / No playlists yet / No channels yet / No history yet | same, with a period | empty state, period |
+| Playlist | No videos yet | No videos yet. | empty state, period |

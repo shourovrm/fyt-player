@@ -64,17 +64,17 @@ fun renderBackupHtml(doc: BackupDocument): String {
  */
 fun parseBackupHtml(html: String): BackupDocument {
     val start = html.indexOf(DATA_OPEN)
-    if (start < 0) throw BackupFormatException("This isn't a FYT Player backup file.")
+    if (start < 0) throw BackupFormatException("This is not a FYT Player backup file.")
     val from = start + DATA_OPEN.length
     val end = html.indexOf(DATA_CLOSE, from)
-    if (end < 0) throw BackupFormatException("This backup file is truncated.")
+    if (end < 0) throw BackupFormatException("This backup file is incomplete.")
     val doc = try {
         backupJson.decodeFromString(BackupDocument.serializer(), html.substring(from, end))
     } catch (e: Exception) {
         throw BackupFormatException("This backup file is damaged.", e)
     }
     if (doc.version > BACKUP_VERSION) {
-        throw BackupFormatException("This backup was made by a newer version of FYT Player.")
+        throw BackupFormatException("This backup needs a newer version of the app.")
     }
     return doc
 }

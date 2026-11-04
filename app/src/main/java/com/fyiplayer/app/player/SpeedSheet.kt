@@ -6,19 +6,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,7 +33,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
@@ -45,19 +52,7 @@ fun SpeedSheet(current: Float, onChange: (Float) -> Unit, onDismiss: () -> Unit)
     // Fully open: half-open in landscape fullscreen cut the presets off below the screen edge.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(modifier = Modifier.padding(bottom = Spacing.s24)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = Spacing.s24, end = Spacing.s8),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.player_menu_speed),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { onChange(1f) }, enabled = current != 1f) {
-                    Text(stringResource(R.string.player_speed_reset))
-                }
-            }
+            SheetTitleRow(stringResource(R.string.player_menu_speed), onClose = onDismiss)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.s16),
                 verticalAlignment = Alignment.CenterVertically,
@@ -65,7 +60,7 @@ fun SpeedSheet(current: Float, onChange: (Float) -> Unit, onDismiss: () -> Unit)
                 NudgeButton(R.string.player_speed_minus, R.string.player_speed_slower) { onChange(roundSpeed(current - SPEED_STEP)) }
                 Text(
                     formatSpeed(current),
-                    style = MaterialTheme.typography.displayMedium,
+                    style = MaterialTheme.typography.displayMedium.merge(NumeralStyle),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
                 )
@@ -86,7 +81,7 @@ fun SpeedSheet(current: Float, onChange: (Float) -> Unit, onDismiss: () -> Unit)
                         Modifier
                             .fillMaxWidth()
                             .height(Sizes.progressThin)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(2.dp))
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)),
                     ) {
                         Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(accent))
@@ -103,27 +98,45 @@ fun SpeedSheet(current: Float, onChange: (Float) -> Unit, onDismiss: () -> Unit)
                     .height(Spacing.s40)
                     .semantics { contentDescription = sliderLabel; stateDescription = sliderState },
             )
+            // Scrolls rather than wraps: six numeral labels overflow a 360 dp phone.
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
-                modifier = Modifier.padding(horizontal = Spacing.s16),
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.s16),
             ) {
                 PRESETS.forEach { preset ->
                     FilterChip(
                         selected = current == preset,
                         onClick = { onChange(preset) },
-                        label = { Text(formatSpeed(preset)) },
+                        label = { Text(formatSpeed(preset), style = MaterialTheme.typography.labelLarge.merge(NumeralStyle)) },
+                        shape = ControlShape,
                     )
                 }
+            }
+            FilledTonalButton(
+                onClick = { onChange(1f) },
+                enabled = current != 1f,
+                shape = ControlShape,
+                modifier = Modifier.padding(start = Spacing.s16, top = Spacing.s16),
+            ) {
+                Text(stringResource(R.string.player_speed_reset))
             }
         }
     }
 }
 
-// A text glyph: material-icons-core has no Remove icon.
+// A text glyph: material-icons-core has no Remove icon. A square tile, not FilledTonalIconButton,
+// whose shape is a circle.
 @Composable
 private fun NudgeButton(glyph: Int, description: Int, onClick: () -> Unit) {
     val label = stringResource(description)
-    FilledTonalIconButton(onClick = onClick, modifier = Modifier.size(Sizes.touchTarget).semantics { contentDescription = label }) {
-        Text(stringResource(glyph), style = MaterialTheme.typography.titleLarge)
+    Surface(
+        onClick = onClick,
+        shape = ControlShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.size(Sizes.touchTarget).semantics { contentDescription = label },
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(glyph), style = MaterialTheme.typography.titleLarge)
+        }
     }
 }

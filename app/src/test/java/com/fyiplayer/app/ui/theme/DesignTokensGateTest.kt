@@ -58,4 +58,10 @@ class DesignTokensGateTest {
         val all = hits + tokenHits
         assertTrue("Interactive element under 48 dp:\n" + all.joinToString("\n"), all.isEmpty())
     }
+
+    // Direction: no pill shapes. Circles stay legal for avatars, knobs and round play buttons.
+    @Test fun `no pill shapes outside the theme`() {
+        val hits = violations(Regex("""RoundedCornerShape\(\s*(percent\s*=\s*)?50\s*\)"""))
+        assertTrue("Pill shape outside ui/theme (use ControlShape):\n" + hits.joinToString("\n"), hits.isEmpty())
+    }
 }

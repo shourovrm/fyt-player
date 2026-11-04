@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -63,6 +64,7 @@ fun OnboardingSheet(prefs: Prefs) {
                 modifier = Modifier.padding(top = 10.dp),
             )
             Button(
+                shape = ControlShape,
                 onClick = { scope.launch { prefs.setOnboardingDone() } },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.s24, bottom = Spacing.s8),
             ) { Text(stringResource(R.string.action_done)) }

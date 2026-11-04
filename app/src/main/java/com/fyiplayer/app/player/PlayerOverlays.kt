@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -223,7 +225,7 @@ fun SeekThumbnailPreview(
             Text(
                 timestampText,
                 color = MaterialTheme.fyiExtras.onVideo,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.merge(NumeralStyle),
                 maxLines = 1,
                 softWrap = false,
             )
@@ -232,7 +234,7 @@ fun SeekThumbnailPreview(
                 Text(
                     trailingText,
                     color = MaterialTheme.fyiExtras.onVideo,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.merge(NumeralStyle),
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis,
@@ -260,7 +262,7 @@ fun SeekThumbnailPreview(
 fun FastSeekOverlay(totalSeconds: Int, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .background(MaterialTheme.fyiExtras.videoScrimLight, RoundedCornerShape(50))
+            .background(MaterialTheme.fyiExtras.videoScrimLight, ControlShape)
             .padding(horizontal = Spacing.s16, vertical = 10.dp),
     ) {
         Text(

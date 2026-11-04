@@ -31,6 +31,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -77,7 +78,7 @@ private fun AppLogoTile() {
     }
 }
 
-/** The app update state as a pill. Found also offers the install action beside the pill. */
+/** The app update state as a chip. Found also offers the install action beside the chip. */
 @Composable
 private fun UpdateStatus(check: CheckState, onRetryCheck: () -> Unit, onInstall: (UpdateInfo) -> Unit) {
     val neutralContainer = MaterialTheme.colorScheme.secondaryContainer
@@ -112,7 +113,7 @@ private fun UpdateStatus(check: CheckState, onRetryCheck: () -> Unit, onInstall:
                     containerColor = neutralContainer,
                     contentColor = neutralContent,
                 )
-                TextButton(onClick = { onInstall(check.info) }) {
+                TextButton(shape = ControlShape, onClick = { onInstall(check.info) }) {
                     Text(stringResource(R.string.settings_update_install))
                 }
             }
@@ -120,7 +121,7 @@ private fun UpdateStatus(check: CheckState, onRetryCheck: () -> Unit, onInstall:
     }
 }
 
-/** A 32 dp pill. A tappable pill gets a 48 dp touch area around it; the visible pill stays 32 dp. */
+/** A 32 dp status chip. A tappable chip gets a 48 dp touch area around it; the visible chip stays 32 dp. */
 @Composable
 private fun StatusChip(
     text: String,
@@ -137,7 +138,7 @@ private fun StatusChip(
     }
     Box(touchModifier, contentAlignment = Alignment.Center) {
         Row(
-            Modifier.clip(RoundedCornerShape(percent = 50))
+            Modifier.clip(ControlShape)
                 .background(containerColor)
                 .heightIn(min = Sizes.chip)
                 .padding(horizontal = Spacing.s16),

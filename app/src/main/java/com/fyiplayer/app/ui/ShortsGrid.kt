@@ -17,8 +17,12 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -108,10 +113,11 @@ internal fun ShortsGrid(
 
 @Composable
 internal fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit, selected: Boolean = false) {
+    val extras = MaterialTheme.fyiExtras
     Box(
         Modifier
             .aspectRatio(9f / 16f)
-            .clip(RoundedCornerShape(Radius.xs))
+            .clip(RoundedCornerShape(Radius.m))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
@@ -121,34 +127,34 @@ internal fun ShortsGridTile(ref: VideoRef, onClick: () -> Unit, onLongPress: () 
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to MaterialTheme.fyiExtras.videoScrim)),
+                .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to extras.videoScrim)),
         )
         // Channel Shorts tab selection mode; the main feed never passes selected.
         if (selected) {
-            Box(Modifier.fillMaxSize().border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(Radius.xs)))
+            Box(Modifier.fillMaxSize().border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(Radius.m)))
         }
         Column(Modifier.align(Alignment.BottomStart).padding(6.dp)) {
+            // The " views" word is dropped: the cell is narrow and the play glyph already says what the number counts.
+            ref.viewCountText?.let { views ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = extras.onVideo, modifier = Modifier.size(Sizes.iconSmall))
+                    Text(
+                        views.removeSuffix(" views"),
+                        color = extras.onVideo,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall.merge(NumeralStyle),
+                    )
+                }
+            }
             Text(
                 ref.title,
-                color = MaterialTheme.fyiExtras.onVideo,
+                color = extras.onVideo,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(top = 2.dp),
             )
-            // Compact form: channel · views (no " views" suffix -- the cell is narrow) · short age.
-            // Video rows keep the full "views" word (ResultsList.kt); shorts cells don't have room.
-            val meta = listOfNotNull(ref.uploader, ref.viewCountText?.removeSuffix(" views"), shortAge(ref.uploadedText))
-                .joinToString(" · ")
-            if (meta.isNotBlank()) {
-                Text(
-                    meta,
-                    color = MaterialTheme.fyiExtras.onVideoDim,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
         }
     }
 }

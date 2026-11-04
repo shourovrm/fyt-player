@@ -40,7 +40,6 @@ object Routes {
     const val LIBRARY = "library"
     const val DOWNLOADS = "downloads"
     const val SETTINGS = "settings"
-    const val SETTINGS_PAGE = "settings/{page}"
     const val DETAIL = "detail/{pageUrl}"
     // key is a full channel/playlist URL (path segment); sourceId/kind/title ride as query args so
     // ListingScreen can call the right VideoSource.listing() without a second lookup.
@@ -84,7 +83,7 @@ fun NavController.openListing(listing: Listing) = navigate(
 
 fun NavController.openPlaylist(id: String) = navigate("playlist/${Uri.encode(id)}")
 
-fun NavController.openSettingsPage(page: String) = navigate("settings/$page")
+fun NavController.openSettings() = navigate(Routes.SETTINGS) { launchSingleTop = true }
 
 private val YOUTUBE_HOSTS = setOf("youtube.com", "www.youtube.com", "m.youtube.com")
 private val VERTICAL_CLIP_HOSTS = setOf("tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com")
@@ -209,12 +208,14 @@ fun AppShell(navController: NavHostController) {
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
                 onOpenShorts = { items, index -> navController.openShortsPlayer(items, index) },
+                onOpenSettings = { navController.openSettings() },
             )
         }
         composable(Routes.SHORTS) {
             ShortsScreen(
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenChannel = { navController.openListing(it) },
+                onOpenSettings = { navController.openSettings() },
             )
         }
         composable(Routes.SHORTS_PLAYER) {
@@ -229,20 +230,14 @@ fun AppShell(navController: NavHostController) {
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenPlaylist = { navController.openPlaylist(it) },
                 onOpenListing = { navController.openListing(it) },
+                onOpenSettings = { navController.openSettings() },
             )
         }
         composable(Routes.DOWNLOADS) {
             DownloadsScreen()
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen(onOpenPage = { navController.openSettingsPage(it) })
-        }
-        composable(
-            Routes.SETTINGS_PAGE,
-            arguments = listOf(navArgument("page") { type = NavType.StringType }),
-        ) { entry ->
-            val page = entry.arguments?.getString("page").orEmpty()
-            SettingsPageScreen(page, onBack = { navController.popBackStack() })
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(
             Routes.DETAIL,

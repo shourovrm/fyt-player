@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
@@ -34,13 +35,7 @@ fun ChaptersSheet(chapters: List<Chapter>, onSelect: (Chapter) -> Unit, onDismis
     val playingChapter = remember(chapters) { chapterAt(chapters, PlaybackSession.progress.value.positionMs) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
-            item {
-                Text(
-                    stringResource(R.string.player_chapters),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = Spacing.s16, vertical = Spacing.s8),
-                )
-            }
+            item { SheetTitleRow(stringResource(R.string.player_chapters), onClose = onDismiss) }
             items(chapters) { chapter ->
                 ChapterRow(
                     chapter = chapter,
@@ -69,7 +64,7 @@ internal fun ChapterRow(chapter: Chapter, highlighted: Boolean, horizontalPaddin
         Text(
             mmss(chapter.startSeconds * 1000L),
             color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelLarge.merge(NumeralStyle),
             modifier = Modifier.padding(end = 10.dp),
         )
         Text(chapter.title, style = MaterialTheme.typography.bodyMedium)

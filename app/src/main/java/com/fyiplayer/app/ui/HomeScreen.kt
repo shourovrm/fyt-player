@@ -1,40 +1,50 @@
 package com.fyiplayer.app.ui
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +52,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
@@ -59,6 +72,7 @@ import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.settings.OnboardingSheet
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
@@ -74,24 +88,33 @@ fun HomeScreen(
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
     onOpenShorts: (List<VideoRef>, Int) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val app = rememberFyiApp()
     val vm: HomeViewModel = viewModel()
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
     val enabledIds by app.prefs.enabledSources.collectAsStateWithLifecycle(initialValue = emptySet())
     val browseSources = remember(enabledIds) { SourceRegistry.browseSourcesFor(enabledIds) }
     val searchHistory by vm.searchHistory().collectAsStateWithLifecycle(initialValue = emptyList())
+    var searchOpen by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     var searchFieldFocused by remember { mutableStateOf(false) }
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
     val onboardingDone by app.prefs.onboardingDone.collectAsStateWithLifecycle(initialValue = true)
 
     val isSearching = vm.query.isNotBlank()
+    val searchShown = searchOpen || isSearching
     val focusManager = LocalFocusManager.current
+    fun closeSearch() {
+        vm.clearSearch()
+        searchOpen = false
+        focusManager.clearFocus()
+    }
     // Every other screen exits on back; Home has no screen "above" search to pop to, so back must
     // leave search mode instead of falling through to the Activity's default (closing the app).
-    BackHandler(enabled = isSearching) {
-        vm.clearSearch()
-        focusManager.clearFocus()
+    BackHandler(enabled = searchShown) { closeSearch() }
+    LaunchedEffect(searchOpen) {
+        if (searchOpen) focusRequester.requestFocus()
     }
     // Suggestion fetch tracks the query while the field has focus -- requestSuggestions debounces
     // internally, and a blank query (or losing focus) drops any suggestions on screen.
@@ -101,14 +124,14 @@ fun HomeScreen(
 
     val tabIds = remember(browseSources) { listOf(ALL_TAB_ID) + browseSources.map { it.id } }
     LaunchedEffect(tabIds) { vm.selectedTab = resolveSelectedTab(vm.selectedTab, tabIds) }
-    // Channels land one by one, each sorted above the last; LazyColumn keeps its position by key,
+    // Channels land one by one, each sorted above the last; the grid keeps its position by key,
     // so without this the viewport rides the first channel's rows down as newer ones stack on top.
     // That list state is shared with search results and topic lists, so the pin applies only while
     // the feed is what is on screen -- otherwise a subscription landing mid-refresh would snap
     // whatever else is showing back to row 0.
     val feedShowing = !isSearching && vm.selectedTopic == null
     LaunchedEffect(vm.feed.items, feedShowing) {
-        if (shouldPinFeedToTop(feedShowing, vm.feed.loading)) listState.requestScrollToItem(0)
+        if (shouldPinFeedToTop(feedShowing, vm.feed.loading)) gridState.requestScrollToItem(0)
     }
     // Home's feed builds from watch history, not a per-source fetch -- load it once, the first
     // time a blank query is on screen.
@@ -183,19 +206,19 @@ fun HomeScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = Spacing.pageMargin, end = Spacing.pageMargin, top = 10.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        if (searchShown) {
             SearchPill(
                 query = vm.query,
                 onQueryChange = { vm.query = it },
                 onFocusChanged = { searchFieldFocused = it },
+                onClose = { closeSearch() },
                 onClear = { vm.clearSearch() },
                 onSearch = { submitSearch(vm.query) },
-                onRefresh = { vm.refreshFeed(browseSources) },
-                modifier = Modifier.weight(1f),
+                focusRequester = focusRequester,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
             )
+        } else {
+            HomeAppBar(onOpenSearch = { searchOpen = true }, onOpenSettings = onOpenSettings)
         }
         when {
             browseSources.isEmpty() -> {
@@ -232,16 +255,16 @@ fun HomeScreen(
                 }
                 when {
                     initialLoading -> {
-                        ResultsListColumn(
+                        HomeGrid(
                             items = emptyList(),
                             errors = errorRows,
                             hasMore = false,
                             onLoadMore = {},
                             onClick = ::openResult,
                             onLongPress = { actionSheetRef = it },
-                            listState = listState,
+                            gridState = gridState,
                             modifier = Modifier.weight(1f),
-                            skeletonRows = 6,
+                            skeletonCards = 6,
                         )
                     }
                     searchItems.isEmpty() && errorRows.isEmpty() -> {
@@ -250,18 +273,18 @@ fun HomeScreen(
                         }
                     }
                     else -> {
-                        ResultsListColumn(
+                        HomeGrid(
                             items = longformItems,
                             errors = errorRows,
                             hasMore = hasMore,
                             onLoadMore = { vm.continueTab(feeding) },
                             onClick = ::openResult,
                             onLongPress = { actionSheetRef = it },
-                            listState = listState,
+                            gridState = gridState,
                             modifier = Modifier.weight(1f),
                             isLoadingMore = isLoadingMore,
                             endOfResults = allExhausted,
-                            // Inside the list, not pinned above it: a pinned shelf would hold
+                            // Inside the grid, not pinned above it: a pinned shelf would hold
                             // ~270dp hostage for the whole scroll.
                             topContent = if (shortsItems.isEmpty()) null else {
                                 { ShortsShelf(shortsItems, onClick = ::openShort) }
@@ -274,7 +297,7 @@ fun HomeScreen(
                 Column(Modifier.fillMaxSize()) {
                     val exploreTopics by app.prefs.exploreTopics.collectAsStateWithLifecycle(initialValue = emptySet())
                     val topics = Topic.entries.filter { it.name in exploreTopics }
-                    if (topics.isNotEmpty()) TopicChipsRow(topics, selected = vm.selectedTopic, onSelect = { vm.selectTopic(it) })
+                    if (topics.isNotEmpty()) TopicTabRow(topics, selected = vm.selectedTopic, onSelect = { vm.selectTopic(it) })
                     val topic = vm.selectedTopic
                     if (topic == null) {
                         PullToRefreshBox(
@@ -286,7 +309,8 @@ fun HomeScreen(
                                 feed = vm.feed,
                                 onClick = ::openResult,
                                 onLongPress = { actionSheetRef = it },
-                                listState = listState,
+                                onRefresh = { vm.refreshFeed(browseSources) },
+                                gridState = gridState,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -300,16 +324,16 @@ fun HomeScreen(
                         }
                         // Same shelf idiom as search: shorts pulled up top, long-form below.
                         val (topicShorts, topicLongform) = partitionShorts(result.items)
-                        ResultsListColumn(
+                        HomeGrid(
                             items = topicLongform,
                             errors = errors,
                             hasMore = false,
                             onLoadMore = {},
                             onClick = ::openResult,
                             onLongPress = { actionSheetRef = it },
-                            listState = listState,
+                            gridState = gridState,
                             modifier = Modifier.weight(1f),
-                            skeletonRows = if (result.loading && result.items.isEmpty()) 6 else 0,
+                            skeletonCards = if (result.loading && result.items.isEmpty()) 6 else 0,
                             topContent = if (topicShorts.isEmpty()) null else {
                                 { ShortsShelf(topicShorts) { ref -> onOpenShorts(topicShorts, topicShorts.indexOf(ref).coerceAtLeast(0)) } }
                             },
@@ -324,19 +348,26 @@ fun HomeScreen(
     if (!onboardingDone) OnboardingSheet(app.prefs)
 }
 
-/** Home's "Explore" chips: "For you" (the subscriptions feed, [selected] null) then each [Topic]
- *  in declaration order. Horizontally scrollable -- four topics already crowd a phone width once
- *  "For you" is counted. */
+/** Home's topic tabs: "For you" (the subscriptions feed, [selected] null) then each [Topic] in
+ *  declaration order. Underline style; scrolls sideways once the row is wider than the screen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TopicChipsRow(topics: List<Topic>, selected: Topic?, onSelect: (Topic?) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Spacing.pageMargin, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+private fun TopicTabRow(topics: List<Topic>, selected: Topic?, onSelect: (Topic?) -> Unit) {
+    val tabs: List<Topic?> = listOf(null) + topics
+    PrimaryScrollableTabRow(
+        // A topic switched off in Settings can stay selected; -1 would crash the indicator.
+        selectedTabIndex = tabs.indexOf(selected).coerceAtLeast(0),
+        containerColor = MaterialTheme.colorScheme.background,
+        edgePadding = Spacing.pageMargin,
     ) {
-        FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text(stringResource(R.string.home_for_you)) })
-        topics.forEach { topic ->
-            FilterChip(selected = selected == topic, onClick = { onSelect(topic) }, label = { Text(topic.label) })
+        tabs.forEach { topic ->
+            Tab(
+                selected = topic == selected,
+                onClick = { onSelect(topic) },
+                text = { Text(topic?.label ?: stringResource(R.string.home_for_you), style = MaterialTheme.typography.labelLarge) },
+                selectedContentColor = MaterialTheme.colorScheme.onSurface,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -352,20 +383,21 @@ private fun HomeFeedSection(
     feed: FeedState,
     onClick: (VideoRef) -> Unit,
     onLongPress: (VideoRef) -> Unit,
-    listState: LazyListState,
+    onRefresh: () -> Unit,
+    gridState: LazyGridState,
     modifier: Modifier = Modifier,
 ) {
     when {
         feed.loading && feed.items.isEmpty() -> {
-            ResultsListColumn(
+            HomeGrid(
                 items = emptyList(),
                 hasMore = false,
                 onLoadMore = {},
                 onClick = onClick,
                 onLongPress = onLongPress,
-                listState = listState,
+                gridState = gridState,
                 modifier = modifier,
-                skeletonRows = 6,
+                skeletonCards = 6,
             )
         }
         feed.items.isEmpty() -> {
@@ -385,25 +417,110 @@ private fun HomeFeedSection(
             }
         }
         else -> {
-            ResultsListColumn(
+            HomeGrid(
                 items = feed.items,
                 hasMore = false,
                 onLoadMore = {},
                 onClick = onClick,
                 onLongPress = onLongPress,
-                listState = listState,
+                gridState = gridState,
                 modifier = modifier,
                 isLoadingMore = feed.loading,
-                topContent = {
-                    Text(
-                        stringResource(R.string.home_feed_section_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-                    )
-                },
+                topContent = { FeedSectionHeader(onRefresh) },
             )
         }
+    }
+}
+
+/** "New from channels" label with the refresh button on the same line, full width above the grid. */
+@Composable
+private fun FeedSectionHeader(onRefresh: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s8), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(R.string.home_feed_section_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onRefresh) {
+            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.home_refresh_feed), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Span for header, shelf, error and footer items: one item across every column. */
+private val fullRow: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
+
+/**
+ * Home's result grid: [VideoGridCard]s in 2 columns (4 in landscape), 8 dp gutters. The header,
+ * shelf, error rows and footer span every column. Endless scroll and the first-load skeleton work
+ * as the list did before.
+ */
+@Composable
+private fun HomeGrid(
+    items: List<VideoRef>,
+    hasMore: Boolean,
+    onLoadMore: () -> Unit,
+    onClick: (VideoRef) -> Unit,
+    onLongPress: (VideoRef) -> Unit,
+    gridState: LazyGridState,
+    modifier: Modifier = Modifier,
+    errors: List<ErrorRow> = emptyList(),
+    isLoadingMore: Boolean = false,
+    endOfResults: Boolean = false,
+    skeletonCards: Int = 0,
+    topContent: (@Composable () -> Unit)? = null,
+) {
+    // Fire onLoadMore a few cells before the true bottom so scrolling never stalls.
+    val nearEnd by remember(gridState) {
+        derivedStateOf {
+            val layout = gridState.layoutInfo
+            (layout.visibleItemsInfo.lastOrNull()?.index ?: -1) >= layout.totalItemsCount - 5
+        }
+    }
+    LaunchedEffect(nearEnd, hasMore, isLoadingMore) {
+        if (nearEnd && hasMore && !isLoadingMore) onLoadMore()
+    }
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(if (landscape) 4 else 2),
+        state = gridState,
+        modifier = modifier,
+        contentPadding = PaddingValues(start = Spacing.pageMargin, end = Spacing.pageMargin, bottom = Spacing.s24),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+        verticalArrangement = Arrangement.spacedBy(Spacing.s8),
+    ) {
+        topContent?.let { content -> item(key = "topContent", span = fullRow) { content() } }
+        errors.forEach { row -> item(span = fullRow) { ErrorRowView(row) } }
+        if (items.isEmpty()) items(skeletonCards) { VideoGridSkeletonCard() }
+        // Deduped by page URL: the grid's `key` throws on a duplicate, and one video can turn up twice.
+        items(items.distinctBy { it.pageUrl }, key = { it.pageUrl }) { ref ->
+            VideoGridCard(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
+        }
+        when {
+            isLoadingMore -> item(span = fullRow) { GridLoadingTail() }
+            endOfResults && items.isNotEmpty() -> item(span = fullRow) {
+                Text(
+                    stringResource(R.string.results_end),
+                    modifier = Modifier.fillMaxWidth().padding(Spacing.s16),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            hasMore -> item(span = fullRow) {
+                TextButton(onClick = onLoadMore, shape = ControlShape, modifier = Modifier.fillMaxWidth().padding(Spacing.s16)) {
+                    Text(stringResource(R.string.results_load_more))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GridLoadingTail() {
+    Box(Modifier.fillMaxWidth().padding(Spacing.s16), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(modifier = Modifier.size(Sizes.icon), strokeWidth = 2.dp)
     }
 }
 
@@ -468,34 +585,57 @@ internal fun isChannelPageUrl(pageUrl: String): Boolean {
     return path.startsWith("/channel/") || path.startsWith("/@") || path.startsWith("/c/") || path.startsWith("/user/")
 }
 
-/** Search-first top bar: one 56 dp pill. The trailing icon is Clear while there is a query, else Refresh. */
+/** Home's app bar: app name, then search (opens the field) and settings. */
+@Composable
+private fun HomeAppBar(onOpenSearch: () -> Unit, onOpenSettings: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(Spacing.s56).padding(start = Spacing.pageMargin, end = Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+        IconButton(onClick = onOpenSearch) {
+            Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.home_open_search), tint = MaterialTheme.colorScheme.onSurface)
+        }
+        IconButton(onClick = onOpenSettings) {
+            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.shell_tab_settings), tint = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+/**
+ * Search field, shown in place of the app bar while search is open. Back arrow closes search;
+ * the trailing Clear empties the query and keeps the field open.
+ */
 @Composable
 private fun SearchPill(
     query: String,
     onQueryChange: (String) -> Unit,
     onFocusChanged: (Boolean) -> Unit,
+    onClose: () -> Unit,
     onClear: () -> Unit,
     onSearch: () -> Unit,
-    onRefresh: () -> Unit,
+    focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier
             .height(Sizes.searchBar)
-            .clip(RoundedCornerShape(50))
+            .clip(ControlShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(start = Spacing.s16, end = 4.dp),
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Box(Modifier.weight(1f).padding(start = 10.dp)) {
+        IconButton(onClick = onClose) {
+            Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Box(Modifier.weight(1f).padding(start = Spacing.s8)) {
             if (query.isEmpty()) {
                 Text(stringResource(R.string.home_search_placeholder), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
             }
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth().onFocusChanged { onFocusChanged(it.isFocused) },
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester).onFocusChanged { onFocusChanged(it.isFocused) },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -505,8 +645,6 @@ private fun SearchPill(
         }
         if (query.isNotEmpty()) {
             IconButton(onClick = onClear) { Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.home_clear_search), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
-        } else {
-            IconButton(onClick = onRefresh) { Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.home_refresh_feed), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
@@ -47,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
@@ -269,6 +269,7 @@ fun PlayerScreen(
                         onClick = { PlaybackSession.retryCurrent() },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.onVideo),
                         border = BorderStroke(1.dp, extras.onVideoDim),
+                        shape = ControlShape,
                     ) { Text(stringResource(R.string.action_retry)) }
                 } else if (wall.signInHelps()) {
                     Spacer(Modifier.height(Spacing.s16))
@@ -493,12 +494,12 @@ fun PlayerScreen(
 @Composable
 private fun TransportSkipButton(forward: Boolean, onClick: () -> Unit) {
     val extras = MaterialTheme.fyiExtras
-    // Same scrim circle as CenterPlayButton, so a bright frame cannot wash out the glyph.
+    // Same scrim tile as the top actions, so a bright frame cannot wash out the glyph.
     IconButton(
         onClick = onClick,
         modifier = Modifier
             .size(Sizes.touchTarget)
-            .clip(CircleShape)
+            .clip(ControlShape)
             .background(extras.videoScrimLight),
     ) {
         SkipGlyph(forward = forward, tint = extras.onVideo, size = Sizes.iconLarge)

@@ -1,34 +1,45 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.ui.theme.ExtraIcons
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.annotation.StringRes
-import androidx.compose.ui.res.stringResource
-import com.fyiplayer.app.R
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -36,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.luminance
@@ -45,11 +57,17 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.fyiplayer.app.R
 import com.fyiplayer.app.player.asActivity
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.Sizes
+import com.fyiplayer.app.ui.theme.Spacing
 
 /**
  * The one shared shell: owns the [NavHostController] (so the bottom nav and the [NavHost][
@@ -57,6 +75,9 @@ import com.fyiplayer.app.player.asActivity
  * system-bar insets (consumed exactly once, here), and the bottom nav's scroll auto-hide via a
  * single hoisted [NestedScrollConnection] — every scrolling screen drives it for free just by
  * being a scrollable child of [content].
+ *
+ * Landscape swaps the bottom bar for a left rail with the same destinations; the rail never
+ * auto-hides, because it is the only way to reach the other tabs.
  *
  * [miniPlayer] and [queueBar] are TODO seams: empty by default until the player phase fills them.
  * [miniPlayer] is rendered outside the nav bar's [AnimatedVisibility] on purpose — when auto-hide
@@ -73,6 +94,10 @@ fun AppScaffold(
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val selected = selectedTab(route)
+    val onTab: (String) -> Unit = { navigateToTab(navController, it, route) }
+
+    val configuration = LocalConfiguration.current
+    val landscape = configuration.screenWidthDp > configuration.screenHeightDp
 
     var barVisible by remember { mutableStateOf(true) }
     val nestedScrollConnection = remember {
@@ -133,25 +158,19 @@ fun AppScaffold(
                 // surface — mounting the mini bar there would steal it mid-playback.
                 if (!FullscreenChrome.active) queueBar(navController)
                 if (!isFullPlayerRoute(route)) miniPlayer(navController)
-                AnimatedVisibility(
-                    visible = barVisible && !FullscreenChrome.active,
-                    enter = slideInVertically(tween(NAV_ANIM_MILLIS)) { it },
-                    exit = slideOutVertically(tween(NAV_ANIM_MILLIS)) { it },
-                ) {
-                    NavigationBar {
-                        NAV_TABS.forEach { tab ->
-                            NavigationBarItem(
-                                selected = tab.route == selected,
-                                onClick = { navigateToTab(navController, tab.route, route) },
-                                icon = { Icon(tab.icon, contentDescription = null) },
-                                label = { Text(stringResource(tab.labelRes)) },
-                            )
-                        }
+                if (!landscape) {
+                    AnimatedVisibility(
+                        visible = barVisible && !FullscreenChrome.active,
+                        enter = slideInVertically(tween(NAV_ANIM_MILLIS)) { it },
+                        exit = slideOutVertically(tween(NAV_ANIM_MILLIS)) { it },
+                    ) {
+                        BottomNavBar(selected = selected, onSelect = onTab)
                     }
                 }
-                // The NavigationBar carries the gesture-nav inset; once it slides away the docked
-                // queue bar / mini player would sit under the gesture pill (device-verified).
-                if (!barVisible && !FullscreenChrome.active) {
+                // The bar carried the gesture-nav inset. Once it slides away, or the landscape rail
+                // replaces it, the docked queue bar / mini player would sit under the gesture pill
+                // (device-verified).
+                if ((landscape || !barVisible) && !FullscreenChrome.active) {
                     Spacer(Modifier.windowInsetsBottomHeight(systemBarInsets))
                 }
             }
@@ -163,15 +182,18 @@ fun AppScaffold(
         // inset that M3's nested Scaffold/TopAppBar would pad on their own — a grey strip beside
         // the player while the outer chrome spans full width (device-verified, rotation 1).
         // This app is edge-to-edge under the cutout everywhere, so nothing below may re-pad it.
-        Column(
+        Row(
             Modifier.fillMaxSize().padding(inner).consumeWindowInsets(inner)
                 .consumeWindowInsets(WindowInsets.displayCutout)
                 .nestedScroll(nestedScrollConnection),
         ) {
-            // Update banner rides above every tab, never over a full-bleed player surface.
-            if (!isFullPlayerRoute(route) && !FullscreenChrome.active) UpdateBanner()
-            Box(Modifier.weight(1f)) {
-                content(navController)
+            if (landscape && !FullscreenChrome.active) NavRail(selected = selected, onSelect = onTab)
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                // Update banner rides above every tab, never over a full-bleed player surface.
+                if (!isFullPlayerRoute(route) && !FullscreenChrome.active) UpdateBanner()
+                Box(Modifier.weight(1f)) {
+                    content(navController)
+                }
             }
         }
     }
@@ -183,9 +205,69 @@ private val NAV_TABS = listOf(
     NavTab(Routes.HOME, R.string.shell_tab_home, Icons.Filled.Home),
     NavTab(Routes.SHORTS, R.string.shell_tab_shorts, Icons.Filled.PlayArrow),
     NavTab(Routes.LIBRARY, R.string.shell_tab_library, Icons.Filled.Favorite),
-    NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, Icons.AutoMirrored.Filled.List),
-    NavTab(Routes.SETTINGS, R.string.shell_tab_settings, Icons.Filled.Settings),
+    NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, ExtraIcons.Download),
 )
+
+/** Portrait: four icon-only destinations on the 80 dp bar, above the gesture-nav inset. */
+@Composable
+private fun BottomNavBar(selected: String?, onSelect: (String) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().height(Sizes.navBar),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NAV_TABS.forEach { tab ->
+                NavTabItem(tab, selected = tab.route == selected, onClick = { onSelect(tab.route) })
+            }
+        }
+    }
+}
+
+/** Landscape: the same four destinations as a vertical rail on the left edge. */
+@Composable
+private fun NavRail(selected: String?, onSelect: (String) -> Unit) {
+    Column(
+        Modifier.fillMaxHeight().width(Spacing.s64).padding(vertical = Spacing.s8),
+        verticalArrangement = Arrangement.spacedBy(Spacing.s8),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        NAV_TABS.forEach { tab ->
+            NavTabItem(tab, selected = tab.route == selected, onClick = { onSelect(tab.route) })
+        }
+    }
+}
+
+/**
+ * One destination: a 48 dp target, icon only. Selected puts a 4 dp-cornered accent tint behind
+ * the icon. Built from a plain Box rather than NavigationBarItem, whose indicator shape is fixed
+ * to a pill. The long-press tooltip is the only visible name, so it carries the same label as the
+ * content description.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NavTabItem(tab: NavTab, selected: Boolean, onClick: () -> Unit) {
+    val label = stringResource(tab.labelRes)
+    val tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val indicator = if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer, ControlShape) else Modifier
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState(),
+    ) {
+        Box(
+            Modifier.size(Sizes.touchTarget).selectable(selected = selected, role = Role.Tab, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(indicator.size(width = Sizes.touchTarget, height = Spacing.s32), contentAlignment = Alignment.Center) {
+                Icon(tab.icon, contentDescription = label, tint = tint)
+            }
+        }
+    }
+}
 
 private const val NAV_ANIM_MILLIS = 180
 /** A few px of downward travel before hiding, so a jittery finger doesn't flicker the bar. */
@@ -249,13 +331,12 @@ object SystemBarInsetsState {
     }
 }
 
-/** Which nav item is lit. detail/listing light nothing — they're reachable from more than one tab. */
+/** Which nav item is lit. detail/listing/settings light nothing — they're reachable from more than one tab. */
 private fun selectedTab(route: String?): String? = when (route) {
     Routes.HOME -> Routes.HOME
     Routes.SHORTS -> Routes.SHORTS
     Routes.LIBRARY, Routes.PLAYLIST -> Routes.LIBRARY
     Routes.DOWNLOADS -> Routes.DOWNLOADS
-    Routes.SETTINGS, Routes.SETTINGS_PAGE -> Routes.SETTINGS
     else -> null
 }
 

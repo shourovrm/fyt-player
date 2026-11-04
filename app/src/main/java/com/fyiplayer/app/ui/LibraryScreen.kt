@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.ui.theme.ExtraIcons
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -11,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,6 +25,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +35,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -41,11 +48,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -70,6 +78,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -82,9 +91,12 @@ import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.SubscriptionRow
 import com.fyiplayer.app.player.PlaybackSession
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -95,7 +107,12 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Unit, onOpenListing: (Listing) -> Unit) {
+fun LibraryScreen(
+    onOpenDetail: (String) -> Unit,
+    onOpenPlaylist: (String) -> Unit,
+    onOpenListing: (Listing) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val vm: LibraryViewModel = viewModel()
     val scope = rememberCoroutineScope()
     val selecting = vm.selection.isNotEmpty()
@@ -183,7 +200,14 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
                     },
                 )
             } else {
-                TopAppBar(title = { Text(stringResource(R.string.library_title)) })
+                TopAppBar(
+                    title = { Text(stringResource(R.string.library_title)) },
+                    actions = {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.shell_tab_settings))
+                        }
+                    },
+                )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHost) },
@@ -198,12 +222,7 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            TabRow(selectedTabIndex = vm.tab.ordinal) {
-                Tab(selected = vm.tab == LibraryTab.LIKES, onClick = { vm.selectTab(LibraryTab.LIKES) }, text = { Text(stringResource(R.string.library_tab_likes)) })
-                Tab(selected = vm.tab == LibraryTab.PLAYLISTS, onClick = { vm.selectTab(LibraryTab.PLAYLISTS) }, text = { Text(stringResource(R.string.library_tab_playlists)) })
-                Tab(selected = vm.tab == LibraryTab.HISTORY, onClick = { vm.selectTab(LibraryTab.HISTORY) }, text = { Text(stringResource(R.string.library_tab_history)) })
-                Tab(selected = vm.tab == LibraryTab.CHANNELS, onClick = { vm.selectTab(LibraryTab.CHANNELS) }, text = { Text(stringResource(R.string.library_tab_channels)) })
-            }
+            LibrarySectionRow(selected = vm.tab, onSelect = { vm.selectTab(it) })
             when (vm.tab) {
                 LibraryTab.LIKES -> LikesTab(
                     videos = liked,
@@ -278,10 +297,59 @@ fun LibraryScreen(onOpenDetail: (String) -> Unit, onOpenPlaylist: (String) -> Un
     }
 }
 
+/** The four Library sections as one icon segmented control. Only the selected segment shows its
+ *  label; the others are icon-only and carry their name as the content description. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LibrarySectionRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) {
+    val sections = listOf(LibraryTab.HISTORY, LibraryTab.LIKES, LibraryTab.PLAYLISTS, LibraryTab.CHANNELS)
+    SingleChoiceSegmentedButtonRow(
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+    ) {
+        sections.forEachIndexed { index, section ->
+            val isSelected = section == selected
+            val label = librarySectionLabel(section)
+            SegmentedButton(
+                selected = isSelected,
+                onClick = { onSelect(section) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = sections.size, baseShape = ControlShape),
+                // The section glyph lives in `label`: the `icon` slot is the selection-check area and
+                // draws nothing for an unselected segment whose label is empty.
+                icon = {},
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
+                        LibrarySectionIcon(section, contentDescription = if (isSelected) null else label)
+                        if (isSelected) Text(label, maxLines = 1)
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** material-icons-core has no History, PlaylistPlay or Subscriptions glyph; those come from ExtraIcons or drawables. */
+@Composable
+private fun LibrarySectionIcon(section: LibraryTab, contentDescription: String?) {
+    when (section) {
+        LibraryTab.HISTORY -> Icon(ExtraIcons.History, contentDescription = contentDescription)
+        LibraryTab.LIKES -> Icon(Icons.Filled.ThumbUp, contentDescription = contentDescription)
+        LibraryTab.PLAYLISTS -> Icon(painterResource(R.drawable.ic_playlist_play), contentDescription = contentDescription)
+        LibraryTab.CHANNELS -> Icon(painterResource(R.drawable.ic_subscriptions), contentDescription = contentDescription)
+    }
+}
+
+@Composable
+private fun librarySectionLabel(section: LibraryTab): String = when (section) {
+    LibraryTab.HISTORY -> stringResource(R.string.library_tab_history)
+    LibraryTab.LIKES -> stringResource(R.string.library_tab_likes)
+    LibraryTab.PLAYLISTS -> stringResource(R.string.library_tab_playlists)
+    LibraryTab.CHANNELS -> stringResource(R.string.library_tab_channels)
+}
+
 /** One destructive yes/no prompt, shared by Unsubscribe, Remove-followed, playlist delete and the
- *  history clears: the destructive
- *  choice is error-tinted text, not the filled/primary button, so it never reads as the default
- *  -- same non-default-destructive convention as DownloadsScreen's `RemoveConfirmDialog`. */
+ *  history clears: the destructive choice is error-tinted text, not the filled/primary button, so
+ *  it never reads as the default -- same non-default-destructive convention as DownloadsScreen's
+ *  `RemoveSheet`. */
 @Composable
 internal fun ConfirmDialog(
     title: String,
@@ -369,10 +437,16 @@ private fun PlaylistsTab(
         when {
             list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_playlists_empty))
-            else -> LazyColumn(Modifier.fillMaxSize()) {
+            else -> LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.s8),
+            ) {
                 items(list, key = { it.key }) { row ->
                     when (row) {
-                        is PlaylistRow.Local -> LocalPlaylistRow(
+                        is PlaylistRow.Local -> LocalPlaylistCard(
                             card = row.card,
                             onClick = { onOpenPlaylist(row.card.id.toString()) },
                             onRename = { name ->
@@ -389,7 +463,7 @@ private fun PlaylistsTab(
                                 }
                             },
                         )
-                        is PlaylistRow.Followed -> FollowedPlaylistRow(
+                        is PlaylistRow.Followed -> FollowedPlaylistCard(
                             listing = row.listing,
                             selected = row.listing.key in selection,
                             onClick = { if (selecting) onToggle(row.listing.key) else onOpenListing(row.listing) },
@@ -419,60 +493,73 @@ private fun PlaylistsTab(
     }
 }
 
-/** One row shape for both local and followed playlists (report #9: they used to render
- *  differently -- a bare cover box vs. a monogram disc, count vs. no count). Same thumbnail/title/
- *  subtitle layout either way; [trailing] is each caller's own per-row ⋮ menu, the only part that
- *  legitimately differs (Share+Rename+Delete vs. Share+Delete -- a followed playlist isn't the
- *  user's own to rename). */
+/** One card shape for local and followed playlists: a 16:9 cover with a count strip along its
+ *  bottom edge, the title below it, and the caller's own ⋮ menu ([trailing]) beside the title.
+ *  [stripLabel] is the count for a local playlist and "Followed" for a remote one, which has no
+ *  stored count. The cover's thumbnail is the first video's, stored at follow time (or backfilled
+ *  lazily by LibraryViewModel) -- never a per-card fetch (rule 6). */
 @Composable
-private fun PlaylistRowItem(
+private fun PlaylistCoverCard(
     thumbnailUrl: String?,
     title: String,
-    subtitle: String,
+    stripLabel: String,
     selected: Boolean,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     trailing: @Composable () -> Unit,
 ) {
-    Row(
+    val extras = MaterialTheme.fyiExtras
+    Column(
         Modifier
             .fillMaxWidth()
-            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent, RoundedCornerShape(Radius.m))
             .combinedClickable(onClick = onClick, onLongClick = onLongPress)
-            .heightIn(min = Sizes.listTwoLine)
-            .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(Spacing.s8),
     ) {
-        Box(Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.s)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-            // A followed row's thumbnail is the first video's, stored at follow time (or backfilled
-            // lazily by LibraryViewModel) -- never a per-row fetch (rule 6). Null until either lands,
-            // and the box stays a plain surface tint, same as an empty local cover.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(Radius.m))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            // Null until the thumbnail lands; the box stays a plain surface tint, same as an empty cover.
             if (thumbnailUrl != null) {
                 AsyncImage(model = thumbnailUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
             }
-        }
-        Column(Modifier.padding(start = Spacing.s16).weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
+                stripLabel,
+                style = MaterialTheme.typography.bodySmall.merge(NumeralStyle),
+                color = extras.onVideo,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(extras.videoScrim)
+                    .padding(horizontal = Spacing.s8, vertical = 4.dp),
             )
         }
-        trailing()
+        Row(Modifier.fillMaxWidth().padding(top = Spacing.s8), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            trailing()
+        }
     }
 }
 
 @Composable
-private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit, onShare: () -> Unit) {
+private fun LocalPlaylistCard(card: PlaylistCard, onClick: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit, onShare: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
-    PlaylistRowItem(
+    PlaylistCoverCard(
         thumbnailUrl = card.coverThumbnailUrl,
         title = card.name,
-        subtitle = pluralStringResource(R.plurals.library_video_count, card.itemCount, card.itemCount),
+        stripLabel = pluralStringResource(R.plurals.library_video_count, card.itemCount, card.itemCount),
         selected = false, // local playlists have no multi-select here -- delete is per-row (menu below)
         onClick = onClick,
         onLongPress = {},
@@ -501,11 +588,11 @@ private fun LocalPlaylistRow(card: PlaylistCard, onClick: () -> Unit, onRename: 
 }
 
 /** A followed remote playlist: no stored count (unlike a local playlist's item count) -- "Followed"
- *  is the subtitle, and it's also the only tell a tap needs to route on (open the remote listing,
- *  not a local playlist id). Same ⋮ menu shape as [LocalPlaylistRow], minus Rename: it isn't the
+ *  is the strip label, and it's also the only tell a tap needs to route on (open the remote listing,
+ *  not a local playlist id). Same ⋮ menu shape as [LocalPlaylistCard], minus Rename: it isn't the
  *  user's own playlist to rename, so the menu offers Unfollow instead of Delete. */
 @Composable
-private fun FollowedPlaylistRow(
+private fun FollowedPlaylistCard(
     listing: Listing,
     selected: Boolean,
     onClick: () -> Unit,
@@ -514,10 +601,10 @@ private fun FollowedPlaylistRow(
     onUnfollow: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    PlaylistRowItem(
+    PlaylistCoverCard(
         thumbnailUrl = listing.thumbnailUrl,
         title = listing.title,
-        subtitle = stringResource(R.string.state_followed),
+        stripLabel = stringResource(R.string.state_followed),
         selected = selected,
         onClick = onClick,
         onLongPress = onLongPress,

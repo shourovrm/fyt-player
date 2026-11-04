@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.YoutubeLoginActivity
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
@@ -52,6 +53,7 @@ fun WallSignInButton(onSignedIn: () -> Unit, modifier: Modifier = Modifier) {
     // Sits over the player, so it is onVideo on the scrim rather than a theme surface colour.
     val extras = MaterialTheme.fyiExtras
     OutlinedButton(
+        shape = ControlShape,
         onClick = { signIn(loggedIn) },
         colors = ButtonDefaults.outlinedButtonColors(contentColor = extras.onVideo),
         border = BorderStroke(1.dp, extras.onVideoDim),

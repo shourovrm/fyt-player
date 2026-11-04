@@ -1,7 +1,9 @@
 package com.fyiplayer.app.ui.theme
 
 import android.content.res.Configuration
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -41,8 +43,8 @@ val MaterialTheme.fyiExtras: FyiExtraColors
     @Composable
     get() = LocalFyiExtraColors.current
 
-// surfaceContainer*/secondaryContainer are what NavigationBar reads for its container and
-// selection indicator. Left undefined, darkColorScheme()/lightColorScheme() fill them from
+// surfaceContainer*/secondaryContainer are what NavigationBar, bottom sheets, menus and dialogs
+// read for their containers and selection indicator. Left undefined, darkColorScheme()/lightColorScheme() fill them from
 // Material's baseline purple palette independently of `primary`, so the bottom nav renders
 // lavender chrome over otherwise on-brand surfaces. Pinning them here keeps nav on-brand.
 private val FyiDarkColorScheme = darkColorScheme(
@@ -56,8 +58,12 @@ private val FyiDarkColorScheme = darkColorScheme(
     onSurface = DarkInk,
     surfaceVariant = DarkSurface2,
     onSurfaceVariant = DarkInk2,
+    surfaceContainerLowest = DarkBg,
+    surfaceContainerLow = DarkSurface1,
     surfaceContainer = DarkSurface1,
     surfaceContainerHigh = DarkSurface2,
+    surfaceContainerHighest = DarkSurface3,
+    surfaceTint = DarkAccent,
     outline = DarkOutline,
     error = DarkDestructive,
 )
@@ -73,11 +79,30 @@ private val FyiLightColorScheme = lightColorScheme(
     onSurface = LightInk,
     surfaceVariant = LightSurface2,
     onSurfaceVariant = LightInk2,
+    surfaceContainerLowest = LightBg,
+    surfaceContainerLow = LightSurface1,
     surfaceContainer = LightSurface1,
     surfaceContainerHigh = LightSurface2,
+    surfaceContainerHighest = LightSurface3,
+    surfaceTint = LightAccent,
     outline = LightOutline,
     error = LightDestructive,
 )
+
+/**
+ * Square-ish corners everywhere: no pill shapes. Material buttons, chips and segmented buttons
+ * default to fully rounded ends regardless of this scale, so they pass [ControlShape] explicitly.
+ */
+private val FyiShapes = Shapes(
+    extraSmall = RoundedCornerShape(Radius.xs),
+    small = RoundedCornerShape(Radius.xs),
+    medium = RoundedCornerShape(Radius.s),
+    large = RoundedCornerShape(Radius.m),
+    extraLarge = RoundedCornerShape(Radius.xl),
+)
+
+/** Buttons, chips, segmented controls, switch tracks, the search field and nav indicators. */
+val ControlShape = RoundedCornerShape(Radius.xs)
 
 /**
  * Dark is the product default: unlike [androidx.compose.foundation.isSystemInDarkTheme],
@@ -105,6 +130,7 @@ fun FyiTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = FyiTypography,
+            shapes = FyiShapes,
             content = content,
         )
     }

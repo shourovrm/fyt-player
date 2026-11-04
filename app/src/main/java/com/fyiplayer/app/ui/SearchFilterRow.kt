@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.SearchFilter
 import com.fyiplayer.app.core.SearchSort
@@ -31,6 +32,7 @@ internal fun SearchFilterRow(filter: SearchFilter, onChange: (SearchFilter) -> U
                 selected = filter.type == type,
                 onClick = { onChange(filter.copy(type = type)) },
                 label = { Text(type.label) },
+                shape = ControlShape,
             )
         }
         SearchSort.entries.forEach { sort ->
@@ -38,6 +40,7 @@ internal fun SearchFilterRow(filter: SearchFilter, onChange: (SearchFilter) -> U
                 selected = filter.sort == sort,
                 onClick = { onChange(filter.copy(sort = sort)) },
                 label = { Text(sort.label) },
+                shape = ControlShape,
             )
         }
     }

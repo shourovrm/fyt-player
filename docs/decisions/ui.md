@@ -1,6 +1,7 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-11-05 (device-verified, light theme, portrait): V4 "Grid & sheets" redesign per docs/design-system.md Direction. Home = underline topic tabs + 2-col VideoGridCard grid; Shorts = 3-col grid; Library = icon segmented switcher + playlist grid; Downloads = progress ring on thumbnail is pause/resume; Settings left the bottom bar (gear in app bars), hub opens pages as sheets, SquareSwitch + ControlShape segmented buttons; fonts Schibsted Grotesk + Spline Sans Mono; no pill shapes (gate test).
 2026-10-31 (built-unverified): speed sheet = mock speed.html option F (`SpeedSheet.kt`, pure maths in `SpeedMath.kt`): big value + -/+ (0.05), slider 0.1-3 that snaps to 0.25 marks when within 0.05, six presets (0.5 1 1.25 1.5 2 3), Reset to 1x; applies live, sheet stays open; bar shows a filled primary pill when speed != 1x. Speed still not persisted.
 2026-10-31 (built-unverified): Library History multi-select (mock .design-mockups/history-select.html, d1): long-press selects, rows get checkboxes, `SelectionTopBar(allState=)` shows a tri-state checkbox (other tabs keep the "All" text button), trash Remove -> `HistoryRepository.removeAll` returns the full rows, snackbar "N videos removed" + Undo -> `restore` re-upserts them (same watchedAt). Long-press no longer opens the action sheet on History. Deselecting every row exits selection (empty set == off), unlike the mock's "stays in selection mode".
 2026-10-31 (built-unverified): Detail Download button is a plain neutral IconButton like Like/Save/Share; it turns
@@ -224,6 +225,7 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
 `Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
 ## Open items
+- V4 unverified: dark theme, landscape side rail, font scale 1.3, 360 dp phones (grid card title width).
 
 - Not done from the 2026-10-06 review: strings to resources (app is not localisable, ~93
   literals), tablet/landscape layout (Detail header is width*9/16 with no height cap), single
@@ -244,6 +246,8 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
   remove), playlist tab thumbnails, unsubscribe flow.
 
 ## Gotchas
+- Material SegmentedButton's `icon` slot is the selection check: an icon-only unselected segment draws nothing; put the glyph in `label`.
+- Bottom sheets read surfaceContainerLow; unset, it falls back to baseline lavender. Theme.kt pins every surfaceContainer slot.
 - Any `.dp` literal outside ui/theme other than 0/1/2/4/6/10, any `.sp`, any raw colour, or any
   quoted literal passed to Text/contentDescription/label fails the gate tests. Add a token or a
   string resource instead; never loosen the regex.

@@ -55,6 +55,8 @@ import com.fyiplayer.app.core.ResultKind
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.PlaybackPosition
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -146,7 +148,11 @@ internal fun ResultsListColumn(
                 )
             }
         } else if (hasMore) {
-            item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(Spacing.s16)) { Text(stringResource(R.string.results_load_more)) } }
+            item {
+                TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(Spacing.s16), shape = ControlShape) {
+                    Text(stringResource(R.string.results_load_more))
+                }
+            }
         }
     }
 }
@@ -279,7 +285,7 @@ private fun BoxScope.CornerBadge(text: String, background: Color, color: Color) 
             .background(background)
             .padding(horizontal = 6.dp, vertical = 2.dp),
         color = color,
-        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+        style = MaterialTheme.typography.labelSmall.merge(NumeralStyle),
     )
 }
 
@@ -334,7 +340,7 @@ internal fun ErrorRowView(row: ErrorRow) {
             modifier = Modifier.weight(1f),
         )
         if (row.onRetry != null) {
-            TextButton(onClick = row.onRetry) { Text(stringResource(R.string.action_retry)) }
+            TextButton(onClick = row.onRetry, shape = ControlShape) { Text(stringResource(R.string.action_retry)) }
         }
     }
 }

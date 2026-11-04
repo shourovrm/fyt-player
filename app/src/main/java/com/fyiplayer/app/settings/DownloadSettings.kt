@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -53,9 +54,11 @@ fun DownloadSettings(prefs: Prefs) {
         ) {
             SettingsLabel(stringResource(R.string.settings_download_folder), prettyTreeUri(treeUri, appStorageLabel), Modifier.weight(1f))
             if (treeUri != null) {
-                TextButton(onClick = { scope.launch { prefs.setDownloadTreeUri(null) } }) { Text(stringResource(R.string.settings_reset)) }
+                TextButton(shape = ControlShape, onClick = { scope.launch { prefs.setDownloadTreeUri(null) } }) {
+                    Text(stringResource(R.string.settings_reset))
+                }
             }
-            TextButton(onClick = { pickLauncher.launch(null) }) { Text(stringResource(R.string.settings_change)) }
+            TextButton(shape = ControlShape, onClick = { pickLauncher.launch(null) }) { Text(stringResource(R.string.settings_change)) }
         }
     }
 }

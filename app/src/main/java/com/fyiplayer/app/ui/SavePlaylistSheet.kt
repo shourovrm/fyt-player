@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -99,6 +100,7 @@ fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDis
             text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true) },
             confirmButton = {
                 TextButton(
+                    shape = ControlShape,
                     enabled = text.isNotBlank(),
                     onClick = {
                         val name = text.trim()
@@ -113,7 +115,9 @@ fun SavePlaylistSheet(refs: List<VideoRef>, playlists: PlaylistRepository, onDis
                     },
                 ) { Text(stringResource(R.string.playlist_create)) }
             },
-            dismissButton = { TextButton(onClick = { showCreate = false }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = {
+                TextButton(onClick = { showCreate = false }, shape = ControlShape) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }

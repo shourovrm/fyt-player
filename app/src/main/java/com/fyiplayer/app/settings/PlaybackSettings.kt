@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -106,7 +107,9 @@ private fun ResolutionRow(label: String, selected: Int, onSelect: (Int) -> Unit)
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showDialog = false }) { Text(stringResource(R.string.action_cancel)) } },
+            confirmButton = {
+                TextButton(shape = ControlShape, onClick = { showDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }

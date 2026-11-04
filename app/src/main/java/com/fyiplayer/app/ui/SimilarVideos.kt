@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.ExtractionError
@@ -133,7 +134,7 @@ internal fun LazyListScope.similarVideosSection(
             Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
                 Text(error.userMessage(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 if (retryEnabled) {
-                    TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
+                    TextButton(onClick = onRetry, shape = ControlShape) { Text(stringResource(R.string.action_retry)) }
                 }
             }
         }

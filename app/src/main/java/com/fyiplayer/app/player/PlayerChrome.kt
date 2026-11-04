@@ -47,7 +47,8 @@ import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.SeekThumbnails
-import com.fyiplayer.app.ui.theme.Radius
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
@@ -252,19 +253,19 @@ internal fun ControlBar(
             Text(
                 formatPosition(progress.positionMs, progress.durationMs),
                 color = extras.onVideo,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
             )
             Box(modifier = Modifier.weight(1f))
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
-                // Lit like Repeat: a filled pill marks any non-default speed.
+                // Lit like Repeat: a filled square marks any non-default speed.
                 Text(
                     speedLabel,
                     color = if (speedChanged) MaterialTheme.colorScheme.onPrimary else extras.onVideo,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
                     maxLines = 1,
                     modifier = if (speedChanged) {
                         Modifier
-                            .background(playedColor, RoundedCornerShape(Radius.m))
+                            .background(playedColor, ControlShape)
                             .padding(horizontal = Spacing.s8, vertical = 4.dp)
                     } else {
                         Modifier

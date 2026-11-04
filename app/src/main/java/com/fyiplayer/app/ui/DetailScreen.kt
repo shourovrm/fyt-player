@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -26,7 +28,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -65,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -294,7 +297,7 @@ fun DetailScreen(
                             Text(
                                 meta,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.merge(NumeralStyle),
                                 modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 4.dp),
                             )
                         }
@@ -304,6 +307,7 @@ fun DetailScreen(
                         val sponsorChannelUrl = if (shownRef.sourceId == "youtube") uploaderListing?.key else null
                         VideoActionRow(
                             rememberVideoActions(shownRef),
+                            likeCount = detail.likeCount,
                             sponsorChannelUrl = sponsorChannelUrl,
                             onMessage = { text -> actionMessage = ActionMessage(text) },
                             // Reports the row's bottom edge so the pill can float under it. Written on
@@ -393,18 +397,19 @@ fun DetailScreen(
 
 /**
  * Like / Save (add to playlist) / Download / Share, plus the channel's SponsorBlock toggle when it
- * applies, as one row of icon-only buttons under the title (no Queue: the page's own video is
- * already the queue). The handlers are the ones [VideoActionSheet]'s long-press sheet uses
- * ([VideoActions], `ui/VideoActionSheet.kt`). Icons spread evenly across the width, so the row
- * never scrolls. Each button's spoken label is its full name. Like and the Skips toggle confirm
- * with a short message under the row ([onMessage], shown by [ActionMessagePill]). Like shows the
- * accent colour and a filled icon while liked, read from
+ * applies, as one row of tiles under the title (no Queue: the page's own video is already the
+ * queue). The handlers are the ones [VideoActionSheet]'s long-press sheet uses ([VideoActions],
+ * `ui/VideoActionSheet.kt`). Tiles spread evenly across the width, so the row never scrolls. Each
+ * tile's spoken label is its full name. Like shows the video's like count beside its icon, and
+ * the Skips toggle and Like confirm with a short message under the row ([onMessage], shown by
+ * [ActionMessagePill]). Like shows the accent colour and a filled icon while liked, read from
  * [VideoActions.likedFlow], so a toggle from elsewhere is never stale. Download takes the accent
  * colour once the video is downloaded ([VideoActions.downloadedFlow]).
  */
 @Composable
 private fun VideoActionRow(
     actions: VideoActions,
+    likeCount: Long?,
     sponsorChannelUrl: String?,
     onMessage: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -416,41 +421,41 @@ private fun VideoActionRow(
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
     val likeAddedMessage = stringResource(R.string.detail_like_added)
     val likeRemovedMessage = stringResource(R.string.detail_like_removed)
+    val likeLabel = stringResource(if (liked) R.string.action_unlike else R.string.action_like)
     val saveLabel = stringResource(R.string.action_add_to_playlist)
     val downloadLabel = stringResource(R.string.action_download)
+    val shareLabel = stringResource(R.string.action_share)
+    val likeTint = if (liked) MaterialTheme.colorScheme.primary else onSurfaceVariant
 
     Row(
         modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = {
+        ActionTile(label = likeLabel, onClick = {
             actions.toggleLike(liked)
             // The message names the state the tap switches to, so it is chosen from the current value.
             onMessage(if (liked) likeRemovedMessage else likeAddedMessage)
         }) {
             Icon(
                 if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = stringResource(if (liked) R.string.action_unlike else R.string.action_like),
-                tint = if (liked) MaterialTheme.colorScheme.primary else onSurfaceVariant,
+                contentDescription = null,
+                tint = likeTint,
                 modifier = Modifier.size(Sizes.icon),
             )
+            if (likeCount != null) {
+                Text(formatCount(likeCount), color = likeTint, style = MaterialTheme.typography.labelLarge.merge(NumeralStyle))
+            }
         }
-        // Canvas glyphs carry no description of their own, so the label goes on the button.
-        IconButton(onClick = { showPlaylistPicker = true }, modifier = Modifier.semantics { contentDescription = saveLabel }) {
+        ActionTile(label = saveLabel, onClick = { showPlaylistPicker = true }) {
             SaveGlyph(tint = onSurfaceVariant, size = Sizes.icon)
         }
         // Neutral like the others; accent colour only once the file is saved, as Like does.
-        IconButton(onClick = { actions.startDownload() }, modifier = Modifier.semantics { contentDescription = downloadLabel }) {
+        ActionTile(label = downloadLabel, onClick = { actions.startDownload() }) {
             DownloadTrayGlyph(tint = if (downloaded) MaterialTheme.colorScheme.primary else onSurfaceVariant, size = Sizes.icon)
         }
-        IconButton(onClick = { actions.share() }) {
-            Icon(
-                Icons.Filled.Share,
-                contentDescription = stringResource(R.string.action_share),
-                tint = onSurfaceVariant,
-                modifier = Modifier.size(Sizes.icon),
-            )
+        ActionTile(label = shareLabel, onClick = { actions.share() }) {
+            Icon(Icons.Filled.Share, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(Sizes.icon))
         }
         SponsorChannelToggle(sponsorChannelUrl, onMessage = onMessage)
     }
@@ -463,6 +468,27 @@ private fun VideoActionRow(
             state = state,
             onSelect = { option: DownloadOption -> actions.confirmDownload(option) { message -> showToast(context, message) } },
             onDismiss = { actions.dismissDownloadPicker() },
+        )
+    }
+}
+
+/** One tile of [VideoActionRow]: a surfaceContainerHigh square at least 48 dp, [content] laid out
+ *  in a row. [label] is the spoken name, since a glyph carries none. */
+@Composable
+private fun ActionTile(label: String, onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = ControlShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.semantics { contentDescription = label },
+    ) {
+        Row(
+            Modifier
+                .defaultMinSize(minWidth = Sizes.touchTarget, minHeight = Sizes.touchTarget)
+                .padding(horizontal = Spacing.s8),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.s8, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
         )
     }
 }

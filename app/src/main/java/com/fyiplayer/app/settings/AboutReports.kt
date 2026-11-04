@@ -20,6 +20,7 @@ import com.fyiplayer.app.CrashLog
 import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.R
 import com.fyiplayer.app.ui.ConfirmDialog
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 
 /** The About page dialog currently open. Null in the page state means none is open. */
@@ -106,18 +107,18 @@ private fun ReportPickerDialog(
         text = {
             Column {
                 if (hasCrash) {
-                    TextButton(onClick = { onPick(AboutDialog.CRASH) }) {
+                    TextButton(shape = ControlShape, onClick = { onPick(AboutDialog.CRASH) }) {
                         Text(stringResource(R.string.settings_crash_report))
                     }
                 }
                 if (hasPlayback) {
-                    TextButton(onClick = { onPick(AboutDialog.PLAYBACK) }) {
+                    TextButton(shape = ControlShape, onClick = { onPick(AboutDialog.PLAYBACK) }) {
                         Text(stringResource(R.string.settings_playback_report))
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
+        confirmButton = { TextButton(shape = ControlShape, onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
     )
 }
 
@@ -135,8 +136,8 @@ private fun ReportDialog(title: String, text: String, onCopy: () -> Unit, onClea
                 modifier = Modifier.heightIn(max = Sizes.sheetMaxWidth).verticalScroll(rememberScrollState()),
             )
         },
-        confirmButton = { TextButton(onClick = onCopy) { Text(stringResource(R.string.settings_copy)) } },
-        dismissButton = { TextButton(onClick = onClear) { Text(stringResource(R.string.action_clear)) } },
+        confirmButton = { TextButton(shape = ControlShape, onClick = onCopy) { Text(stringResource(R.string.settings_copy)) } },
+        dismissButton = { TextButton(shape = ControlShape, onClick = onClear) { Text(stringResource(R.string.action_clear)) } },
     )
 }
 

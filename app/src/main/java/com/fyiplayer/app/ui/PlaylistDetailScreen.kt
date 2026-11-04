@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -164,9 +165,10 @@ fun PlaylistDetailScreen(id: String, onOpenDetail: (String) -> Unit, onDeleted: 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(onClick = { playFromAndOpen(videos, 0) }, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
+                    Button(onClick = { playFromAndOpen(videos, 0) }, shape = ControlShape, contentPadding = PaddingValues(horizontal = Spacing.s16)) { Text(stringResource(R.string.playlist_play_all)) }
                     OutlinedButton(
                         onClick = { playFromAndOpen(videos.shuffled(), 0) },
+                        shape = ControlShape,
                         contentPadding = PaddingValues(horizontal = Spacing.s16),
                         modifier = Modifier.padding(start = Spacing.s8),
                     ) { Text(stringResource(R.string.playlist_shuffle)) }

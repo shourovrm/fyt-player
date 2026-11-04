@@ -22,6 +22,8 @@ import com.fyiplayer.app.R
 import com.fyiplayer.app.data.prefs.Prefs
 import com.fyiplayer.app.player.CaptionSize
 import com.fyiplayer.app.player.captionSizeLabel
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.scaledBy
 import kotlinx.coroutines.launch
@@ -63,7 +65,16 @@ private fun CaptionSizeRow(label: String, selected: CaptionSize, onSelect: (Capt
                 SegmentedButton(
                     selected = size == selected,
                     onClick = { onSelect(size) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = CaptionSize.entries.size),
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = CaptionSize.entries.size,
+                        baseShape = ControlShape,
+                    ),
+                    modifier = Modifier.height(Sizes.touchTarget),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        activeContentColor = MaterialTheme.colorScheme.primary,
+                    ),
                     label = { Text(captionSizeLabel(size)) },
                 )
             }

@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.fyiExtras
 
@@ -48,8 +49,8 @@ internal fun AutoplaySwitch(checked: Boolean, onToggle: () -> Unit) {
             modifier = Modifier
                 .size(Sizes.switchTrackWidth, Sizes.switchTrackHeight)
                 .then(
-                    if (checked) Modifier.background(colors.primary, CircleShape)
-                    else Modifier.border(BorderStroke(2.dp, extras.onVideo), CircleShape),
+                    if (checked) Modifier.background(colors.primary, ControlShape)
+                    else Modifier.border(BorderStroke(2.dp, extras.onVideo), ControlShape),
                 )
                 .padding(2.dp),
             contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,

@@ -3,13 +3,20 @@ package com.fyiplayer.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -64,7 +71,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Unit) {
+fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Unit, onOpenSettings: () -> Unit) {
     val app = rememberFyiApp()
     val vm: ShortsViewModel = viewModel()
     val enabledIds by app.prefs.enabledSources.collectAsStateWithLifecycle(initialValue = emptySet())
@@ -85,68 +92,83 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
     BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false; PlaybackSession.clear() }
 
     val feed = vm.feed
-    when {
-        sources.isEmpty() -> EmptyStateScreen(
-            title = stringResource(R.string.shorts_title),
-            message = stringResource(R.string.home_no_sources),
-        )
-        // Items first: the pager is the ONLY branch that may reach ShortsPager, so it can never be
-        // composed with an empty list (rememberPagerState would coerce into an empty range).
-        feed.items.isNotEmpty() -> if (vm.showPlayer) {
-            ShortsPager(
-                items = feed.items,
-                page = vm.pagerPage,
-                onPageChange = { vm.pagerPage = it },
-                onOpenDetail = onOpenDetail,
-                onOpenChannel = onOpenChannel,
-                onLoadMore = vm::loadMore,
-                onPageSettled = vm::recordShown,
-            )
-        } else {
-            PullToRefreshBox(
-                isRefreshing = feed.loading,
-                onRefresh = {
-                    vm.pagerPage = 0
-                    vm.refreshFeed(sources)
-                    // The hoisted grid state would otherwise restore the old scroll offset over
-                    // a feed that is new from its first item.
-                    scope.launch { gridState.scrollToItem(0) }
+    // The app bar is part of the grid, not the pager: the pager is full-bleed and must reach every edge.
+    Column(Modifier.fillMaxSize()) {
+        if (!vm.showPlayer) {
+            TopAppBar(
+                title = { Text(stringResource(R.string.shorts_title), style = MaterialTheme.typography.titleLarge) },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.shell_tab_settings))
+                    }
                 },
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                ShortsGrid(
-                    items = feed.items,
-                    gridState = gridState,
-                    onOpenPlayer = { tapped, paintedIndex ->
-                        vm.pagerPage = pagerPageForTap(vm.feed.items, tapped.pageUrl, paintedIndex)
-                        vm.showPlayer = true
+            )
+        }
+        Box(Modifier.weight(1f)) {
+            when {
+                sources.isEmpty() -> EmptyStateScreen(
+                    title = stringResource(R.string.shorts_title),
+                    message = stringResource(R.string.home_no_sources),
+                )
+                // Items first: the pager is the ONLY branch that may reach ShortsPager, so it can never be
+                // composed with an empty list (rememberPagerState would coerce into an empty range).
+                feed.items.isNotEmpty() -> if (vm.showPlayer) {
+                    ShortsPager(
+                        items = feed.items,
+                        page = vm.pagerPage,
+                        onPageChange = { vm.pagerPage = it },
+                        onOpenDetail = onOpenDetail,
+                        onOpenChannel = onOpenChannel,
+                        onLoadMore = vm::loadMore,
+                        onPageSettled = vm::recordShown,
+                    )
+                } else {
+                    PullToRefreshBox(
+                        isRefreshing = feed.loading,
+                        onRefresh = {
+                            vm.pagerPage = 0
+                            vm.refreshFeed(sources)
+                            // The hoisted grid state would otherwise restore the old scroll offset over
+                            // a feed that is new from its first item.
+                            scope.launch { gridState.scrollToItem(0) }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        ShortsGrid(
+                            items = feed.items,
+                            gridState = gridState,
+                            onOpenPlayer = { tapped, paintedIndex ->
+                                vm.pagerPage = pagerPageForTap(vm.feed.items, tapped.pageUrl, paintedIndex)
+                                vm.showPlayer = true
+                            },
+                            onLongPress = { actionSheetRef = it },
+                            hasMore = feed.hasMore,
+                            loadingMore = feed.loadingMore,
+                            exhausted = feed.exhausted,
+                            onLoadMore = vm::loadMore,
+                        )
+                    }
+                }
+                !feed.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                // Onboarding, not an error: nothing has gone wrong, there's just nothing to build a feed from yet.
+                feed.loaded && !feed.hasSubscriptions -> EmptyStateScreen(
+                    title = stringResource(R.string.shorts_empty_no_subscriptions),
+                )
+                // A fetch failure is NOT evidence that a channel posts no shorts — say which happened.
+                feed.loaded && feed.items.isEmpty() && feed.failedChannels > 0 -> EmptyStateScreen(
+                    title = if (feed.channelsWithoutShorts == 0) {
+                        stringResource(R.string.shorts_failed_all)
+                    } else {
+                        pluralStringResource(R.plurals.shorts_failed_some, feed.failedChannels, feed.failedChannels)
                     },
-                    onLongPress = { actionSheetRef = it },
-                    hasMore = feed.hasMore,
-                    loadingMore = feed.loadingMore,
-                    exhausted = feed.exhausted,
-                    onLoadMore = vm::loadMore,
+                )
+                else -> EmptyStateScreen(
+                    title = stringResource(R.string.shorts_empty_no_subscriptions),
                 )
             }
         }
-        !feed.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        // Onboarding, not an error: nothing has gone wrong, there's just nothing to build a feed from yet.
-        feed.loaded && !feed.hasSubscriptions -> EmptyStateScreen(
-            title = stringResource(R.string.shorts_empty_no_subscriptions),
-        )
-        // A fetch failure is NOT evidence that a channel posts no shorts — say which happened.
-        feed.loaded && feed.items.isEmpty() && feed.failedChannels > 0 -> EmptyStateScreen(
-            title = if (feed.channelsWithoutShorts == 0) {
-                stringResource(R.string.shorts_failed_all)
-            } else {
-                pluralStringResource(R.plurals.shorts_failed_some, feed.failedChannels, feed.failedChannels)
-            },
-        )
-        else -> EmptyStateScreen(
-            title = stringResource(R.string.shorts_empty_no_subscriptions),
-        )
     }
 
     // Grid long-press -> the same shared action sheet every other result row in the app opens.

@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.SponsorCategory
 import com.fyiplayer.app.core.SponsorSegment
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.fyiExtras
 
 /** Coloured spans over the seekbar track, one per segment, in SponsorBlock's own category
@@ -54,6 +55,7 @@ internal fun SponsorSkipButton(segment: SponsorSegment, modifier: Modifier = Mod
     Button(
         onClick = { PlaybackSession.skipSponsorSegment() },
         colors = ButtonDefaults.buttonColors(containerColor = extras.videoScrim, contentColor = extras.onVideo),
+        shape = ControlShape,
         modifier = modifier,
     ) {
         Text(stringResource(R.string.player_skip, stringResource(skipNounResource(segment.category))))

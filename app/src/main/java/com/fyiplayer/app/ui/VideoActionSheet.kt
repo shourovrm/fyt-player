@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.core.VideoRef
@@ -258,16 +259,21 @@ fun PlaylistPickerDialog(ref: VideoRef, playlists: PlaylistRepository, onDismiss
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (newName.isNotBlank()) {
-                    scope.launch {
-                        val id = playlists.create(newName.trim())
-                        playlists.addItem(id, ref)
+            TextButton(
+                onClick = {
+                    if (newName.isNotBlank()) {
+                        scope.launch {
+                            val id = playlists.create(newName.trim())
+                            playlists.addItem(id, ref)
+                        }
                     }
-                }
-                onDismiss()
-            }) { Text(stringResource(R.string.action_done)) }
+                    onDismiss()
+                },
+                shape = ControlShape,
+            ) { Text(stringResource(R.string.action_done)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss, shape = ControlShape) { Text(stringResource(R.string.action_cancel)) }
+        },
     )
 }

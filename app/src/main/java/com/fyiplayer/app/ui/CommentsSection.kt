@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -82,7 +84,7 @@ internal fun CommentsSection(
             error != null -> Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
                 Text(error.userMessage(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 if (retryEnabled) {
-                    TextButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
+                    TextButton(onClick = onRetry, shape = ControlShape) { Text(stringResource(R.string.action_retry)) }
                 }
             }
             comments.isEmpty() -> Text(
@@ -106,7 +108,7 @@ private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkI
         CommentRow(comment, links)
         if (replies.isNotEmpty()) {
             var expanded by remember(comment.id) { mutableStateOf(false) }
-            TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(vertical = 0.dp)) {
+            TextButton(onClick = { expanded = !expanded }, shape = ControlShape, contentPadding = PaddingValues(vertical = 0.dp)) {
                 Text(
                     if (expanded) {
                         stringResource(R.string.detail_replies_hide)
@@ -162,7 +164,7 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
             if (comment.likeCount != null && comment.likeCount > 0) {
                 Text(
                     pluralStringResource(R.plurals.detail_comment_likes, comment.likeCount.toInt(), comment.likeCount),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.merge(NumeralStyle),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

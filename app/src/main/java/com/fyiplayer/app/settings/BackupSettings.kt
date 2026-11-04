@@ -30,6 +30,7 @@ import com.fyiplayer.app.data.repo.LikesRepository
 import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.data.repo.SubscriptionRepository
 import com.fyiplayer.app.ui.rememberFyiApp
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -78,8 +79,12 @@ fun BackupSettings() {
 
     SettingsSection(null) {
         Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp)) {
-            TextButton(onClick = { exportLauncher.launch("fyt-player-backup.html") }) { Text(stringResource(R.string.settings_backup_export)) }
-            TextButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.settings_backup_import)) }
+            TextButton(shape = ControlShape, onClick = { exportLauncher.launch("fyt-player-backup.html") }) {
+                Text(stringResource(R.string.settings_backup_export))
+            }
+            TextButton(shape = ControlShape, onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                Text(stringResource(R.string.settings_backup_import))
+            }
         }
         status?.let {
             Text(
@@ -114,7 +119,7 @@ fun BackupSettings() {
                 Text(summary + skipped)
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = ControlShape, onClick = {
                     scope.launch {
                         try {
                             val applied = BackupIo.apply(doc, likes, playlists, subscriptions)
@@ -131,7 +136,11 @@ fun BackupSettings() {
                     }
                 }) { Text(stringResource(R.string.settings_backup_import_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { pendingDoc = null; pendingPlan = null }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = {
+                TextButton(shape = ControlShape, onClick = { pendingDoc = null; pendingPlan = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 }

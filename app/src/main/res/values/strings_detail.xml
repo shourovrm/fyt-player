@@ -48,6 +48,7 @@
     <string name="detail_captions_unsupported">Captions not supported</string>
     <string name="detail_download_checking">Checking quality</string>
     <string name="detail_download_checking_more">Checking more qualities.</string>
+    <string name="detail_download_size_loading">…</string>
     <string name="detail_download_quality">Download quality</string>
     <string name="detail_download_failed_title">Cannot download this video</string>
 
@@ -67,17 +68,17 @@
     <string name="library_tab_playlists">Playlists</string>
     <string name="library_tab_history">History</string>
     <string name="library_tab_channels">Channels</string>
-    <string name="library_likes_empty">No likes yet</string>
-    <string name="library_playlists_empty">No playlists yet</string>
-    <string name="library_channels_empty">No channels yet</string>
-    <string name="library_history_empty">No history yet</string>
+    <string name="library_likes_empty">No likes yet.</string>
+    <string name="library_playlists_empty">No playlists yet.</string>
+    <string name="library_channels_empty">No channels yet.</string>
+    <string name="library_history_empty">No history yet.</string>
     <string name="library_history_off_notice">History is off.</string>
     <string name="library_clear_history">Clear history</string>
     <string name="library_clear_history_title">Clear watch history</string>
     <string name="library_clear_history_body">This cannot be undone.</string>
     <string name="library_rename">Rename</string>
     <string name="library_rename_title">Rename playlist</string>
-    <string name="library_rename_failed">That name is taken.</string>
+    <string name="library_rename_failed">Playlist not renamed.</string>
     <string name="library_playlist_default_title">Playlist</string>
     <string name="library_delete_playlist_title">Delete playlist</string>
     <string name="library_unfollow">Unfollow</string>
@@ -108,32 +109,32 @@
     <!-- playlist -->
     <string name="playlist_new">New playlist</string>
     <string name="playlist_create">Create</string>
-    <string name="playlist_create_failed">That name is taken.</string>
+    <string name="playlist_create_failed">Playlist not created.</string>
     <string name="playlist_not_found">Playlist not found</string>
     <string name="playlist_remove_item">Remove from playlist</string>
     <string name="playlist_play_all">Play all</string>
     <string name="playlist_shuffle">Shuffle</string>
-    <string name="playlist_empty">No videos yet</string>
+    <string name="playlist_empty">No videos yet.</string>
     <string name="playlist_move_up">Move up</string>
     <string name="playlist_move_down">Move down</string>
 
     <!-- downloads -->
     <string name="downloads_title">Downloads</string>
     <string name="downloads_clear_completed">Clear completed</string>
-    <string name="downloads_empty_title">No downloads yet</string>
+    <string name="downloads_empty_title">No downloads yet.</string>
     <string name="downloads_remove_title">Remove download</string>
     <string name="downloads_remove_keep_file">Remove from list</string>
     <string name="downloads_clear_title">Clear completed downloads</string>
     <string name="downloads_remove_frees">Delete frees %1$s.</string>
-    <string name="downloads_delete_failed">File not deleted.</string>
-    <string name="downloads_delete_some_failed">Some files not deleted.</string>
+    <string name="downloads_delete_failed">Download not deleted.</string>
+    <string name="downloads_delete_some_failed">Some downloads not deleted.</string>
     <plurals name="downloads_remove_body">
-        <item quantity="one">Delete erases the file.</item>
-        <item quantity="other">Delete erases the files.</item>
+        <item quantity="one">Delete erases the download.</item>
+        <item quantity="other">Delete erases the downloads.</item>
     </plurals>
     <plurals name="downloads_delete_files">
-        <item quantity="one">Delete file</item>
-        <item quantity="other">Delete files</item>
+        <item quantity="one">Delete download</item>
+        <item quantity="other">Delete downloads</item>
     </plurals>
     <string name="downloads_pause">Pause</string>
     <string name="downloads_resume">Resume</string>
@@ -144,7 +145,7 @@
     <string name="downloads_progress_of">%1$s of %2$s</string>
     <string name="downloads_speed">%1$s/s</string>
     <string name="downloads_time_left">%1$s left</string>
-    <string name="downloads_file_missing">File missing.</string>
+    <string name="downloads_file_missing">Download missing.</string>
     <string name="downloads_no_app">No app can open this.</string>
-    <string name="downloads_cannot_open">Cannot open this file.</string>
+    <string name="downloads_cannot_open">Cannot open this download.</string>
 </resources>

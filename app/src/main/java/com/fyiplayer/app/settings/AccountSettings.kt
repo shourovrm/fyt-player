@@ -23,6 +23,7 @@ import com.fyiplayer.app.R
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
 import com.fyiplayer.app.ui.ConfirmDialog
 import com.fyiplayer.app.ui.showToast
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
@@ -51,8 +52,8 @@ fun AccountSettings() {
                     Modifier.weight(1f),
                 )
                 // For an expired or rejected session.
-                TextButton(onClick = { signIn(true) }) { Text(stringResource(R.string.settings_sign_in_again)) }
-                TextButton(onClick = { showSignOutConfirm = true }) {
+                TextButton(shape = ControlShape, onClick = { signIn(true) }) { Text(stringResource(R.string.settings_sign_in_again)) }
+                TextButton(shape = ControlShape, onClick = { showSignOutConfirm = true }) {
                     Text(stringResource(R.string.settings_sign_out), color = MaterialTheme.colorScheme.error)
                 }
             } else {
@@ -61,7 +62,7 @@ fun AccountSettings() {
                     stringResource(R.string.settings_summary_signed_out),
                     Modifier.weight(1f),
                 )
-                TextButton(onClick = { showConfirm = true }) { Text(stringResource(R.string.settings_sign_in)) }
+                TextButton(shape = ControlShape, onClick = { showConfirm = true }) { Text(stringResource(R.string.settings_sign_in)) }
             }
         }
     }
@@ -85,12 +86,14 @@ fun AccountSettings() {
             onDismissRequest = { showConfirm = false },
             title = { Text(stringResource(R.string.settings_sign_in_title)) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = ControlShape, onClick = {
                     showConfirm = false
                     signIn(false)
                 }) { Text(stringResource(R.string.settings_sign_in)) }
             },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = {
+                TextButton(shape = ControlShape, onClick = { showConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }

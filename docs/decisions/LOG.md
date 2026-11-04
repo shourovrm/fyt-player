@@ -280,3 +280,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-31 | speed control widened to 0.1-3x in 0.05 steps (sheet F: nudge, snapping slider, presets) | the seven fixed rows could not reach slow/fast study speeds; major marks snap so common values stay one drag
 2026-11-05 | dedupe caption tracks per language+auto in NewPipeResolver | duplicate formats crashed the caption picker
 2026-11-05 | settings hub keeps subtitles only on Account and About; clear-recent-searches is an icon | user: no explanatory subtitles
+2026-11-05 | V4 Grid & sheets redesign, underline Home tabs, square segmented + switches, Schibsted Grotesk + Spline Sans Mono | user picked from full-page mocks; no pills

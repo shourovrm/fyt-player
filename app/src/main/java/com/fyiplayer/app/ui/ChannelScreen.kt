@@ -61,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.ChannelTab
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -398,7 +399,11 @@ private fun ContainerTabBody(
                 // A later page failed: no auto-reload, Retry continues from that page.
                 item { ErrorRowView(ErrorRow(channelErrorName, state.error, onRetry = if (state.blocked) null else onRetry)) }
             } else if (state.nextPage != null) {
-                item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(Spacing.s16)) { Text(stringResource(R.string.results_load_more)) } }
+                item {
+                    TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(Spacing.s16), shape = ControlShape) {
+                        Text(stringResource(R.string.results_load_more))
+                    }
+                }
             }
         }
     }

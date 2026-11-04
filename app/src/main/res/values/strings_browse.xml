@@ -9,15 +9,16 @@
     <string name="home_tab_all">All</string>
     <string name="home_no_results">No results for “%1$s”.</string>
     <string name="home_for_you">For you</string>
-    <string name="home_feed_section_label">New from channels you watch</string>
+    <string name="home_feed_section_label">New from channels</string>
     <string name="home_feed_no_subscriptions">No videos yet.</string>
     <plurals name="home_feed_failed_channels">
-        <item quantity="one">%1$d channel did not load.</item>
-        <item quantity="other">%1$d channels did not load.</item>
+        <item quantity="one">%1$d channel did not load. Pull down to refresh.</item>
+        <item quantity="other">%1$d channels did not load. Pull down to refresh.</item>
     </plurals>
     <string name="home_feed_nothing_new">No new videos.</string>
     <string name="home_recent_searches">Recent searches</string>
     <string name="home_clear_recent_searches">Clear recent searches</string>
+    <string name="home_open_search">Search</string>
     <string name="home_remove_search">Remove “%1$s”</string>
 
     <!-- results -->
@@ -39,11 +40,12 @@
     <string name="shorts_details_comments_count">Comments (%1$d)</string>
     <string name="shorts_details">Details</string>
     <string name="shorts_title">Shorts</string>
+    <string name="shorts_channel_link">%1$s  ›</string>
     <string name="shorts_empty_no_subscriptions">No Shorts yet.</string>
     <string name="shorts_failed_all">Shorts did not load. Try again.</string>
     <plurals name="shorts_failed_some">
-        <item quantity="one">%1$d channel did not load.</item>
-        <item quantity="other">%1$d channels did not load.</item>
+        <item quantity="one">Shorts from %1$d channel did not load. Try again.</item>
+        <item quantity="other">Shorts from %1$d channels did not load. Try again.</item>
     </plurals>
 
     <!-- shell -->
@@ -62,10 +64,10 @@
     <string name="channel_tab_courses">Courses</string>
     <string name="channel_tab_search">Search</string>
     <string name="channel_error_source">Channel</string>
-    <string name="channel_empty_videos_title">No videos yet</string>
+    <string name="channel_empty_videos_title">No videos yet.</string>
     <string name="channel_empty_container">No playlists yet.</string>
     <string name="channel_search_label">Search this channel</string>
-    <string name="channel_search_empty_title">No results for “%1$s”</string>
+    <string name="channel_search_empty_title">No results for “%1$s”.</string>
 
     <!-- listing -->
     <string name="listing_title_fallback">Playlist</string>

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +24,7 @@ import com.fyiplayer.app.data.prefs.Prefs
 import com.fyiplayer.app.data.repo.HistoryRepository
 import com.fyiplayer.app.data.repo.SearchHistoryRepository
 import com.fyiplayer.app.ui.ConfirmDialog
+import com.fyiplayer.app.ui.SquareSwitch
 import com.fyiplayer.app.ui.rememberFyiApp
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -89,7 +89,7 @@ internal fun SettingsSwitchRow(label: String, checked: Boolean, onCheckedChange:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SettingsLabel(label, hint, Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        SquareSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

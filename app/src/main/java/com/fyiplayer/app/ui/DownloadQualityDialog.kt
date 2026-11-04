@@ -24,6 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.download.DownloadOption
 import com.fyiplayer.app.download.DownloadQueue
@@ -73,7 +75,9 @@ fun DownloadQualityDialog(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+            dismissButton = {
+                TextButton(onClick = onDismiss, shape = ControlShape) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
         is DownloadPickerState.Options -> {
             val context = LocalContext.current
@@ -103,8 +107,8 @@ fun DownloadQualityDialog(
                         ListItem(
                             headlineContent = { Text(option.label) },
                             supportingContent = when {
-                                bytes != null -> { { Text(formatBytes(bytes)) } }
-                                stillFetching -> { { Text("…") } }
+                                bytes != null -> { { Text(formatBytes(bytes), style = MaterialTheme.typography.bodyMedium.merge(NumeralStyle)) } }
+                                stillFetching -> { { Text(stringResource(R.string.detail_download_size_loading)) } }
                                 else -> null
                             },
                             modifier = Modifier.clickable { onSelect(option) },
@@ -117,7 +121,9 @@ fun DownloadQualityDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.detail_download_failed_title)) },
             text = { Text(state.message) },
-            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) } },
+            confirmButton = {
+                TextButton(onClick = onDismiss, shape = ControlShape) { Text(stringResource(R.string.action_close)) }
+            },
         )
     }
 }
