@@ -417,7 +417,8 @@ private fun statusLine(item: DownloadItem, error: String?, liveProgress: Downloa
         DownloadState.COMPLETED -> {
             val size = if (item.totalBytes > 0) formatBytes(item.totalBytes) else null
             val duration = downloadDuration(item)?.let { formatDuration(it) }
-            statusText(stringResource(R.string.downloads_state_completed), listOfNotNull(size, duration))
+            // Completed is the normal state, so the line carries no state word.
+            statusText(null, listOfNotNull(size, duration))
         }
         // The Failed badge beside this line already names the state; only the reason is left.
         DownloadState.FAILED -> AnnotatedString(error.orEmpty())

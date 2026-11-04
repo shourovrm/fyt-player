@@ -140,7 +140,6 @@
     <string name="downloads_resume">Resume</string>
     <string name="downloads_state_queued">Queued</string>
     <string name="downloads_state_paused">Paused</string>
-    <string name="downloads_state_completed">Downloaded</string>
     <string name="downloads_state_failed">Failed</string>
     <string name="downloads_progress_of">%1$s of %2$s</string>
     <string name="downloads_speed">%1$s/s</string>

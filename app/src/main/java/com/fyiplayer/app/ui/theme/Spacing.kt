@@ -38,7 +38,8 @@ object Sizes {
     val listOneLine: Dp = 56.dp
     val listTwoLine: Dp = 72.dp
     val listThreeLine: Dp = 88.dp
-    val navBar: Dp = 80.dp
+    /** Icon-only bar: Material 3 short navigation bar height. */
+    val navBar: Dp = 64.dp
     val miniPlayer: Dp = 72.dp
     val fab: Dp = 56.dp
     val transportButton: Dp = 64.dp

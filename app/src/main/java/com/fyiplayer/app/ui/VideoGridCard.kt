@@ -5,17 +5,12 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,35 +38,36 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
- * One Home grid cell: 16:9 thumbnail, title, meta line and an overflow button. Tap opens the video;
- * long-press and the overflow button both open the shared action sheet, so the two stay equivalent.
+ * One Home grid cell: 16:9 thumbnail, title and meta line. Tap opens the video; long-press opens
+ * the shared action sheet. The long-press label is what TalkBack announces as the action.
  */
 @Composable
 internal fun VideoGridCard(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit) {
-    Column(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress)) {
+    Column(
+        Modifier.fillMaxWidth().combinedClickable(
+            onClick = onClick,
+            onLongClickLabel = stringResource(R.string.action_more),
+            onLongClick = onLongPress,
+        ),
+    ) {
         VideoGridThumbnail(ref)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f).padding(top = Spacing.s8)) {
-                // A Library row can still be mid-enrichment; "Untitled" reads as loading, an empty line as broken.
+        Column(Modifier.fillMaxWidth().padding(top = Spacing.s8)) {
+            // A Library row can still be mid-enrichment; "Untitled" reads as loading, an empty line as broken.
+            Text(
+                ref.title.ifBlank { stringResource(R.string.state_untitled) },
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            val meta = gridMetaText(ref)
+            if (meta.isNotBlank()) {
                 Text(
-                    ref.title.ifBlank { stringResource(R.string.state_untitled) },
-                    maxLines = 2,
+                    meta,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.fyiExtras.ink3,
                 )
-                val meta = gridMetaText(ref)
-                if (meta.isNotBlank()) {
-                    Text(
-                        meta,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.fyiExtras.ink3,
-                    )
-                }
-            }
-            IconButton(onClick = onLongPress) {
-                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more), tint = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

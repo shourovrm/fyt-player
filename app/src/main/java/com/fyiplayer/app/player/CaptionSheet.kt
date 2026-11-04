@@ -75,6 +75,7 @@ fun CaptionSheet(
                             onClick = { onCaptionSizeSelect(size) },
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = CaptionSize.entries.size, baseShape = ControlShape),
                             modifier = Modifier.height(Sizes.touchTarget),
+                            icon = {},
                             label = { Text(captionSizeLabel(size)) },
                         )
                     }

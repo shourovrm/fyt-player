@@ -22,7 +22,7 @@ internal fun SettingsSection(title: String?, content: @Composable () -> Unit) {
         Text(
             title,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = Spacing.pageMargin, vertical = 6.dp),
         )
         content()

@@ -6,9 +6,8 @@ reference wherever they disagree. Change it in the same commit as the code that 
 
 ## Direction
 
-Chosen 2026-11-05 from full-page mocks: "Grid & sheets" (thumbnail grids, secondary pages as bottom
-sheets), Home topics as an underline tab row, settings controls as square segmented buttons and
-square switches. Tokens:
+Chosen 2026-11-05 from full-page mocks: "Grid & sheets" (thumbnail grids, secondary pages as
+sheets), underline Home tabs, square segmented buttons and switches. Tokens:
 
 - Fonts: Schibsted Grotesk (`res/font/schibsted_grotesk.ttf`, variable, OFL) for every role;
   Spline Sans Mono (`spline_sans_mono.ttf`, OFL) via `NumeralStyle` for times, durations, sizes,
@@ -18,27 +17,20 @@ square switches. Tokens:
   `#C6F24E` on `#0C1100`, selection tint accent at 15%, error `#FF7B6B`. Light keeps its neutrals;
   accent `#4A6600`.
 - Shape: no pills. `ControlShape` 4 dp on buttons, chips, segmented buttons, switch tracks, the
-  search field and nav indicators; 8 dp settings icon tiles and small thumbnails; 12 dp grid
-  thumbnails; 28 dp top corners on sheets.
+  search field and nav indicators; 8 dp small and 12 dp grid thumbnails; 28 dp sheet tops.
 - Density: grids, not rows, for browsing; 56 dp rows in sheets and settings.
 - Words: no explanatory subtitles or hints unless the label alone would cause a mistake.
+- Restraint: one selection cue per control (tint, no extra check); no tiles or tinted backdrops
+  behind icons; section headers in onSurfaceVariant, never accent; the normal state carries no
+  label (only Paused, Failed and the like are spelled out).
 
 ## Type
 
-Material roles only, from `ui/theme/Type.kt`; no `.copy(fontSize = …)` anywhere else.
-
-| Role | Size / line | Weight | Used for |
-|---|---|---|---|
-| titleLarge | 22 / 28 sp | 600 | app bar titles, dialog and sheet titles |
-| titleMedium | 16 / 24 sp | 600 | video title on Detail, grid card title |
-| bodyLarge | 16 / 24 sp | 400 | row title, text field text |
-| bodyMedium | 14 / 20 sp | 400 | body, mini player title, settings row label |
-| bodySmall | 12 / 16 sp | 400 | card and row meta line |
-| labelLarge | 14 / 20 sp | 500 | buttons, tabs, segmented buttons |
-| labelMedium | 12 / 16 sp | 500 | section labels |
-| labelSmall | 11 / 16 sp | 500 | duration badge |
-
-Numbers merge `NumeralStyle` into their role. Layouts survive font scale 1.0 and 1.3.
+Material roles only, from `ui/theme/Type.kt`; no `.copy(fontSize = …)` anywhere else. titleLarge
+22/28 sp 600 (app bar, sheet titles); titleMedium 16/24 600 (video and card titles); bodyLarge
+16/24 400 (row titles, fields); bodyMedium 14/20 400 (body, settings labels); bodySmall 12/16 400
+(meta); labelLarge 14/20 500 (buttons, tabs, segments); labelMedium 12/16 500 (section labels);
+labelSmall 11/16 500 (badges). Numbers merge `NumeralStyle`. Layouts survive font scale 1.3.
 
 ## Space
 
@@ -51,8 +43,8 @@ Page margin 16 dp under 600 dp width, 24 dp above. Grid gutter 8 dp.
 Button 40 dp high, labelLarge, `ControlShape`, one filled per page. Text field and search field
 56 dp, `ControlShape`. Segmented button 48 dp, 1 dp outline dividers, selected = accent tint
 with accent text. Switch: 48 x 28 dp square track, `ControlShape`. List item 56 dp one-line,
-72 dp two-line. Bottom bar 80 dp, four icon-only destinations (Home, Shorts, Library,
-Downloads), each with a content description and a long-press tooltip; selected = 4 dp-cornered
+72 dp two-line. Bottom bar 64 dp (Material 3 short bar, icons only): Home, Shorts, Library,
+Downloads, each with a content description and a long-press tooltip; selected = 4 dp-cornered
 accent tint behind the icon. Touch target 48 x 48 dp on every clickable, including icons over
 video. Never set `LocalMinimumInteractiveComponentSize` to 0.
 
@@ -68,7 +60,8 @@ never body text. Contrast 4.5:1 small text, 3:1 large text and icons.
 
 App bar: titleLarge "FYT Player", search and settings icons. Underline tab row of topics (For you
 first), accent indicator, scrollable, labels never truncated. Feed: 2-column grid of cards (12 dp
-16:9 thumbnail with duration badge, titleMedium 2 lines, bodySmall meta, overflow icon); 4
+16:9 thumbnail with duration badge, titleMedium 2 lines, bodySmall meta; long-press opens the
+menu); 4
 columns in landscape. Mini player floats above the bottom bar.
 
 ## Layout of the Detail page
@@ -86,12 +79,10 @@ progress ring on the thumbnail as the pause/resume button; remove asks in a shee
 
 ## Layout of the Settings page
 
-Reached from the settings icon in the app bar. Hub of eight rows: leading icon in an 8 dp accent-
-tinted tile, bodyLarge label. Account and About show a bodySmall state (signed in, version); the
-other six have no second line. A row opens its page as a bottom sheet with a titleLarge title and
-close icon. In a sheet: 56 dp rows, switch or trailing value; a choice of up to four values is a
-segmented button; a longer choice is a check-mark list. Destructive rows use error text and a
-confirm sheet.
+From the app-bar settings icon. Hub of eight rows: plain 24 dp icon in onSurfaceVariant, bodyLarge
+label; only Account and About show a bodySmall state. A row opens its page as a sheet (titleLarge
+title, close icon): 56 dp rows, switch or trailing value; up to four values = segmented button,
+more = check-mark list; destructive rows in error text with a confirm sheet.
 
 ## Layout of the Player chrome
 
@@ -101,8 +92,8 @@ video is onVideo on videoScrim. Landscape: the option icons stack in a strip on 
 
 ## Gates
 
-- JVM test `DesignTokensGateTest` scans every `.kt` outside `ui/theme` and fails on any `.dp`
-  not in the Space list, any `.sp`, any `Color(0x`, `Color.White`, `Color.Black`.
+- `DesignTokensGateTest` fails on any `.dp` not in the Space list, any `.sp`, raw colour or pill
+  shape outside `ui/theme`.
 - `lint.xml`: `HardcodedText` and `ContentDescription` at error, `abortOnError true`.
 - Copy gate: every visible string in `res/values/strings*.xml`; `CopyGateTest` fails on a quoted
   literal passed to `Text(`, `contentDescription =`, `label =`, `placeholder =`, or a snackbar.

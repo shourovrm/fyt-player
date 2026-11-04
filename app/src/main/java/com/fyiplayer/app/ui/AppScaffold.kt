@@ -208,7 +208,7 @@ private val NAV_TABS = listOf(
     NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, ExtraIcons.Download),
 )
 
-/** Portrait: four icon-only destinations on the 80 dp bar, above the gesture-nav inset. */
+/** Portrait: four icon-only destinations on the 64 dp bar, above the gesture-nav inset. */
 @Composable
 private fun BottomNavBar(selected: String?, onSelect: (String) -> Unit) {
     Surface(

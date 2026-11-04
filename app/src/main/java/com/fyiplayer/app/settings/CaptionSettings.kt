@@ -75,6 +75,7 @@ private fun CaptionSizeRow(label: String, selected: CaptionSize, onSelect: (Capt
                         activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                         activeContentColor = MaterialTheme.colorScheme.primary,
                     ),
+                    icon = {},
                     label = { Text(captionSizeLabel(size)) },
                 )
             }

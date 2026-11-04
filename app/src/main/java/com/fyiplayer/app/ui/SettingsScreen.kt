@@ -4,7 +4,6 @@ import com.fyiplayer.app.ui.theme.ExtraIcons
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -42,7 +40,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,7 +58,6 @@ import com.fyiplayer.app.settings.SourcesSettings
 import com.fyiplayer.app.settings.SponsorBlockSettings
 import com.fyiplayer.app.settings.VideoPageSettings
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
-import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import kotlinx.coroutines.launch
@@ -110,19 +106,12 @@ private fun HubRowItem(page: SettingsPage, summary: String?, onClick: () -> Unit
             .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(Sizes.button)
-                .clip(RoundedCornerShape(Radius.s))
-                .background(MaterialTheme.colorScheme.secondaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                page.icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(Sizes.icon),
-            )
-        }
+        Icon(
+            page.icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(Sizes.icon),
+        )
         Column(Modifier.weight(1f).padding(start = Spacing.s16)) {
             Text(stringResource(page.titleRes), style = MaterialTheme.typography.bodyLarge)
             if (summary != null) {
