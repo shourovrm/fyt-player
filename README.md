@@ -157,7 +157,7 @@ third_party/   vendored PipePipeExtractor and its patches
 
 YouTube metadata and streams come from
 [PipePipeExtractor](https://github.com/InfinityLoop1308/PipePipeExtractor), a NewPipeExtractor fork.
-Its source is vendored in `third_party/PipePipeExtractor` at upstream v5.2.5 plus two small patches
+Its source is vendored in `third_party/PipePipeExtractor` at upstream v5.5.0 plus two small patches
 (shorts shelves in search results and in the related-videos sidebar). The patches are kept as files
 in `third_party/patches/`, and `third_party/README.md` describes how to move to a newer upstream
 tag. The other platforms, plus YouTube downloads and the sign-in path, go through
