@@ -25,7 +25,7 @@
     <string name="settings_summary_locale">%1$s, %2$s</string>
     <string name="settings_summary_playback">Up to %1$dp on Wi‑Fi, %2$dp on mobile</string>
     <string name="settings_summary_background_on">background on</string>
-    <string name="settings_summary_skipping">%1$d skipped, %2$d with a button</string>
+    <string name="settings_summary_skipping">%1$d set to skip, %2$d show a button</string>
     <string name="settings_summary_history_both">Watch and search history on</string>
     <string name="settings_summary_history_watch">Watch history on</string>
     <string name="settings_summary_history_search">Search history on</string>
@@ -71,7 +71,7 @@
     <string name="settings_caption_size_hint">Applies to the text of captions while a video plays</string>
     <string name="settings_caption_size_videos">Videos</string>
     <string name="settings_caption_size_shorts">Shorts</string>
-    <string name="settings_caption_sample">Where verifiable rewards come from</string>
+    <string name="settings_caption_sample">This is how captions look</string>
     <string name="caption_size_small">Small</string>
     <string name="caption_size_medium">Medium</string>
     <string name="caption_size_large">Large</string>
@@ -87,7 +87,7 @@
     <!-- skipping -->
     <string name="settings_sponsorblock_skip">Skip sponsored segments</string>
     <string name="settings_sponsorblock_skip_hint">Uses sponsor.ajay.app</string>
-    <string name="settings_category_sponsor">Sponsor</string>
+    <string name="settings_category_sponsor">Sponsored segment</string>
     <string name="settings_category_intro">Intro</string>
     <string name="settings_category_credits">Credits</string>
     <string name="settings_category_reminder">Reminder</string>
@@ -132,8 +132,24 @@
     <string name="settings_backup_export_failed">Export failed.</string>
     <string name="settings_backup_import_failed">Import failed.</string>
     <string name="settings_backup_nothing_new">Nothing new to add.</string>
-    <string name="settings_backup_adds">Adds %1$d playlists, %2$d videos, %3$d likes, %4$d channels.</string>
-    <string name="settings_backup_added">Added %1$d playlists, %2$d videos, %3$d likes, %4$d channels.</string>
+    <string name="settings_backup_adds">Adds %1$s, %2$s, %3$s, %4$s.</string>
+    <string name="settings_backup_added">Added %1$s, %2$s, %3$s, %4$s.</string>
+    <plurals name="settings_backup_count_playlists">
+        <item quantity="one">%1$d playlist</item>
+        <item quantity="other">%1$d playlists</item>
+    </plurals>
+    <plurals name="settings_backup_count_videos">
+        <item quantity="one">%1$d video</item>
+        <item quantity="other">%1$d videos</item>
+    </plurals>
+    <plurals name="settings_backup_count_likes">
+        <item quantity="one">%1$d like</item>
+        <item quantity="other">%1$d likes</item>
+    </plurals>
+    <plurals name="settings_backup_count_channels">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
+    </plurals>
     <plurals name="settings_backup_skipped">
         <item quantity="one">%1$d entry with an unusable link is skipped.</item>
         <item quantity="other">%1$d entries with an unusable link are skipped.</item>

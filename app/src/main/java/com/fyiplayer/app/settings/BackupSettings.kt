@@ -1,5 +1,6 @@
 package com.fyiplayer.app.settings
 
+import android.content.res.Resources
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -102,7 +103,7 @@ fun BackupSettings() {
                 } else {
                     stringResource(
                         R.string.settings_backup_adds,
-                        plan.newPlaylists, plan.newPlaylistItems, plan.newLiked, plan.newChannels,
+                        *backupCounts(context.resources, plan.newPlaylists, plan.newPlaylistItems, plan.newLiked, plan.newChannels),
                     )
                 }
                 val skipped = if (plan.droppedEntries > 0) {
@@ -119,7 +120,7 @@ fun BackupSettings() {
                             val applied = BackupIo.apply(doc, likes, playlists, subscriptions)
                             status = context.getString(
                                 R.string.settings_backup_added,
-                                applied.newPlaylists, applied.newPlaylistItems, applied.newLiked, applied.newChannels,
+                                *backupCounts(context.resources, applied.newPlaylists, applied.newPlaylistItems, applied.newLiked, applied.newChannels),
                             )
                             isError = false
                         } catch (e: Exception) {
@@ -134,3 +135,11 @@ fun BackupSettings() {
         )
     }
 }
+
+/** Each count with its own singular or plural noun, in the order the summary strings use them. */
+private fun backupCounts(resources: Resources, playlists: Int, videos: Int, likes: Int, channels: Int): Array<String> = arrayOf(
+    resources.getQuantityString(R.plurals.settings_backup_count_playlists, playlists, playlists),
+    resources.getQuantityString(R.plurals.settings_backup_count_videos, videos, videos),
+    resources.getQuantityString(R.plurals.settings_backup_count_likes, likes, likes),
+    resources.getQuantityString(R.plurals.settings_backup_count_channels, channels, channels),
+)

@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
 import androidx.compose.runtime.Composable
@@ -140,7 +141,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
             title = if (feed.channelsWithoutShorts == 0) {
                 stringResource(R.string.shorts_failed_all)
             } else {
-                stringResource(R.string.shorts_failed_some, feed.failedChannels)
+                pluralStringResource(R.plurals.shorts_failed_some, feed.failedChannels, feed.failedChannels)
             },
         )
         else -> EmptyStateScreen(

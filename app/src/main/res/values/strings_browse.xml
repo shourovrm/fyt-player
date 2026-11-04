@@ -11,7 +11,10 @@
     <string name="home_for_you">For you</string>
     <string name="home_feed_section_label">New from channels you watch</string>
     <string name="home_feed_no_subscriptions">No videos yet.</string>
-    <string name="home_feed_failed_channels">%1$d channels did not load.</string>
+    <plurals name="home_feed_failed_channels">
+        <item quantity="one">%1$d channel did not load.</item>
+        <item quantity="other">%1$d channels did not load.</item>
+    </plurals>
     <string name="home_feed_nothing_new">No new videos.</string>
     <string name="home_recent_searches">Recent searches</string>
     <string name="home_clear_history">Clear history</string>
@@ -38,7 +41,10 @@
     <string name="shorts_title">Shorts</string>
     <string name="shorts_empty_no_subscriptions">No Shorts yet.</string>
     <string name="shorts_failed_all">Shorts did not load. Try again.</string>
-    <string name="shorts_failed_some">%1$d channels did not load.</string>
+    <plurals name="shorts_failed_some">
+        <item quantity="one">%1$d channel did not load.</item>
+        <item quantity="other">%1$d channels did not load.</item>
+    </plurals>
 
     <!-- shell -->
     <string name="shell_tab_home">Home</string>

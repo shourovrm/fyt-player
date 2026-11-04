@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -371,7 +372,7 @@ private fun HomeFeedSection(
             val message = when {
                 !feed.hasSubscriptions -> stringResource(R.string.home_feed_no_subscriptions)
                 // A failed fetch is not evidence that there is nothing new, so say which happened.
-                feed.failedChannels > 0 -> stringResource(R.string.home_feed_failed_channels, feed.failedChannels)
+                feed.failedChannels > 0 -> pluralStringResource(R.plurals.home_feed_failed_channels, feed.failedChannels, feed.failedChannels)
                 else -> stringResource(R.string.home_feed_nothing_new)
             }
             Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

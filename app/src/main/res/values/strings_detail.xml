@@ -47,7 +47,7 @@
     <string name="detail_captions_none">No captions</string>
     <string name="detail_captions_unsupported">Captions not supported</string>
     <string name="detail_download_checking">Checking quality</string>
-    <string name="detail_download_checking_more">Checking more qualities. This takes a moment.</string>
+    <string name="detail_download_checking_more">Checking more qualities.</string>
     <string name="detail_download_quality">Download quality</string>
     <string name="detail_download_failed_title">Cannot download this video</string>
 
@@ -69,7 +69,7 @@
     <string name="library_tab_channels">Channels</string>
     <string name="library_likes_empty">No likes yet</string>
     <string name="library_playlists_empty">No playlists yet</string>
-    <string name="library_channels_empty">No subscriptions yet</string>
+    <string name="library_channels_empty">No channels yet</string>
     <string name="library_history_empty">No history yet</string>
     <string name="library_history_off_notice">History is off.</string>
     <string name="library_clear_history">Clear history</string>

@@ -45,7 +45,7 @@
     <!-- queue -->
     <string name="player_queue_position">%1$d of %2$d</string>
     <string name="player_queue_default_title">Queue</string>
-    <string name="player_queue_count_short">(%1$d/%2$d)</string>
+    <string name="player_queue_count_short">(%1$d of %2$d)</string>
     <string name="player_queue_show">Show queue</string>
     <string name="player_queue_clear">Clear queue</string>
     <string name="player_queue_shuffle">Shuffle</string>
@@ -55,7 +55,7 @@
 
     <!-- sponsored segment skip button -->
     <string name="player_skip">Skip %1$s</string>
-    <string name="player_skip_sponsor">sponsor</string>
+    <string name="player_skip_sponsor">sponsored segment</string>
     <string name="player_skip_intro">intro</string>
     <string name="player_skip_credits">credits</string>
     <string name="player_skip_reminder">reminder</string>
