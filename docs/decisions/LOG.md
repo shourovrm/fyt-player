@@ -278,3 +278,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-10-31 | History multi-select Remove = undo snackbar, no confirm dialog; Clear history keeps its dialog | removal is cheap to reverse (rows kept in memory, re-upserted), Clear cannot be undone
 2026-10-31 | shade skips start playback + force notification redraw | hidden app never recomposed; Media3 ignores commands-only changes
 2026-10-31 | speed control widened to 0.1-3x in 0.05 steps (sheet F: nudge, snapping slider, presets) | the seven fixed rows could not reach slow/fast study speeds; major marks snap so common values stay one drag
+2026-11-05 | dedupe caption tracks per language+auto in NewPipeResolver | duplicate formats crashed the caption picker

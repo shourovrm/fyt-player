@@ -306,6 +306,7 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   after the queue exhausted (player parked in STATE_ENDED) silently never played.
 - A resolve failure for the current item must stop + clear the player: the previous queue item
   otherwise keeps playing under the error guardrail and auto-advances over it later.
+- NewPipe lists each caption language once per format (VTT/TTML/SRT); resolver keeps one per language+auto, else CaptionSheet crashes on duplicate LazyColumn key.
 
 ## Tried / rejected
 
