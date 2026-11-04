@@ -21,6 +21,13 @@
   <img src="docs/images/screenshot-channel-shorts.png" alt="Channel Shorts tab as a portrait grid" width="23%">
 </p>
 
+<p align="center">
+  <img src="docs/images/screenshot-captions.png" alt="Video playing with English captions" width="23%">
+  <img src="docs/images/screenshot-caption-list.png" alt="Caption language picker" width="23%">
+  <img src="docs/images/screenshot-speed.png" alt="Playback speed sheet, 0.1x to 3x" width="23%">
+  <img src="docs/images/screenshot-settings.png" alt="Settings" width="23%">
+</p>
+
 FYT Player is a single-Activity app written in Kotlin with Jetpack Compose. It opens YouTube
 videos, shorts, channels and playlists, plays shared links from Facebook, TikTok and X, and keeps
 playing with the screen off. It is distributed as a sideloaded APK; there is no Play Store listing.
