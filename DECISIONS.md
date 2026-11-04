@@ -12,6 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-05 local commits v0.2.36 (settings subtitles trimmed) + v0.2.37 (V4 redesign, see ui.md); built,
+  installed, basic device test passed; NOT pushed or released. Unverified: dark theme, landscape rail, font scale 1.3.
 - 2026-10-31 released v0.2.34 + v0.2.35 (speed 0.1-3x, sheet fits fullscreen; release APK sha256 = local = installed): wall retry visionos->mweb, per-cause wall copy,
   shade Next/Prev = app rules (device-verified), autoplay switch, History multi-select + undo
   (device-verified), neutral Download button, comment tap fix. Playback on extractor v5.5.0 now
