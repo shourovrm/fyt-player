@@ -68,6 +68,11 @@
     <string name="library_tab_playlists">Playlists</string>
     <string name="library_tab_history">History</string>
     <string name="library_tab_channels">Channels</string>
+    <string name="library_history_today">Today</string>
+    <string name="library_history_yesterday">Yesterday</string>
+    <string name="library_history_earlier_week">Earlier this week</string>
+    <string name="library_history_earlier_month">Earlier this month</string>
+    <string name="library_history_older">Older</string>
     <string name="library_likes_empty">No likes yet.</string>
     <string name="library_playlists_empty">No playlists yet.</string>
     <string name="library_channels_empty">No channels yet.</string>
@@ -89,6 +94,8 @@
     <string name="library_select_all">All</string>
     <string name="library_selected_count">%1$d selected</string>
     <string name="library_play_count">Play %1$d</string>
+    <string name="library_play_all">Play all</string>
+    <string name="library_play_selected">Play selected</string>
     <plurals name="library_history_removed">
         <item quantity="one">%1$d video removed</item>
         <item quantity="other">%1$d videos removed</item>
@@ -96,6 +103,14 @@
     <plurals name="library_video_count">
         <item quantity="one">%1$d video</item>
         <item quantity="other">%1$d videos</item>
+    </plurals>
+    <plurals name="library_playlist_count">
+        <item quantity="one">%1$d playlist</item>
+        <item quantity="other">%1$d playlists</item>
+    </plurals>
+    <plurals name="library_channel_count">
+        <item quantity="one">%1$d channel</item>
+        <item quantity="other">%1$d channels</item>
     </plurals>
     <plurals name="library_unsubscribe_title">
         <item quantity="one">Unsubscribe from %1$d channel</item>
@@ -120,11 +135,15 @@
 
     <!-- downloads -->
     <string name="downloads_title">Downloads</string>
-    <string name="downloads_clear_completed">Clear completed</string>
+    <string name="downloads_play_all">Play all</string>
+    <string name="downloads_play_selected">Play selected</string>
     <string name="downloads_empty_title">No downloads yet.</string>
     <string name="downloads_remove_title">Remove download</string>
     <string name="downloads_remove_keep_file">Remove from list</string>
-    <string name="downloads_clear_title">Clear completed downloads</string>
+    <plurals name="downloads_remove_selected_title">
+        <item quantity="one">Remove download</item>
+        <item quantity="other">Remove %1$d downloads</item>
+    </plurals>
     <string name="downloads_remove_frees">Delete frees %1$s.</string>
     <string name="downloads_delete_failed">Download not deleted.</string>
     <string name="downloads_delete_some_failed">Some downloads not deleted.</string>

@@ -1,6 +1,7 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+2026-11-05 (built, NOT device-checked: phone disconnected; v0.2.42): Library icon switcher + `LibrarySectionHeading(name, count)`, History date groups (`LibraryHistoryGroups.kt`, tests), shared selection on History/Likes/Channels/Downloads, play-all/play-selected icons.
 2026-11-05 (device-verified; v0.2.41): downloaded videos play from the file (`player/DownloadedPlayback.kt`; caption language "qaa" for the downloaded .srt so it never collides with an online track). Untested on device: missing file while offline (needs airplane mode + a deleted file).
 2026-11-05 (device-verified light, portrait; v0.2.40): theme F coloured icons (`IconColours` in fyiExtras), Settings hub tiles, sheets recoloured per row via nested MaterialTheme; Detail ChannelRow (avatar, @handle from patch 0003, subscriber count, bell = SubscriptionRepository toggle); Home refresh in app bar. Download icon is coloured only once downloaded.
 2026-11-05 (device-verified light, portrait; v0.2.39): revised V4. Monochrome accent (ink), plain white light pages, 56 dp bottom bar with labels and no indicator, round pre-V4 player chrome (seek bar white over video), Home layout cards/compact/grid (`HomeLayout.kt`; app-bar icon cycles for the session, default in Settings > Content via `HomeLayoutSettings.kt`, pref `home_layout`, default FULL_CARD). Untested: dark theme, landscape rail.

@@ -57,4 +57,7 @@ interface PlaylistItemDao {
      *  `addedAt` for the whole list and cost two writes per item. */
     @Query("UPDATE playlist_items SET sortIndex = :sortIndex WHERE playlistId = :playlistId AND pageUrl = :pageUrl")
     suspend fun setSortIndex(playlistId: Long, pageUrl: String, sortIndex: Int)
+
+    @Query("UPDATE playlist_items SET title = :title WHERE pageUrl = :pageUrl AND title = ''")
+    suspend fun fillBlankTitle(pageUrl: String, title: String)
 }

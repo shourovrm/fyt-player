@@ -347,18 +347,6 @@ class DownloadQueue private constructor(
         return item?.let { deleteDownloadFiles(dir, it.ref, it.filePath) } ?: true
     }
 
-    suspend fun clearCompleted() {
-        rows.value.filter { it.state == DownloadState.COMPLETED }.forEach { removeRow(it.ref.pageUrl) }
-    }
-
-    /** Batch [cancelAndDelete] over every completed row. Irreversible; caller confirms first.
-     *  Returns false if any file resisted deletion. */
-    suspend fun clearCompletedAndDeleteFiles(): Boolean {
-        val completed = rows.value.filter { it.state == DownloadState.COMPLETED }
-        completed.forEach { removeRow(it.ref.pageUrl) }
-        return completed.fold(true) { allOk, item -> deleteDownloadFiles(dir, item.ref, item.filePath) && allOk }
-    }
-
     /**
      * Android 15's `dataSync` foreground-service timeout budget just ran out. Park whatever is
      * running as PAUSED (resumable via `--continue`) and kill its process, on a scope of its own

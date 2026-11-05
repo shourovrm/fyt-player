@@ -31,10 +31,8 @@ internal fun Set<String>.toggled(pageUrl: String): Set<String> =
     if (pageUrl in this) this - pageUrl else this + pageUrl
 
 /** "Select all" toggle: selects every displayed video, or clears if they're already all selected. */
-internal fun selectAllOrNone(items: List<VideoRef>, selection: Set<String>): Set<String> {
-    val all = items.mapTo(LinkedHashSet()) { it.pageUrl }
-    return if (selection.containsAll(all) && all.isNotEmpty()) emptySet() else all
-}
+internal fun selectAllOrNone(items: List<VideoRef>, selection: Set<String>): Set<String> =
+    selectAllOrNoneByKey(items.map { it.pageUrl }, selection)
 
 /** State of the select-all checkbox: empty, some (dash) or every displayed row selected. */
 internal fun selectAllState(total: Int, selected: Int): ToggleableState =
@@ -44,13 +42,21 @@ internal fun selectAllState(total: Int, selected: Int): ToggleableState =
         else -> ToggleableState.Indeterminate
     }
 
-/** Same toggle as [selectAllOrNone] for rows that aren't a [VideoRef] (channels, followed
- *  playlists) -- named distinctly rather than overloaded: `List<VideoRef>` and `List<String>`
- *  erase to the same JVM signature and a same-name overload would be a platform declaration clash. */
+/** Tri-state of [keys] within [selection]: the top bar's select-all and each History date header use it. */
+internal fun selectionStateOf(keys: List<String>, selection: Set<String>): ToggleableState =
+    selectAllState(keys.size, keys.count { it in selection })
+
+/** Select-all toggle over row keys (channel URL, playlist key, page URL): selects all of them, or clears
+ *  when they're already all selected. Every tab's select-all runs through this one function. */
 internal fun selectAllOrNoneByKey(keys: List<String>, selection: Set<String>): Set<String> {
     val all = keys.toCollection(LinkedHashSet())
     return if (selection.containsAll(all) && all.isNotEmpty()) emptySet() else all
 }
+
+/** Tap a date header's checkbox: adds that group's keys, or removes them when all are already selected.
+ *  Keys outside the group are left as they are. */
+internal fun Set<String>.groupToggled(keys: List<String>): Set<String> =
+    if (keys.all { it in this }) this - keys.toSet() else this + keys
 
 /** Selected videos in display order -- that is the play/enqueue order. */
 internal fun selectedInOrder(items: List<VideoRef>, selection: Set<String>): List<VideoRef> =

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
 
 enum class LibraryTab { LIKES, PLAYLISTS, HISTORY, CHANNELS }
 
@@ -40,6 +41,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val likes = LikesRepository(app.database.likeDao())
     val playlists = PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao())
     val history = HistoryRepository(app.database.watchHistoryDao())
+    val historySections: Flow<List<HistorySection>> = history.observeEntries().map { groupHistory(it, ZonedDateTime.now()) }
     val subscriptions = SubscriptionRepository(app.database.subscriptionDao())
     val followedPlaylists = FollowedPlaylistRepository(app.database.followedPlaylistDao())
 

@@ -33,11 +33,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -57,6 +59,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +79,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.painterResource
@@ -103,7 +107,8 @@ import kotlinx.coroutines.launch
 /**
  * Likes / Playlists / History (DESIGN.md §5, §7). Tab + selection live in [LibraryViewModel] so
  * they survive tab switches, a trip to Detail/PlaylistDetail and back, and rotation. Multi-select
- * exists on Likes, Channels, Playlists and History (History: Remove with an Undo snackbar).
+ * exists on Likes, Channels, Playlists and History (History: Remove with an Undo snackbar; Likes
+ * and Channels share the same selection bar, and their removals have no Undo).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,11 +126,25 @@ fun LibraryScreen(
     val liked by vm.likes.observe().collectAsStateWithLifecycle(initialValue = emptyList())
     // Shorts are recorded as "seen" for feed ordering (ShortsViewModel.recordShown); the History
     // list stays for videos. Hoisted here so the selection bar can count and select-all them.
-    val history by vm.history.observe().collectAsStateWithLifecycle(initialValue = null)
-    val historyVideos = history?.filterNot { it.isShort }
+    val history by vm.historySections.collectAsStateWithLifecycle(initialValue = null)
+    val historyVideos = history.orEmpty().flatMap { it.videos }
     val snackbarHost = remember { SnackbarHostState() }
     val context = LocalContext.current
     val channels by vm.subscriptions.observeAllRows().collectAsStateWithLifecycle(initialValue = emptyList())
+    val playlistRows by vm.playlistRows.collectAsStateWithLifecycle(initialValue = null)
+    // Rows the top bar's select-all covers on this tab. Playlists keeps its own inert "All" button.
+    val selectableKeys = when (vm.tab) {
+        LibraryTab.LIKES -> liked.map { it.pageUrl }
+        LibraryTab.CHANNELS -> channels.map { it.listing.key }
+        LibraryTab.HISTORY -> historyVideos.map { it.pageUrl }
+        LibraryTab.PLAYLISTS -> emptyList()
+    }
+    // Videos the Play buttons queue. Channels and Playlists have none, so they get no Play button.
+    val tabVideos = when (vm.tab) {
+        LibraryTab.LIKES -> liked
+        LibraryTab.HISTORY -> historyVideos
+        LibraryTab.CHANNELS, LibraryTab.PLAYLISTS -> emptyList<VideoRef>()
+    }
     var showAddToPlaylist by remember { mutableStateOf(false) }
     var showUnsubscribeConfirm by remember { mutableStateOf(false) }
     var showUnfollowConfirm by remember { mutableStateOf(false) }
@@ -139,18 +158,29 @@ fun LibraryScreen(
                     count = vm.selection.size,
                     onClose = vm::clearSelection,
                     onSelectAll = {
-                        vm.selection = when (vm.tab) {
-                            LibraryTab.LIKES -> selectAllOrNone(liked, vm.selection)
-                            LibraryTab.CHANNELS -> selectAllOrNoneByKey(channels.map { it.listing.key }, vm.selection)
-                            LibraryTab.HISTORY -> selectAllOrNone(historyVideos.orEmpty(), vm.selection)
-                            LibraryTab.PLAYLISTS -> vm.selection
-                        }
+                        if (vm.tab != LibraryTab.PLAYLISTS) vm.selection = selectAllOrNoneByKey(selectableKeys, vm.selection)
                     },
-                    allState = if (vm.tab == LibraryTab.HISTORY) selectAllState(historyVideos.orEmpty().size, vm.selection.size) else null,
+                    allState = if (vm.tab == LibraryTab.PLAYLISTS) null else selectionStateOf(selectableKeys, vm.selection),
                     actions = {
+                        if (tabVideos.isNotEmpty()) {
+                            IconButton(onClick = {
+                                val refs = selectedInOrder(tabVideos, vm.selection)
+                                vm.clearSelection()
+                                if (refs.isNotEmpty()) PlaybackSession.play(refs, 0)
+                            }) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.library_play_selected))
+                            }
+                        }
                         when (vm.tab) {
                             LibraryTab.LIKES -> {
                                 var menuOpen by remember { mutableStateOf(false) }
+                                IconButton(onClick = {
+                                    val urls = vm.selection
+                                    vm.clearSelection()
+                                    scope.launch { urls.forEach { vm.likes.unlike(it) } }
+                                }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.action_unlike))
+                                }
                                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more)) }
                                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                     DropdownMenuItem(
@@ -164,15 +194,6 @@ fun LibraryScreen(
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.action_add_to_playlist)) },
                                         onClick = { menuOpen = false; showAddToPlaylist = true },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.action_unlike)) },
-                                        onClick = {
-                                            menuOpen = false
-                                            val urls = vm.selection
-                                            vm.clearSelection()
-                                            scope.launch { urls.forEach { vm.likes.unlike(it) } }
-                                        },
                                     )
                                 }
                             }
@@ -203,6 +224,11 @@ fun LibraryScreen(
                 TopAppBar(
                     title = { Text(stringResource(R.string.library_title)) },
                     actions = {
+                        if (tabVideos.isNotEmpty()) {
+                            IconButton(onClick = { PlaybackSession.play(tabVideos, 0) }) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.library_play_all))
+                            }
+                        }
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.shell_tab_settings))
                         }
@@ -211,18 +237,16 @@ fun LibraryScreen(
             }
         },
         snackbarHost = { SnackbarHost(snackbarHost) },
-        floatingActionButton = {
-            if (selecting && vm.tab == LibraryTab.LIKES) {
-                PlaySelectionFab(vm.selection.size) {
-                    val refs = selectedInOrder(liked, vm.selection)
-                    if (refs.isNotEmpty()) PlaybackSession.play(refs, 0)
-                    vm.clearSelection()
-                }
-            }
-        },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             LibrarySectionRow(selected = vm.tab, onSelect = { vm.selectTab(it) })
+            val count = when (vm.tab) {
+                LibraryTab.HISTORY -> pluralStringResource(R.plurals.library_video_count, historyVideos.size, historyVideos.size)
+                LibraryTab.LIKES -> pluralStringResource(R.plurals.library_video_count, liked.size, liked.size)
+                LibraryTab.PLAYLISTS -> playlistRows?.size?.let { pluralStringResource(R.plurals.library_playlist_count, it, it) }
+                LibraryTab.CHANNELS -> pluralStringResource(R.plurals.library_channel_count, channels.size, channels.size)
+            }
+            LibrarySectionHeading(librarySectionLabel(vm.tab), count)
             when (vm.tab) {
                 LibraryTab.LIKES -> LikesTab(
                     videos = liked,
@@ -242,7 +266,7 @@ fun LibraryScreen(
                 )
                 LibraryTab.HISTORY -> HistoryTab(
                     vm = vm,
-                    list = historyVideos,
+                    sections = history,
                     selecting = selecting,
                     onOpen = openDetail,
                 )
@@ -297,8 +321,8 @@ fun LibraryScreen(
     }
 }
 
-/** The four Library sections as one icon segmented control. Only the selected segment shows its
- *  label; the others are icon-only and carry their name as the content description. */
+/** The four Library sections as one icon-only segmented control. The section name is each icon's
+ *  content description; [LibrarySectionHeading] under the bar names the open one. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibrarySectionRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) {
@@ -307,22 +331,30 @@ private fun LibrarySectionRow(selected: LibraryTab, onSelect: (LibraryTab) -> Un
         Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
     ) {
         sections.forEachIndexed { index, section ->
-            val isSelected = section == selected
-            val label = librarySectionLabel(section)
             SegmentedButton(
-                selected = isSelected,
+                selected = section == selected,
                 onClick = { onSelect(section) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = sections.size, baseShape = ControlShape),
-                // The section glyph lives in `label`: the `icon` slot is the selection-check area and
-                // draws nothing for an unselected segment whose label is empty.
+                // The glyph lives in `label`. An empty `icon` slot drops the default check mark that
+                // a selected segment would otherwise add beside it.
                 icon = {},
-                label = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
-                        LibrarySectionIcon(section, contentDescription = if (isSelected) null else label)
-                        if (isSelected) Text(label, maxLines = 1)
-                    }
-                },
+                label = { LibrarySectionIcon(section, contentDescription = librarySectionLabel(section)) },
             )
+        }
+    }
+}
+
+/** The open section's name under the switcher. Its own composable so the style changes in one place. */
+@Composable
+private fun LibrarySectionHeading(name: String, count: String?) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+    ) {
+        Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.alignByBaseline())
+        if (count != null) {
+            Text(count, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.alignByBaseline())
         }
     }
 }
@@ -380,7 +412,7 @@ private fun LikesTab(
         LibraryEmptyState(stringResource(R.string.library_likes_empty), "")
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (selecting) Sizes.fab + Spacing.s32 else 0.dp)) {
+    LazyColumn(Modifier.fillMaxSize()) {
         items(videos, key = { it.pageUrl }) { ref ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
@@ -393,6 +425,7 @@ private fun LikesTab(
                         onLongPress = { onToggle(ref) },
                         selected = ref.pageUrl in selection,
                         selecting = selecting,
+                        showCheckbox = selecting,
                     )
                 }
                 // Single-row unlike yields while selecting -- the top bar owns bulk remove.
@@ -648,6 +681,7 @@ private fun ChannelsTab(
                     .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (selecting) Checkbox(checked = channel.key in selection, onCheckedChange = null, modifier = Modifier.padding(end = Spacing.s16))
                 // Mockup: no banner, no toast, no subtitle -- a dim row + the eye glyph itself say
                 // whether a subscribed channel is feeding Home/Shorts.
                 Row(
@@ -724,7 +758,7 @@ private fun MonogramDisc(title: String, size: Dp) {
 }
 
 @Composable
-private fun HistoryTab(vm: LibraryViewModel, list: List<VideoRef>?, selecting: Boolean, onOpen: (VideoRef) -> Unit) {
+private fun HistoryTab(vm: LibraryViewModel, sections: List<HistorySection>?, selecting: Boolean, onOpen: (VideoRef) -> Unit) {
     val scope = rememberCoroutineScope()
     val recording by vm.prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
     var confirmingClear by remember { mutableStateOf(false) }
@@ -739,8 +773,8 @@ private fun HistoryTab(vm: LibraryViewModel, list: List<VideoRef>?, selecting: B
             )
         }
         when {
-            list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            list.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_history_empty))
+            sections == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            sections.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_history_empty))
             else -> {
                 if (!selecting) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
@@ -748,15 +782,36 @@ private fun HistoryTab(vm: LibraryViewModel, list: List<VideoRef>?, selecting: B
                     }
                 }
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(list, key = { it.pageUrl }) { ref ->
-                        ResultRow(
-                            ref,
-                            onClick = { if (selecting) vm.toggle(ref) else onOpen(ref) },
-                            onLongPress = { vm.toggle(ref) },
-                            selected = ref.pageUrl in vm.selection,
-                            selecting = selecting,
-                            showCheckbox = selecting,
-                        )
+                    sections.forEach { section ->
+                        val keys = section.videos.map { it.pageUrl }
+                        item(key = "header:${section.group.name}") {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (selecting) {
+                                    TriStateCheckbox(
+                                        state = selectionStateOf(keys, vm.selection),
+                                        onClick = { vm.selection = vm.selection.groupToggled(keys) },
+                                    )
+                                }
+                                Text(
+                                    historyGroupLabel(section.group),
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                        items(section.videos, key = { it.pageUrl }) { ref ->
+                            ResultRow(
+                                ref,
+                                onClick = { if (selecting) vm.toggle(ref) else onOpen(ref) },
+                                onLongPress = { vm.toggle(ref) },
+                                selected = ref.pageUrl in vm.selection,
+                                selecting = selecting,
+                                showCheckbox = selecting,
+                            )
+                        }
                     }
                 }
             }
@@ -772,6 +827,15 @@ private fun HistoryTab(vm: LibraryViewModel, list: List<VideoRef>?, selecting: B
             onDismiss = { confirmingClear = false },
         )
     }
+}
+
+@Composable
+private fun historyGroupLabel(group: HistoryGroup): String = when (group) {
+    HistoryGroup.TODAY -> stringResource(R.string.library_history_today)
+    HistoryGroup.YESTERDAY -> stringResource(R.string.library_history_yesterday)
+    HistoryGroup.EARLIER_THIS_WEEK -> stringResource(R.string.library_history_earlier_week)
+    HistoryGroup.EARLIER_THIS_MONTH -> stringResource(R.string.library_history_earlier_month)
+    HistoryGroup.OLDER -> stringResource(R.string.library_history_older)
 }
 
 @Composable

@@ -13,6 +13,7 @@ import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
+import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -41,6 +42,7 @@ enum class DetailTab { SIMILAR, DESCRIPTION, COMMENTS }
 class DetailTabsViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as FyiApp
     private val subscriptionRepo = SubscriptionRepository(app.database.subscriptionDao())
+    private val playlistRepo = PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao())
 
     var selectedTab: DetailTab by mutableStateOf(DetailTab.SIMILAR)
 
@@ -73,6 +75,9 @@ class DetailTabsViewModel(application: Application) : AndroidViewModel(applicati
                 VideoDetail(ref)
             }
             detailLoaded = true
+            // One indexed UPDATE per opened video, not per list row: fixes playlist entries that
+            // were saved with no title.
+            detail?.ref?.title?.takeIf { it.isNotBlank() }?.let { playlistRepo.fillBlankTitle(ref.pageUrl, it) }
         }
     }
 

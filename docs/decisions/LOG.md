@@ -290,3 +290,6 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | Home refresh moved into the app bar (For you only); "New from channels" row removed | user request
 2026-11-05 | Downloaded videos play in-app: PlaybackSession.resolveItem uses a COMPLETED download's file first (FyiApp seam), online captions added in the background, Quality sheet offers "Stream instead", missing file + offline = error line | user picked option 2
 2026-11-05 | Downloads row tap opens Detail; ⋮ menu has "Open with another app" (chooser) and Remove. Landscape Home skips the Cards layout | user request
+2026-11-05 | Library: icon-only switcher + H8 heading (name + grey count); History grouped Today/Yesterday/Earlier this week/Earlier this month/Older with per-group checkboxes; Likes/Channels share History's selection | user picked mocks v7 A1, H8
+2026-11-05 | Play all / play selected on Downloads, History, Likes; Downloads multi-select, clear-completed button removed | user request
+2026-11-05 | "Untitled" playlist items: rememberVideoActions keyed on the whole ref (Detail passed a stale bare ref); opening a video fills blank playlist titles for it | root cause: VideoActions remembered by pageUrl

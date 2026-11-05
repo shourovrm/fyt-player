@@ -36,6 +36,9 @@ fun VideoRef.toWatchHistoryEntity(watchedAt: Long): WatchHistoryEntity = WatchHi
 class HistoryRepository(private val dao: WatchHistoryDao) {
     fun observe(): Flow<List<VideoRef>> = dao.observeAll().map { list -> list.map { it.toVideoRef() } }
 
+    /** The rows themselves, for screens that need when each video was watched (date groups). */
+    fun observeEntries(): Flow<List<WatchHistoryEntity>> = dao.observeAll()
+
     suspend fun record(ref: VideoRef, watchedAt: Long = System.currentTimeMillis()) =
         dao.upsert(ref.toWatchHistoryEntity(watchedAt))
 

@@ -5,8 +5,10 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,16 +46,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -69,6 +73,7 @@ import com.fyiplayer.app.data.repo.DownloadState
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
 import com.fyiplayer.app.download.DownloadProgress
 import com.fyiplayer.app.download.DownloadQueue
+import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.ui.theme.NumeralFontFamily
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
@@ -80,7 +85,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /**
- * The download queue: progress per row, pause/resume/cancel/retry, clear-completed. [DownloadQueue]
+ * The download queue: progress per row, pause/resume/cancel/retry, play and delete of finished
+ * downloads (one row, or a multi-selection). [DownloadQueue]
  * is a process-scoped singleton (see its doc) so this screen can be entered/left freely without
  * losing track of what's running -- no arguments needed, matching every other bottom-nav tab.
  */
@@ -97,24 +103,52 @@ fun DownloadsScreen(onOpenDetail: (VideoRef) -> Unit) {
     // No sheet defaults to the destructive choice -- see RemoveSheet.
     var menuTarget by remember { mutableStateOf<DownloadItem?>(null) }
     var removeTarget by remember { mutableStateOf<DownloadItem?>(null) }
-    var confirmClearCompleted by remember { mutableStateOf(false) }
+    var confirmDeleteSelected by remember { mutableStateOf(false) }
+    // Page URLs of selected finished rows. Saved so a rotation keeps the selection.
+    var selection by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
+    val selecting = selection.isNotEmpty()
+    BackHandler(enabled = selecting) { selection = emptySet() }
+
+    // Only a finished download can be played or selected; the rest of the queue has per-row buttons.
+    val completed = rows.filter { it.state == DownloadState.COMPLETED }
+    val completedVideos = completed.map { it.ref }
+    val completedKeys = completedVideos.map { it.pageUrl }
+    val downloadsTitle = stringResource(R.string.downloads_title)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.downloads_title)) },
-                actions = {
-                    if (rows.any { it.state == DownloadState.COMPLETED }) {
-                        IconButton(onClick = { confirmClearCompleted = true }) {
-                            Icon(
-                                painterResource(R.drawable.ic_delete_sweep),
-                                contentDescription = stringResource(R.string.downloads_clear_completed),
-                            )
+            if (selecting) {
+                SelectionTopBar(
+                    count = selection.size,
+                    onClose = { selection = emptySet() },
+                    onSelectAll = { selection = selectAllOrNoneByKey(completedKeys, selection) },
+                    allState = selectionStateOf(completedKeys, selection),
+                    actions = {
+                        IconButton(onClick = {
+                            val refs = selectedInOrder(completedVideos, selection)
+                            selection = emptySet()
+                            if (refs.isNotEmpty()) PlaybackSession.play(refs, 0, queueTitle = downloadsTitle)
+                        }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.downloads_play_selected))
                         }
-                    }
-                },
-            )
+                        IconButton(onClick = { confirmDeleteSelected = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = pluralStringResource(R.plurals.downloads_delete_files, selection.size))
+                        }
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(downloadsTitle) },
+                    actions = {
+                        if (completed.isNotEmpty()) {
+                            IconButton(onClick = { PlaybackSession.play(completedVideos, 0, queueTitle = downloadsTitle) }) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.downloads_play_all))
+                            }
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -130,12 +164,17 @@ fun DownloadsScreen(onOpenDetail: (VideoRef) -> Unit) {
                             item = item,
                             error = errors[item.ref.pageUrl],
                             liveProgress = progress[item.ref.pageUrl],
+                            selected = item.ref.pageUrl in selection,
+                            selecting = selecting,
+                            onClick = {
+                                if (selecting) selection = selection.toggled(item.ref.pageUrl) else onOpenDetail(item.ref)
+                            },
+                            onLongPress = { selection = selection.toggled(item.ref.pageUrl) },
                             onPause = { scope.launch { queue.pause(item.ref.pageUrl) } },
                             onResume = { scope.launch { queue.resume(item.ref.pageUrl) } },
                             onRemove = { removeTarget = item },
                             onRetry = { scope.launch { queue.retry(item.ref.pageUrl) } },
                             onMore = { menuTarget = item },
-                            onOpen = { onOpenDetail(item.ref) },
                         )
                     }
                 }
@@ -169,24 +208,30 @@ fun DownloadsScreen(onOpenDetail: (VideoRef) -> Unit) {
         )
     }
 
-    if (confirmClearCompleted) {
-        val completed = rows.filter { it.state == DownloadState.COMPLETED }
-        val count = completed.size
-        val totalSize = completed.sumOf { it.totalBytes }
+    if (confirmDeleteSelected) {
+        val selected = completed.filter { it.ref.pageUrl in selection }
         val someFilesNotDeletedMessage = stringResource(R.string.downloads_delete_some_failed)
         RemoveSheet(
-            title = stringResource(R.string.downloads_clear_title),
-            body = removeBody(totalSize, fileCount = count),
+            title = pluralStringResource(R.plurals.downloads_remove_selected_title, selected.size, selected.size),
+            body = removeBody(selected.sumOf { it.totalBytes }, fileCount = selected.size),
             removeLabel = stringResource(R.string.downloads_remove_keep_file),
-            deleteLabel = pluralStringResource(R.plurals.downloads_delete_files, count),
-            onRemove = { scope.launch { queue.clearCompleted() }; confirmClearCompleted = false },
-            onDeleteToo = {
-                scope.launch {
-                    if (!queue.clearCompletedAndDeleteFiles()) showToast(context, someFilesNotDeletedMessage)
-                }
-                confirmClearCompleted = false
+            deleteLabel = pluralStringResource(R.plurals.downloads_delete_files, selected.size),
+            onRemove = {
+                val keys = selected.map { it.ref.pageUrl }
+                selection = emptySet()
+                confirmDeleteSelected = false
+                scope.launch { keys.forEach { queue.cancel(it) } }
             },
-            onDismiss = { confirmClearCompleted = false },
+            onDeleteToo = {
+                val keys = selected.map { it.ref.pageUrl }
+                selection = emptySet()
+                confirmDeleteSelected = false
+                scope.launch {
+                    val deleted = keys.map { queue.cancelAndDelete(it) }
+                    if (deleted.any { !it }) showToast(context, someFilesNotDeletedMessage)
+                }
+            },
+            onDismiss = { confirmDeleteSelected = false },
         )
     }
 }
@@ -288,23 +333,41 @@ private fun DownloadRow(
     item: DownloadItem,
     error: String?,
     liveProgress: DownloadProgress?,
+    selected: Boolean,
+    selecting: Boolean,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onRemove: () -> Unit,
     onRetry: () -> Unit,
     onMore: () -> Unit,
-    onOpen: () -> Unit,
 ) {
     val extras = MaterialTheme.fyiExtras
     Row(
         Modifier
             .fillMaxWidth()
-            // Only a finished download opens; every other state is controlled by its own buttons.
-            .clickable(enabled = item.state == DownloadState.COMPLETED, onClick = onOpen)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            // Only a finished download opens or selects; every other state is controlled by its own buttons.
+            .combinedClickable(
+                enabled = item.state == DownloadState.COMPLETED,
+                onClick = onClick,
+                onLongClick = onLongPress,
+            )
+            .semantics { if (selecting) this.selected = selected }
             .heightIn(min = Sizes.listTwoLine)
             .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The row is the click target, so the box only shows state. An unfinished row gets a disabled box.
+        if (selecting) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = null,
+                enabled = item.state == DownloadState.COMPLETED,
+                modifier = Modifier.padding(end = Spacing.s16),
+            )
+        }
         Box(
             Modifier.size(Sizes.thumbWidth, Sizes.thumbHeight).clip(RoundedCornerShape(Radius.m)).background(extras.surface3),
             contentAlignment = Alignment.Center,
@@ -376,8 +439,10 @@ private fun DownloadRow(
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_clear))
                     }
                 }
-                DownloadState.COMPLETED -> IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
+                DownloadState.COMPLETED -> if (!selecting) {
+                    IconButton(onClick = onMore) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
+                    }
                 }
             }
         }

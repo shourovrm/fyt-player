@@ -145,7 +145,9 @@ fun rememberVideoActions(ref: VideoRef): VideoActions {
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
     val downloads = remember(context) { DownloadQueue.get(context) }
-    return remember(ref.pageUrl) {
+    // Keyed on the whole ref, not the page URL: Detail first passes a bare ref (no title yet) and
+    // then the loaded one, and "Add to playlist" must save the loaded title.
+    return remember(ref) {
         VideoActions(ref, likes.observeIsLiked(ref.pageUrl), downloads.isDownloaded(ref.pageUrl), playlists, app.appScope, likes, downloads, context)
     }
 }
