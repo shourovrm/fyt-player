@@ -11,7 +11,7 @@
 <p align="center">
   Android video player for YouTube, Facebook, Twitter/X and TikTok.<br>
   Browse, play in the background, queue and download. No ads, no account needed.<br>
-  <a href="https://github.com/shourovrm/fyt-player/releases/download/v0.2.35/fyt-player-0.2.35-arm64-release.apk">Download the latest APK</a>
+  <a href="https://github.com/shourovrm/fyt-player/releases/download/v0.2.42/fyt-player-0.2.42-arm64-release.apk">Download the latest APK</a>
 </p>
 
 <p align="center">
@@ -43,6 +43,8 @@ playing with the screen off. It is distributed as a sideloaded APK; there is no 
 - Playlists, comments, and a "Similar" tab with YouTube's own recommendations for the video
   (including its shorts shelf).
 - Content region and language are settings, not whatever the server guesses.
+- Home shows the feed as full-width cards, a compact list or a two-column grid. The icon next
+  to search switches layout; the default is a setting.
 
 **Shorts**
 - The Shorts tab is a vertical swipe pager over the shorts of your subscribed channels.
@@ -72,6 +74,8 @@ playing with the screen off. It is distributed as a sideloaded APK; there is no 
 - Separate default quality caps for Wi-Fi and mobile data.
 
 **Library**
+- History is grouped by day (Today, Yesterday, and so on). History, likes, channels and downloads
+  let you select several items to play or remove, and each page has a play-all button.
 - Watch history, likes, your own playlists, followed YouTube playlists (same row style, first
   video as cover) and subscriptions.
 - Share a playlist out as a link (followed) or as a list of video links (your own). Share a YouTube
@@ -84,6 +88,8 @@ playing with the screen off. It is distributed as a sideloaded APK; there is no 
   cancel. The list shows speed, ETA and final size, and a notification appears when each finishes.
 - "Download subtitles" in a video's long-press menu saves an .srt (English preferred).
 - Choose the download folder and file format.
+- A downloaded video plays from the file whenever you open it, also offline. The quality menu
+  offers "Stream instead", and "Open with another app" sits in the download's menu.
 
 **Sharing in**
 - Share a link from YouTube, Facebook, TikTok or X to FYT Player, or tap a link and choose it from
@@ -109,7 +115,7 @@ app shows that state and stops. It does not retry in a loop, forge requests or r
 The app needs Android 8.0 or newer on a 64-bit ARM device, which covers almost every phone since
 2017.
 
-1. Download the [APK for v0.2.35](https://github.com/shourovrm/fyt-player/releases/download/v0.2.35/fyt-player-0.2.35-arm64-release.apk).
+1. Download the [APK for v0.2.42](https://github.com/shourovrm/fyt-player/releases/download/v0.2.42/fyt-player-0.2.42-arm64-release.apk).
 2. Open it on the phone and allow installs from that source if asked.
 3. Updates install over the previous version. Your library, settings and downloads are kept.
 
