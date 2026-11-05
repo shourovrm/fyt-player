@@ -11,7 +11,7 @@
 <p align="center">
   Android video player for YouTube, Facebook, Twitter/X and TikTok.<br>
   Browse, play in the background, queue and download. No ads, no account needed.<br>
-  <a href="https://github.com/shourovrm/fyt-player/releases/download/v0.2.42/fyt-player-0.2.42-arm64-release.apk">Download the latest APK</a>
+  <a href="https://github.com/shourovrm/fyt-player/releases/latest">Download the latest APK</a>
 </p>
 
 <p align="center">
@@ -115,7 +115,7 @@ app shows that state and stops. It does not retry in a loop, forge requests or r
 The app needs Android 8.0 or newer on a 64-bit ARM device, which covers almost every phone since
 2017.
 
-1. Download the [APK for v0.2.42](https://github.com/shourovrm/fyt-player/releases/download/v0.2.42/fyt-player-0.2.42-arm64-release.apk).
+1. Download the APK from the [latest release](https://github.com/shourovrm/fyt-player/releases/latest).
 2. Open it on the phone and allow installs from that source if asked.
 3. Updates install over the previous version. Your library, settings and downloads are kept.
 
