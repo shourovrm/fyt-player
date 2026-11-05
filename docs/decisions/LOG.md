@@ -293,3 +293,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | Library: icon-only switcher + H8 heading (name + grey count); History grouped Today/Yesterday/Earlier this week/Earlier this month/Older with per-group checkboxes; Likes/Channels share History's selection | user picked mocks v7 A1, H8
 2026-11-05 | Play all / play selected on Downloads, History, Likes; Downloads multi-select, clear-completed button removed | user request
 2026-11-05 | "Untitled" playlist items: rememberVideoActions keyed on the whole ref (Detail passed a stale bare ref); opening a video fills blank playlist titles for it | root cause: VideoActions remembered by pageUrl
+2026-11-05 | release signs only when keystore.properties exists; justfile check = tests + lintRelease + assembleRelease | CI builds without the signing key; one local command matches CI

@@ -10,9 +10,9 @@ plugins {
 }
 
 // signing pulled from gitignored keystore.properties, never hardcoded
+val keystoreFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
-    val f = rootProject.file("keystore.properties")
-    if (f.exists()) load(FileInputStream(f))
+    if (keystoreFile.exists()) load(FileInputStream(keystoreFile))
 }
 
 android {
@@ -43,7 +43,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            // CI has no keystore: it builds an unsigned APK to prove the release build compiles
+            if (keystoreFile.exists()) signingConfig = signingConfigs.getByName("release")
         }
     }
 
