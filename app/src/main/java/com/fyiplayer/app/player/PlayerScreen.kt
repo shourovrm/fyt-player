@@ -1,5 +1,8 @@
+@file:OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.player
 
+import androidx.annotation.OptIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.layout.ContentScale
+import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
 import com.fyiplayer.app.core.VideoRef
 import androidx.compose.material3.Text

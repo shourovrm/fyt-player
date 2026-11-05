@@ -1,5 +1,9 @@
+@file:OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.cache.CacheKeyFactory
 import java.security.MessageDigest

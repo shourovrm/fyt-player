@@ -1,9 +1,13 @@
+@file:OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.player
 
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import com.fyiplayer.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier

@@ -1,5 +1,8 @@
+@file:OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.player
 
+import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -30,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.util.UnstableApi
 import com.fyiplayer.app.R
 import com.fyiplayer.app.ui.rememberFyiApp
 import com.fyiplayer.app.ui.theme.Radius

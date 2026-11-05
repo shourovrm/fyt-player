@@ -1,3 +1,5 @@
+@file:OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.player
 
 import android.app.PendingIntent
@@ -52,7 +54,6 @@ class PlaybackService : MediaSessionService() {
     // Media3's notification redraws on playback and metadata events, not on a change of available
     // commands, so toggling autoplay would leave Next missing until the next pause/play.
     private val commandsListener = object : Player.Listener {
-        @OptIn(UnstableApi::class)
         override fun onAvailableCommandsChanged(availableCommands: Player.Commands) = triggerNotificationUpdate()
     }
 
@@ -110,7 +111,6 @@ class PlaybackService : MediaSessionService() {
          * item through the normal resolver path. Signature checked against media3-session 1.9.4
          * (the 2-arg overload is deprecated; this one adds isForPlayback).
          */
-        @OptIn(UnstableApi::class)
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,

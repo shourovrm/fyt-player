@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.ui
 
 import androidx.activity.compose.BackHandler
@@ -20,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.media3.common.util.UnstableApi
 import com.fyiplayer.app.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
