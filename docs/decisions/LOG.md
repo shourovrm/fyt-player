@@ -295,3 +295,5 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | "Untitled" playlist items: rememberVideoActions keyed on the whole ref (Detail passed a stale bare ref); opening a video fills blank playlist titles for it | root cause: VideoActions remembered by pageUrl
 2026-11-05 | release signs only when keystore.properties exists; justfile check = tests + lintRelease + assembleRelease | CI builds without the signing key; one local command matches CI
 2026-11-05 | ABI splits: arm64-v8a, armeabi-v7a, x86_64 APKs | 32-bit ARM phones could not install the arm64-only APK; x86 32-bit left out
+2026-11-05 | launcher icon = mock option 4 "Offset ink" (black play, red offset shadow, white bg) + monochrome layer | matches monochrome UI with one accent; themed icons on Android 13+
+2026-11-05 | brightness gesture override cleared when fullscreen ends; starts from system level | media-player convention: brightness belongs to the fullscreen session

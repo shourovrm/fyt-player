@@ -3,7 +3,17 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Offset ink: a red shadow behind a black play button, inside the 66dp safe zone. -->
     <path
-        android:fillColor="#E8EAED"
-        android:pathData="M43,36 L43,72 L74,54 Z" />
+        android:fillColor="#E53935"
+        android:strokeColor="#E53935"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:pathData="M45,37 L45,79 L81,58 Z" />
+    <path
+        android:fillColor="#0F0F0F"
+        android:strokeColor="#0F0F0F"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:pathData="M38,31 L38,73 L74,52 Z" />
 </vector>
