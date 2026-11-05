@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { v, insets ->
             val sb = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             val cut = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.displayCutout())
-            android.util.Log.d("Insets", "rot=${display?.rotation} sb=[${sb.left},${sb.top},${sb.right},${sb.bottom}] cutout=[${cut.left},${cut.top},${cut.right},${cut.bottom}]")
+            android.util.Log.d("Insets", "sb=[${sb.left},${sb.top},${sb.right},${sb.bottom}] cutout=[${cut.left},${cut.top},${cut.right},${cut.bottom}]")
             com.fyiplayer.app.ui.SystemBarInsetsState.update(sb.left, sb.top, sb.right, sb.bottom)
             androidx.core.view.ViewCompat.onApplyWindowInsets(v, insets)
         }
