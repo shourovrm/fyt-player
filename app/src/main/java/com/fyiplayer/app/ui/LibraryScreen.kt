@@ -246,7 +246,27 @@ fun LibraryScreen(
                 LibraryTab.PLAYLISTS -> playlistRows?.size?.let { pluralStringResource(R.plurals.library_playlist_count, it, it) }
                 LibraryTab.CHANNELS -> pluralStringResource(R.plurals.library_channel_count, channels.size, channels.size)
             }
-            LibrarySectionHeading(librarySectionLabel(vm.tab), count)
+            var confirmingClear by remember { mutableStateOf(false) }
+            LibrarySectionHeading(librarySectionLabel(vm.tab), count) {
+                if (vm.tab == LibraryTab.HISTORY && !selecting && historyVideos.isNotEmpty()) {
+                    IconButton(onClick = { confirmingClear = true }) {
+                        Icon(
+                            painterResource(R.drawable.ic_delete_sweep),
+                            contentDescription = stringResource(R.string.library_clear_history),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            if (confirmingClear) {
+                ConfirmDialog(
+                    title = stringResource(R.string.library_clear_history_title),
+                    body = stringResource(R.string.library_clear_history_body),
+                    confirmLabel = stringResource(R.string.action_clear),
+                    onConfirm = { confirmingClear = false; scope.launch { vm.history.clear() } },
+                    onDismiss = { confirmingClear = false },
+                )
+            }
             when (vm.tab) {
                 LibraryTab.LIKES -> LikesTab(
                     videos = liked,
@@ -346,16 +366,19 @@ private fun LibrarySectionRow(selected: LibraryTab, onSelect: (LibraryTab) -> Un
 
 /** The open section's name under the switcher. Its own composable so the style changes in one place. */
 @Composable
-private fun LibrarySectionHeading(name: String, count: String?) {
+private fun LibrarySectionHeading(name: String, count: String?, action: @Composable () -> Unit) {
+    // Fixed touch-target height so the row does not jump when the action icon comes and goes.
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
+        Modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget).padding(start = Spacing.pageMargin, end = Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.alignByBaseline())
-        if (count != null) {
-            Text(count, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Spacing.s8)) {
+            Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.alignByBaseline())
+            if (count != null) {
+                Text(count, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.alignByBaseline())
+            }
         }
+        action()
     }
 }
 
@@ -759,9 +782,7 @@ private fun MonogramDisc(title: String, size: Dp) {
 
 @Composable
 private fun HistoryTab(vm: LibraryViewModel, sections: List<HistorySection>?, selecting: Boolean, onOpen: (VideoRef) -> Unit) {
-    val scope = rememberCoroutineScope()
     val recording by vm.prefs.recordWatchHistory.collectAsStateWithLifecycle(initialValue = true)
-    var confirmingClear by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         if (!recording) {
@@ -776,11 +797,6 @@ private fun HistoryTab(vm: LibraryViewModel, sections: List<HistorySection>?, se
             sections == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             sections.isEmpty() -> LibraryEmptyState(stringResource(R.string.library_history_empty))
             else -> {
-                if (!selecting) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.library_clear_history)) }
-                    }
-                }
                 LazyColumn(Modifier.fillMaxSize()) {
                     sections.forEach { section ->
                         val keys = section.videos.map { it.pageUrl }
@@ -816,16 +832,6 @@ private fun HistoryTab(vm: LibraryViewModel, sections: List<HistorySection>?, se
                 }
             }
         }
-    }
-
-    if (confirmingClear) {
-        ConfirmDialog(
-            title = stringResource(R.string.library_clear_history_title),
-            body = stringResource(R.string.library_clear_history_body),
-            confirmLabel = stringResource(R.string.action_clear),
-            onConfirm = { confirmingClear = false; scope.launch { vm.history.clear() } },
-            onDismiss = { confirmingClear = false },
-        )
     }
 }
 
