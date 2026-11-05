@@ -18,7 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -41,7 +41,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun BackupSettings() {
     val app = rememberFyiApp()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val likes = remember { LikesRepository(app.database.likeDao()) }
     val playlists = remember { PlaylistRepository(app.database.playlistDao(), app.database.playlistItemDao()) }
@@ -57,9 +57,9 @@ fun BackupSettings() {
         scope.launch {
             try {
                 BackupIo.export(app, uri, likes, playlists, subscriptions)
-                status = context.getString(R.string.settings_backup_exported); isError = false
+                status = resources.getString(R.string.settings_backup_exported); isError = false
             } catch (e: Exception) {
-                status = e.message ?: context.getString(R.string.settings_backup_export_failed); isError = true
+                status = e.message ?: resources.getString(R.string.settings_backup_export_failed); isError = true
             }
         }
     }
@@ -72,7 +72,7 @@ fun BackupSettings() {
                 val (doc, plan) = BackupIo.preview(app, uri, likes, playlists, subscriptions)
                 pendingDoc = doc; pendingPlan = plan
             } catch (e: Exception) {
-                status = e.message ?: context.getString(R.string.settings_backup_import_failed); isError = true
+                status = e.message ?: resources.getString(R.string.settings_backup_import_failed); isError = true
             }
         }
     }
@@ -108,7 +108,7 @@ fun BackupSettings() {
                 } else {
                     stringResource(
                         R.string.settings_backup_adds,
-                        *backupCounts(context.resources, plan.newPlaylists, plan.newPlaylistItems, plan.newLiked, plan.newChannels),
+                        *backupCounts(resources, plan.newPlaylists, plan.newPlaylistItems, plan.newLiked, plan.newChannels),
                     )
                 }
                 val skipped = if (plan.droppedEntries > 0) {
@@ -123,13 +123,12 @@ fun BackupSettings() {
                     scope.launch {
                         try {
                             val applied = BackupIo.apply(doc, likes, playlists, subscriptions)
-                            status = context.getString(
-                                R.string.settings_backup_added,
-                                *backupCounts(context.resources, applied.newPlaylists, applied.newPlaylistItems, applied.newLiked, applied.newChannels),
-                            )
+                            val (playlistCount, videoCount, likeCount, channelCount) =
+                                backupCounts(resources, applied.newPlaylists, applied.newPlaylistItems, applied.newLiked, applied.newChannels)
+                            status = resources.getString(R.string.settings_backup_added, playlistCount, videoCount, likeCount, channelCount)
                             isError = false
                         } catch (e: Exception) {
-                            status = e.message ?: context.getString(R.string.settings_backup_import_failed); isError = true
+                            status = e.message ?: resources.getString(R.string.settings_backup_import_failed); isError = true
                         } finally {
                             pendingDoc = null; pendingPlan = null
                         }

@@ -314,7 +314,8 @@ internal fun ShortsPage(
             // .value, not collectAsState: a non-reactive snapshot read, so this whole page (not
             // just the seek bar) doesn't recompose on every 500ms tick just to redraw the preview
             // card's x-position, which only matters while the finger is already down.
-            val fraction = shortsProgressFraction(scrubMs, PlaybackSession.progress.value.durationMs)
+            val durationMs = remember(scrubMs) { PlaybackSession.progress.value.durationMs }
+            val fraction = shortsProgressFraction(scrubMs, durationMs)
             val thumbX = 2.dp + barWidth * fraction
             val previewX = (thumbX - Sizes.seekPreviewWidth / 2).coerceIn(0.dp, maxWidth - Sizes.seekPreviewWidth)
             SeekThumbnailPreview(

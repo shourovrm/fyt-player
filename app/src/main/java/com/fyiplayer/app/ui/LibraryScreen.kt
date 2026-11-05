@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -129,7 +130,7 @@ fun LibraryScreen(
     val history by vm.historySections.collectAsStateWithLifecycle(initialValue = null)
     val historyVideos = history.orEmpty().flatMap { it.videos }
     val snackbarHost = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val channels by vm.subscriptions.observeAllRows().collectAsStateWithLifecycle(initialValue = emptyList())
     val playlistRows by vm.playlistRows.collectAsStateWithLifecycle(initialValue = null)
     // Rows the top bar's select-all covers on this tab. Playlists keeps its own inert "All" button.
@@ -209,8 +210,8 @@ fun LibraryScreen(
                                 scope.launch {
                                     val removed = vm.history.removeAll(urls)
                                     val result = snackbarHost.showSnackbar(
-                                        message = context.resources.getQuantityString(R.plurals.library_history_removed, removed.size, removed.size),
-                                        actionLabel = context.getString(R.string.action_undo),
+                                        message = resources.getQuantityString(R.plurals.library_history_removed, removed.size, removed.size),
+                                        actionLabel = resources.getString(R.string.action_undo),
                                     )
                                     if (result == SnackbarResult.ActionPerformed) vm.history.restore(removed)
                                 }
