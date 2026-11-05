@@ -25,8 +25,17 @@ android {
         targetSdk = 35
         versionCode = 44
         versionName = "0.2.42"
-        // single sideload APK: arm64-v8a only, keeps the python/ffmpeg payload from tripling size
-        ndk { abiFilters += "arm64-v8a" }
+    }
+
+    // One APK per ABI: the python/ffmpeg payload is ~50 MB per ABI, so a universal APK would be huge.
+    // 32-bit x86 is left out; almost no device needs it.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = false
+        }
     }
 
     signingConfigs {

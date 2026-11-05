@@ -294,3 +294,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | Play all / play selected on Downloads, History, Likes; Downloads multi-select, clear-completed button removed | user request
 2026-11-05 | "Untitled" playlist items: rememberVideoActions keyed on the whole ref (Detail passed a stale bare ref); opening a video fills blank playlist titles for it | root cause: VideoActions remembered by pageUrl
 2026-11-05 | release signs only when keystore.properties exists; justfile check = tests + lintRelease + assembleRelease | CI builds without the signing key; one local command matches CI
+2026-11-05 | ABI splits: arm64-v8a, armeabi-v7a, x86_64 APKs | 32-bit ARM phones could not install the arm64-only APK; x86 32-bit left out

@@ -6,7 +6,7 @@
 rootProject.name only. applicationId stays `com.fyiplayer.app` (a new id = a new app on Android,
 no in-place update, all local data lost). README.md added; repo public at github.com/shourovrm/fyt-player.
 
-Signed arm64-v8a release APK builds; 495 JVM unit tests green (v0.2.26). Compose + Material 3, single Activity.
+Signed release APKs, one per ABI (arm64-v8a, armeabi-v7a, x86_64); 495 JVM unit tests green (v0.2.26). Compose + Material 3, single Activity.
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only
@@ -65,8 +65,8 @@ viewer row in EngineSettings.
   `JAVA_HOME=~/.gradle/jdks/temurin-21 ./gradlew ...` until the package is reinstalled.
 - `AndroidManifest.xml` declares a service only in the phase that adds its class — a declaration
   pointing at a missing class is a runtime crash, not a build failure.
-- Release APK is ~66 MB at skeleton size; the engine ships a Python runtime. `abiFilters` is pinned
-  to `arm64-v8a` because a universal APK triples that.
+- Release APK is ~66 MB at skeleton size; the engine ships a Python runtime. ABI splits build
+  one APK per ABI because a universal APK triples that. Local install: `app-arm64-v8a-release.apk`.
 - `libc++_shared.so` ships in more than one native artifact; `pickFirsts` in `packaging.jniLibs`
   is what keeps packaging from failing.
 - `extractNativeLibs=true` is NOT in the manifest — AGP emits it from `packaging.jniLibs

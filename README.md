@@ -112,8 +112,15 @@ app shows that state and stops. It does not retry in a loop, forge requests or r
 
 ## Install
 
-The app needs Android 8.0 or newer on a 64-bit ARM device, which covers almost every phone since
-2017.
+The app needs Android 8.0 or newer. Each release has one APK per processor type:
+
+| APK | For |
+|---|---|
+| `arm64-v8a` | Almost every phone made since 2017. Pick this one if unsure. |
+| `armeabi-v7a` | Older or low-cost phones with a 32-bit processor. |
+| `x86_64` | Emulators and some Chromebooks. |
+
+If the `arm64-v8a` APK says "App not installed", try `armeabi-v7a`.
 
 1. Download the APK from the [latest release](https://github.com/shourovrm/fyt-player/releases/latest).
 2. Open it on the phone and allow installs from that source if asked.
@@ -143,7 +150,7 @@ Then build and install:
 
 ```sh
 ./gradlew assembleRelease
-adb install -r app/build/outputs/apk/release/app-release.apk
+adb install -r app/build/outputs/apk/release/app-arm64-v8a-release.apk
 ```
 
 Run the unit tests with `./gradlew testReleaseUnitTest`. They use saved fixtures and never touch
