@@ -550,6 +550,27 @@ public class YoutubeStreamExtractor extends StreamExtractor {
         return extractUploaderName(playerResponse, playerMicroFormatRenderer, videoOwnerRenderer);
     }
 
+    /** The owner link's canonical path is "/@handle"; only that shape is a handle. */
+    @Nonnull
+    @Override
+    public String getUploaderHandle() throws ParsingException {
+        assertPageFetched();
+
+        final JsonObject videoOwnerRenderer = getVideoSecondaryInfoRenderer()
+                .getObject("owner")
+                .getObject("videoOwnerRenderer");
+        final JsonObject navigationEndpoint = videoOwnerRenderer.getObject("navigationEndpoint");
+        if (navigationEndpoint == null || navigationEndpoint.getObject("browseEndpoint") == null) {
+            return "";
+        }
+        final String canonicalBaseUrl = navigationEndpoint.getObject("browseEndpoint")
+                .getString("canonicalBaseUrl", "");
+        if (!canonicalBaseUrl.startsWith("/@")) {
+            return "";
+        }
+        return canonicalBaseUrl.substring(1);
+    }
+
     @Nonnull
     static String extractUploaderName(@Nonnull final JsonObject selectedPlayerResponse,
                                       @Nullable final JsonObject webMicroformat,

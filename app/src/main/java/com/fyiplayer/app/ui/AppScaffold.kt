@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -64,8 +65,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fyiplayer.app.R
 import com.fyiplayer.app.player.asActivity
+import com.fyiplayer.app.ui.theme.IconColours
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
  * The one shared shell: owns the [NavHostController] (so the bottom nav and the [NavHost][
@@ -197,19 +200,32 @@ fun AppScaffold(
     }
 }
 
+/** [colour] picks the tab's icon colour when selected, from the theme's icon set. */
 private class NavTab(
     val route: String,
     @StringRes val labelRes: Int,
     val selectedIcon: ImageVector,
     val icon: ImageVector,
+    val colour: (IconColours) -> Color,
 )
 
 private val NAV_TABS = listOf(
-    NavTab(Routes.HOME, R.string.shell_tab_home, Icons.Filled.Home, Icons.Outlined.Home),
-    NavTab(Routes.SHORTS, R.string.shell_tab_shorts, Icons.Filled.PlayArrow, Icons.Outlined.PlayArrow),
-    NavTab(Routes.LIBRARY, R.string.shell_tab_library, Icons.Filled.Favorite, Icons.Filled.FavoriteBorder),
+    NavTab(
+        Routes.HOME, R.string.shell_tab_home, Icons.Filled.Home, Icons.Outlined.Home, IconColours::navHome,
+    ),
+    NavTab(
+        Routes.SHORTS, R.string.shell_tab_shorts, Icons.Filled.PlayArrow, Icons.Outlined.PlayArrow,
+        IconColours::navShorts,
+    ),
+    NavTab(
+        Routes.LIBRARY, R.string.shell_tab_library, Icons.Filled.Favorite, Icons.Filled.FavoriteBorder,
+        IconColours::navLibrary,
+    ),
     // material-icons-core has no outlined Download, so the same glyph serves both states.
-    NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, ExtraIcons.Download, ExtraIcons.Download),
+    NavTab(
+        Routes.DOWNLOADS, R.string.shell_tab_downloads, ExtraIcons.Download, ExtraIcons.Download,
+        IconColours::navDownloads,
+    ),
 )
 
 /** Portrait: four destinations on a 56 dp bar, flat on the page colour, above the gesture-nav inset. */
@@ -254,13 +270,15 @@ private fun NavRail(selected: String?, onSelect: (String) -> Unit) {
 }
 
 /**
- * One destination: icon over label, no indicator. Selection is ink and a SemiBold label. The
- * visible label is the name, so the icon has no content description; the selectable's merged
- * semantics read the label. The tab's whole box is the touch target.
+ * One destination: icon over label, no indicator. Selection is the tab's icon colour and a SemiBold
+ * ink label; unselected is muted. The visible label is the name, so the icon has no content
+ * description; the selectable's merged semantics read the label. The tab's whole box is the touch
+ * target.
  */
 @Composable
 private fun NavTabItem(tab: NavTab, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    val tint = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+    val iconTint = if (selected) tab.colour(MaterialTheme.fyiExtras.icons) else MaterialTheme.colorScheme.onSurfaceVariant
+    val labelColour = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         modifier.selectable(selected = selected, role = Role.Tab, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -270,12 +288,12 @@ private fun NavTabItem(tab: NavTab, selected: Boolean, onClick: () -> Unit, modi
             if (selected) tab.selectedIcon else tab.icon,
             contentDescription = null,
             modifier = Modifier.size(Sizes.icon),
-            tint = tint,
+            tint = iconTint,
         )
         Text(
             stringResource(tab.labelRes),
             style = MaterialTheme.typography.labelSmall,
-            color = tint,
+            color = labelColour,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         )
     }

@@ -20,11 +20,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,14 +49,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -65,11 +72,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import coil.compose.AsyncImage
 import com.fyiplayer.app.R
 import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
@@ -269,12 +278,12 @@ fun DetailScreen(
                     }
                     item {
                         when {
-                            uploaderListing != null -> Text(
-                                "${uploaderListing.title}  ›",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.clickable { onOpenListing(uploaderListing) }
-                                    .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
+                            uploaderListing != null -> ChannelRow(
+                                channel = uploaderListing,
+                                handle = detail.uploaderHandle,
+                                subscriberCount = detail.uploaderSubscriberCount,
+                                tabsVm = tabsVm,
+                                onOpen = { onOpenListing(uploaderListing) },
                             )
                             shownRef.uploader != null -> Text(
                                 shownRef.uploader,
@@ -401,9 +410,9 @@ fun DetailScreen(
  * `ui/VideoActionSheet.kt`). Buttons spread evenly across the width, so the row never scrolls. Each
  * button's spoken label is its full name. Like shows the video's like count beside its icon, and
  * the Skips toggle and Like confirm with a short message under the row ([onMessage], shown by
- * [ActionMessagePill]). Like shows the accent colour and a filled icon while liked, read from
- * [VideoActions.likedFlow], so a toggle from elsewhere is never stale. Download takes the accent
- * colour once the video is downloaded ([VideoActions.downloadedFlow]).
+ * [ActionMessagePill]). Like, Save and Share always carry their own icon colour; Like fills while
+ * liked, read from [VideoActions.likedFlow], so a toggle from elsewhere is never stale. Download
+ * takes its colour only once the video is downloaded ([VideoActions.downloadedFlow]).
  */
 @Composable
 private fun VideoActionRow(
@@ -424,7 +433,9 @@ private fun VideoActionRow(
     val saveLabel = stringResource(R.string.action_add_to_playlist)
     val downloadLabel = stringResource(R.string.action_download)
     val shareLabel = stringResource(R.string.action_share)
-    val likeTint = if (liked) MaterialTheme.colorScheme.primary else onSurfaceVariant
+    // Theme F: each action icon has its own fixed colour; state shows in the glyph (filled heart).
+    val icons = MaterialTheme.fyiExtras.icons
+    val likeTint = icons.like
 
     Row(
         modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
@@ -458,20 +469,20 @@ private fun VideoActionRow(
             onClick = { showPlaylistPicker = true },
             modifier = Modifier.semantics { contentDescription = saveLabel },
         ) {
-            SaveGlyph(tint = onSurfaceVariant, size = Sizes.icon)
+            SaveGlyph(tint = icons.save, size = Sizes.icon)
         }
         // Neutral like the others; accent colour only once the file is saved, as Like does.
         IconButton(
             onClick = { actions.startDownload() },
             modifier = Modifier.semantics { contentDescription = downloadLabel },
         ) {
-            DownloadTrayGlyph(tint = if (downloaded) MaterialTheme.colorScheme.primary else onSurfaceVariant, size = Sizes.icon)
+            DownloadTrayGlyph(tint = if (downloaded) icons.download else onSurfaceVariant, size = Sizes.icon)
         }
         IconButton(
             onClick = { actions.share() },
             modifier = Modifier.semantics { contentDescription = shareLabel },
         ) {
-            Icon(Icons.Filled.Share, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(Sizes.icon))
+            Icon(Icons.Filled.Share, contentDescription = null, tint = icons.share, modifier = Modifier.size(Sizes.icon))
         }
         SponsorChannelToggle(sponsorChannelUrl, onMessage = onMessage)
     }
@@ -553,6 +564,83 @@ private fun DownloadTrayGlyph(tint: Color, size: Dp = Sizes.iconSmall, modifier:
 }
 
 /** Plural rules only need the small counts to pick a form; clamp so a huge count cannot overflow. */
+/**
+ * YouTube-style channel row under the title. Avatar and name open the channel page; the bell
+ * toggles the subscription. The second line lists only what the platform published.
+ */
+@Composable
+private fun ChannelRow(
+    channel: Listing,
+    handle: String?,
+    subscriberCount: Long?,
+    tabsVm: DetailTabsViewModel,
+    onOpen: () -> Unit,
+) {
+    val subscribed by remember(channel.key) { tabsVm.isSubscribed(channel.key) }.collectAsState(initial = false)
+    val subscriberText = subscriberCount?.takeIf { it >= 0 }?.let { stringResource(R.string.results_subscribers, compactCount(it)) }
+    val detailLine = listOfNotNull(handle?.takeIf { it.isNotBlank() }, subscriberText).joinToString(" · ")
+    Row(
+        Modifier.fillMaxWidth().padding(start = Spacing.pageMargin, end = Spacing.s8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.weight(1f).clickable(onClick = onOpen).padding(vertical = Spacing.s8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ChannelAvatar(channel)
+            Column(Modifier.padding(start = Spacing.s16)) {
+                Text(
+                    channel.title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (detailLine.isNotEmpty()) {
+                    Text(
+                        detailLine,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        IconButton(onClick = { tabsVm.toggleSubscription(channel) }) {
+            Icon(
+                if (subscribed) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+                contentDescription = stringResource(if (subscribed) R.string.action_unsubscribe else R.string.action_subscribe),
+                tint = if (subscribed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Round avatar; until an image URL is known, the channel's first letter on a flat circle. */
+@Composable
+private fun ChannelAvatar(channel: Listing) {
+    Box(
+        Modifier.size(Spacing.s40).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        val avatarUrl = channel.thumbnailUrl
+        if (avatarUrl != null) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(
+                channel.title.take(1).uppercase(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+    }
+}
+
 private fun Long.toPluralQuantity(): Int = coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
 private fun formatCount(n: Long): String = NumberFormat.getIntegerInstance().format(n)

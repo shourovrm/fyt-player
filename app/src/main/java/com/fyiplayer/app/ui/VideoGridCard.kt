@@ -36,8 +36,6 @@ import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
-import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * One Home grid cell: 16:9 thumbnail, title and meta line. Tap opens the video; long-press opens
@@ -155,8 +153,6 @@ private fun BoxScope.VideoGridBadge(text: String, background: Color, color: Colo
 
 /**
  * Channel rows show subscribers; videos show channel, views and age, non-null parts only.
- * Copied from ResultsList.kt's private resultMetaText and compactCount: make those internal and
- * delete this copy.
  */
 @Composable
 private fun gridMetaText(ref: VideoRef): String {
@@ -165,17 +161,6 @@ private fun gridMetaText(ref: VideoRef): String {
         if (subs != null && subs >= 0) return stringResource(R.string.results_subscribers, compactCount(subs))
     }
     return listOfNotNull(ref.uploader, ref.viewCountText, shortAge(ref.uploadedText)).joinToString(" · ")
-}
-
-private fun compactCount(count: Long): String {
-    if (count < 1000) return count.toString()
-    val (divisor, suffix) = when {
-        count < 1_000_000 -> 1_000.0 to "K"
-        count < 1_000_000_000 -> 1_000_000.0 to "M"
-        else -> 1_000_000_000.0 to "B"
-    }
-    val tenths = (count / divisor * 10).roundToInt()
-    return if (tenths % 10 == 0) "${tenths / 10}$suffix" else "${"%.1f".format(Locale.US, tenths / 10.0)}$suffix"
 }
 
 /** First-load placeholder with the same footprint as [VideoGridCard]: flat shapes, no shimmer. */

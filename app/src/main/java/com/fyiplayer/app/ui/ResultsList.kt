@@ -187,7 +187,7 @@ private fun resultMetaText(ref: VideoRef): String {
 
 // Duplicated from NewPipeYoutubeSource.compactCount -- UI can't import from source/, extraction
 // stays behind the VideoSource seam.
-private fun compactCount(count: Long): String {
+internal fun compactCount(count: Long): String {
     if (count < 1000) return count.toString()
     val (divisor, suffix) = when {
         count < 1_000_000 -> 1_000.0 to "K"

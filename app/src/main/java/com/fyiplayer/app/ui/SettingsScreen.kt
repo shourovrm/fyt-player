@@ -4,6 +4,7 @@ import com.fyiplayer.app.ui.theme.ExtraIcons
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -40,6 +42,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,8 +61,10 @@ import com.fyiplayer.app.settings.SourcesSettings
 import com.fyiplayer.app.settings.SponsorBlockSettings
 import com.fyiplayer.app.settings.VideoPageSettings
 import com.fyiplayer.app.source.newpipe.YoutubeAuth
+import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import kotlinx.coroutines.launch
 
 /** The settings pages, in hub order. Each one opens as a bottom sheet over the hub. */
@@ -106,12 +111,7 @@ private fun HubRowItem(page: SettingsPage, summary: String?, onClick: () -> Unit
             .padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            page.icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(Sizes.icon),
-        )
+        IconTile(page.icon, page.tileColour())
         Column(Modifier.weight(1f).padding(start = Spacing.s16)) {
             Text(stringResource(page.titleRes), style = MaterialTheme.typography.bodyLarge)
             if (summary != null) {
@@ -124,6 +124,38 @@ private fun HubRowItem(page: SettingsPage, summary: String?, onClick: () -> Unit
                 )
             }
         }
+    }
+}
+
+/** The row's fill: the hub tile and the sheet title tile both use it. */
+@Composable
+private fun SettingsPage.tileColour(): Color {
+    val icons = MaterialTheme.fyiExtras.icons
+    return when (this) {
+        SettingsPage.ACCOUNT -> icons.tileAccount
+        SettingsPage.CONTENT -> icons.tileContent
+        SettingsPage.PLAYBACK -> icons.tilePlayback
+        SettingsPage.SKIPPING -> icons.tileSkipping
+        SettingsPage.DOWNLOADS -> icons.tileDownloads
+        SettingsPage.HISTORY -> icons.tileHistory
+        SettingsPage.BACKUP -> icons.tileBackup
+        SettingsPage.ABOUT -> icons.tileAbout
+    }
+}
+
+/** A 24 dp white glyph on a 36 dp square with the 8 dp radius. */
+@Composable
+private fun IconTile(icon: ImageVector, colour: Color) {
+    Box(
+        Modifier.size(Sizes.iconTile).background(colour, RoundedCornerShape(Radius.s)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.fyiExtras.icons.onIconTile,
+            modifier = Modifier.size(Sizes.icon),
+        )
     }
 }
 
@@ -148,29 +180,39 @@ private fun accountSummary(): String {
     return stringResource(if (signedIn) R.string.settings_summary_signed_in else R.string.settings_summary_signed_out)
 }
 
-/** A page as a bottom sheet: title and close on top, the page body scrolls underneath. */
+/** A page as a bottom sheet: title and close on top, the page body scrolls underneath. The sheet
+ *  takes its row's colour as primary, so switches and selected segments pick it up. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsPageSheet(page: SettingsPage, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val colour = page.tileColour()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = Spacing.pageMargin),
-            verticalAlignment = Alignment.CenterVertically,
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                primary = colour,
+                secondaryContainer = colour.copy(alpha = 0.16f),
+            ),
         ) {
-            Text(
-                stringResource(page.titleRes),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f),
-            )
-            // Animate the sheet out before removing it; removing it at once would cut the slide.
-            IconButton(onClick = { scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() } }) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+            Row(
+                Modifier.fillMaxWidth().padding(start = Spacing.pageMargin),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconTile(page.icon, colour)
+                Text(
+                    stringResource(page.titleRes),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f).padding(start = Spacing.s16),
+                )
+                // Animate the sheet out before removing it; removing it at once would cut the slide.
+                IconButton(onClick = { scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() } }) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+                }
             }
-        }
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = Spacing.s24)) {
-            SettingsPageBody(page)
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = Spacing.s24)) {
+                SettingsPageBody(page)
+            }
         }
     }
 }

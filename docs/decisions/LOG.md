@@ -285,3 +285,6 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | v0.2.38: de-slop build installed, checked on device (Home both orientations, Settings hub, Playback sheet) | closes the pending device check
 2026-11-05 | Monochrome accent, white light pages, 56 dp labelled bar, round pre-V4 player chrome | user found lime + grey blocks generic; picked from v5 mocks
 2026-11-05 | Home layout: cards / compact / grid; app-bar icon cycles for the session, default in Settings > Content (cards) | user request, copied from omeron's layout toggle
+2026-11-05 | Theme F: fixed icon colours (nav, Detail actions), Settings hub colour tiles, sheets take their row colour | user picked mocks v6 F, F1, F5
+2026-11-05 | Detail channel row: avatar, name, @handle · subscribers, bell toggles subscription; extractor patch 0003 adds StreamInfo.uploaderHandle | user picked mock v6 B; StreamInfo had no handle
+2026-11-05 | Home refresh moved into the app bar (For you only); "New from channels" row removed | user request

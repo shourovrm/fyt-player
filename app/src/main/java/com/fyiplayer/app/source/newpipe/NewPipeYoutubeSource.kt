@@ -207,7 +207,13 @@ class NewPipeYoutubeSource(
             fetchAfterWall(ref.pageUrl) ?: throw wall
         }
         val uploaderListing = info.uploaderUrl?.let {
-            Listing(sourceId = SOURCE_ID, kind = Listing.Kind.CHANNEL, key = it, title = info.uploaderName ?: "")
+            Listing(
+                sourceId = SOURCE_ID,
+                kind = Listing.Kind.CHANNEL,
+                key = it,
+                title = info.uploaderName ?: "",
+                thumbnailUrl = info.uploaderAvatarUrl.takeIf { url -> url.isNotBlank() },
+            )
         }
         val resolvedRef = ref.copy(
             title = info.name ?: ref.title,
@@ -234,6 +240,8 @@ class NewPipeYoutubeSource(
             dislikeCount = info.dislikeCount.takeIf { it >= 0 },
             viewCount = info.viewCount.takeIf { it >= 0 },
             chapters = toChapters(info.streamSegments),
+            uploaderSubscriberCount = info.uploaderSubscriberCount.takeIf { it >= 0 },
+            uploaderHandle = info.uploaderHandle.takeIf { it.isNotBlank() },
         )
     }
 

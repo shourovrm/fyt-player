@@ -200,6 +200,17 @@ public abstract class StreamExtractor extends Extractor {
     public abstract String getUploaderUrl() throws ParsingException;
 
     /**
+     * The handle of the creator/uploader as the service shows it next to the name (e.g. "@name"),
+     * without a leading slash. Services without handles keep this default.
+     *
+     * @return the handle of the creator/uploader of the stream or an empty string
+     */
+    @Nonnull
+    public String getUploaderHandle() throws ParsingException {
+        return "";
+    }
+
+    /**
      * The name of the creator/uploader of the stream.
      * If the name is not available you can simply return an empty string.
      *

@@ -13,17 +13,16 @@ pages, a labelled 56 dp bar and the round pre-redesign player. Tokens:
 - Fonts: Schibsted Grotesk (`res/font/schibsted_grotesk.ttf`, variable, OFL) for every role;
   Spline Sans Mono (`spline_sans_mono.ttf`, OFL) via `NumeralStyle` for times, durations, sizes,
   speeds and counts.
-- Colour: monochrome, the accent is the ink. Dark (default): bg `#000000`, ink and accent
-  `#F1F1F1` on `#0F0F0F`, meta `#AAAAAA`. Light: bg and every surface `#FFFFFF`, ink and accent
-  `#0F0F0F` on `#FFFFFF`, meta `#606060`, hairline `#E5E5E5`. Selection tint ink at 8%. Red only
-  for LIVE and errors. Watched-progress bars are white on a video scrim.
+- Colour: monochrome text and pages. Dark (default): bg `#000000`, ink `#F1F1F1` on `#0F0F0F`,
+  meta `#AAAAAA`. Light: `#FFFFFF` pages, ink `#0F0F0F`, meta `#606060`, hairline `#E5E5E5`.
+  Icons carry a fixed colour per role (`IconColours`). Red only for LIVE and errors.
+  Watched-progress bars are white on a video scrim.
 - Shape: `ControlShape` 4 dp on buttons, chips, segmented buttons, switch tracks and the search
   field; 8 dp small and 12 dp grid thumbnails; 28 dp sheet tops. The player keeps round controls.
 - Density: 56 dp rows in sheets. Content sits flat on the page colour, never in tinted blocks.
 - Words: no explanatory subtitles or hints unless the label alone would cause a mistake.
-- Restraint: one selection cue per control (tint, no extra check); no tiles or tinted backdrops
-  behind icons; section headers in onSurfaceVariant, never accent; the normal state carries no
-  label (only Paused, Failed and the like are spelled out).
+- Restraint: one selection cue per control (colour only); tiles only in Settings; section headers
+  in onSurfaceVariant; no label on the normal state (only Paused, Failed and the like).
 
 ## Type
 
@@ -41,24 +40,24 @@ Page margin 16 dp under 600 dp width, 24 dp above. Grid gutter 8 dp.
 
 ## Controls
 
-Button 40 dp high, labelLarge, `ControlShape`, one filled per page. Text field and search field
-56 dp, `ControlShape`. Segmented button 48 dp, 1 dp outline dividers, selected = accent tint
-with accent text. Switch: 48 x 28 dp square track, `ControlShape`. List item 56 dp one-line,
-72 dp two-line. Bottom bar 56 dp, page colour, 1 dp hairline on top: Home, Shorts, Library,
-Downloads, icon over a labelSmall label; selected = ink icon and SemiBold label, no indicator. Touch target 48 x 48 dp on every clickable, including icons over
-video. Never set `LocalMinimumInteractiveComponentSize` to 0.
+Button 40 dp high, labelLarge, `ControlShape`, one filled per page. Text and search fields 56 dp,
+`ControlShape`. Segmented button 48 dp, 1 dp dividers, selected = colour tint, ink text. Switch:
+48 x 28 dp square track, `ControlShape`. List item 56 dp one-line, 72 dp two-line. Bottom bar 56 dp, page colour, 1 dp top hairline: Home, Shorts, Library, Downloads,
+icon over labelSmall label; selected = tab's icon colour, SemiBold ink label, no indicator.
+Touch target 48 x 48 dp on every clickable, including icons over video. Never set
+`LocalMinimumInteractiveComponentSize` to 0.
 
 ## Colour
 
 Roles: primary/onPrimary for the one accent; secondaryContainer for selection tints; surface,
-surfaceContainer, surfaceContainerHigh for elevations; onSurfaceVariant for meta text; error for
-LIVE and failures; `fyiExtras` for positive, warning, ink3, surface3, `onVideo`, `videoScrim`.
+surfaceContainer(High) for elevations; onSurfaceVariant for meta; error for LIVE and failures;
+`fyiExtras` for positive, warning, ink3, surface3, `icons`, `onVideo`, `videoScrim`.
 No `Color(0x…)`, `Color.White` or `Color.Black` outside `ui/theme`. Status colour on badges only,
 never body text. Contrast 4.5:1 small text, 3:1 large text and icons.
 
 ## Layout of the Home page
 
-App bar: titleLarge "FYT Player", then search, layout and settings icons. The layout icon shows
+App bar: titleLarge "FYT Player", search, refresh (For you), layout, settings. The layout icon shows
 the current layout; a tap cycles cards, compact, grid for the session; the default (cards) is in
 Settings > Content. Underline tab row of topics (For you first), scrollable. Cards: full-width 16:9 thumbnail, titleMedium 2 lines,
 bodySmall meta. Compact: 120 x 68 dp thumbnail left, text right. Grid: 2 columns, 4 in landscape.
@@ -66,7 +65,7 @@ Long-press opens the menu in every layout. Mini player floats above the bottom b
 
 ## Layout of the Detail page
 
-Pinned 16:9 player, titleMedium title, bodySmall meta, channel row with Subscribe, one row of
+Pinned 16:9 player, titleMedium title, bodySmall meta, channel row (40 dp avatar, name, @handle · subscribers, bell), one row of
 icon buttons (Like, Add to playlist, Download, Share, skip-segment shield), then tabs (Similar,
 Description, Comments). Quality, speed, captions, audio language, chapters and queue open as
 bottom sheets over the page, never a new screen. Back closes a sheet before leaving the page.
@@ -78,10 +77,11 @@ as a 2-column grid. Downloads: rows, the thumbnail's progress ring pauses; remov
 
 ## Layout of the Settings page
 
-From the app-bar settings icon. Hub of eight rows: plain 24 dp icon in onSurfaceVariant, bodyLarge
-label; only Account and About show a bodySmall state. A row opens its page as a sheet (titleLarge
-title, close icon): 56 dp rows, switch or trailing value; up to four values = segmented button,
-more = check-mark list; destructive rows in error text with a confirm sheet.
+From the app-bar settings icon. Eight rows: a 24 dp white glyph on a 36 dp tile (8 dp radius)
+in the row's colour; bodyLarge label; only Account and About show a bodySmall state.
+A row opens its page as a sheet (titleLarge, tile, close icon). Sheet primary is the row colour
+(switches, selected segments); text stays ink. 56 dp rows, switch or trailing value; up to four
+values = segmented button, more = check list; destructive rows: error text, confirm sheet.
 
 ## Layout of the Player chrome
 

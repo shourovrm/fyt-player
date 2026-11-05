@@ -46,7 +46,7 @@ fun HomeLayoutSettings(prefs: Prefs) {
                     modifier = Modifier.height(Sizes.touchTarget),
                     colors = SegmentedButtonDefaults.colors(
                         activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        activeContentColor = MaterialTheme.colorScheme.primary,
+                        activeContentColor = MaterialTheme.colorScheme.onSurface,
                     ),
                     icon = {},
                     label = { Text(stringResource(homeLayoutLabel(layout))) },

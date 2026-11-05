@@ -244,6 +244,10 @@ data class VideoDetail(
     val viewCount: Long? = null,
     /** The uploader's own chapter markers, in start order. Empty when the video has none. */
     val chapters: List<Chapter> = emptyList(),
+    /** The uploader's subscriber count as the platform shows it; null when not published. */
+    val uploaderSubscriberCount: Long? = null,
+    /** The uploader's handle as the platform shows it (e.g. "@name"); null when not published. */
+    val uploaderHandle: String? = null,
 )
 
 /** A chapter marker from the platform: a title and where it starts. No preview image -- the

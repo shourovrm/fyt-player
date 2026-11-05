@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fyiplayer.app.R
+import com.fyiplayer.app.ui.theme.fyiExtras
 import com.fyiplayer.app.core.canonicalChannelKey
 import com.fyiplayer.app.ui.theme.Sizes
 import kotlinx.coroutines.launch
@@ -43,7 +44,7 @@ internal fun SponsorChannelToggle(channelUrl: String?, onMessage: (String) -> Un
     val spokenAction = if (whitelisted) stringResource(R.string.detail_sponsor_resume_spoken) else stringResource(R.string.detail_sponsor_stop_spoken)
     val skippingOnMessage = stringResource(R.string.detail_sponsor_skipping_on)
     val skippingOffMessage = stringResource(R.string.detail_sponsor_skipping_off)
-    val iconTint = if (whitelisted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+    val iconTint = if (whitelisted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.fyiExtras.icons.sponsor
     IconButton(
         onClick = {
             scope.launch { prefs.setSponsorChannelWhitelisted(channelUrl, !whitelisted) }

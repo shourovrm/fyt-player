@@ -329,6 +329,11 @@ public class StreamInfo extends Info {
             streamInfo.addError(e);
         }
         try {
+            streamInfo.setUploaderHandle(extractor.getUploaderHandle());
+        } catch (final Exception e) {
+            streamInfo.addError(e);
+        }
+        try {
             streamInfo.setStaffs(extractor.getStaffs());
         } catch (final Exception e) {
             streamInfo.addError(e);
@@ -536,6 +541,7 @@ public class StreamInfo extends Info {
 
     private String uploaderName = "";
     private String uploaderUrl = "";
+    private String uploaderHandle = "";
     private String uploaderAvatarUrl = "";
     @Nonnull
     private List<Image> uploaderAvatars = Collections.emptyList();
@@ -753,6 +759,14 @@ public class StreamInfo extends Info {
 
     public void setUploaderSubscriberCount(final long uploaderSubscriberCount) {
         this.uploaderSubscriberCount = uploaderSubscriberCount;
+    }
+
+    public String getUploaderHandle() {
+        return uploaderHandle;
+    }
+
+    public void setUploaderHandle(final String uploaderHandle) {
+        this.uploaderHandle = uploaderHandle;
     }
 
     public Collection<StaffInfoItem> getStaffs() {

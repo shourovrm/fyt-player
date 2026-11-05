@@ -22,6 +22,7 @@ data class FyiExtraColors(
     val warning: Color,
     val ink3: Color,
     val surface3: Color,
+    val icons: IconColours,
     val onVideo: Color = OnVideo,
     val onVideoDim: Color = OnVideoDim,
     val videoScrim: Color = VideoScrim,
@@ -30,12 +31,68 @@ data class FyiExtraColors(
     val likedOnVideo: Color = LikedOnVideo,
 )
 
+/** Glyph colours by role. Icons only; the tile fields are the Settings hub's row fills. */
+data class IconColours(
+    val navHome: Color,
+    val navShorts: Color,
+    val navLibrary: Color,
+    val navDownloads: Color,
+    val like: Color,
+    val save: Color,
+    val download: Color,
+    val share: Color,
+    val sponsor: Color,
+    val tileAccount: Color,
+    val tileContent: Color,
+    val tilePlayback: Color,
+    val tileSkipping: Color,
+    val tileDownloads: Color,
+    val tileHistory: Color,
+    val tileBackup: Color,
+    val tileAbout: Color,
+    val onIconTile: Color,
+)
+
+private val LightIcons = IconColours(
+    navHome = LightNavHome,
+    navShorts = LightNavShorts,
+    navLibrary = LightNavLibrary,
+    navDownloads = LightNavDownloads,
+    like = LightLike,
+    save = LightSave,
+    download = LightDownload,
+    share = LightShare,
+    sponsor = LightSponsor,
+    tileAccount = TileAccount,
+    tileContent = TileContent,
+    tilePlayback = TilePlayback,
+    tileSkipping = TileSkipping,
+    tileDownloads = TileDownloads,
+    tileHistory = TileHistory,
+    tileBackup = TileBackup,
+    tileAbout = TileAbout,
+    onIconTile = OnIconTile,
+)
+
+private val DarkIcons = LightIcons.copy(
+    navHome = DarkNavHome,
+    navShorts = DarkNavShorts,
+    navLibrary = DarkNavLibrary,
+    navDownloads = DarkNavDownloads,
+    like = DarkLike,
+    save = DarkSave,
+    download = DarkDownload,
+    share = DarkShare,
+    sponsor = DarkSponsor,
+)
+
 private val LocalFyiExtraColors = staticCompositionLocalOf {
     FyiExtraColors(
         positive = DarkPositive,
         warning = DarkWarning,
         ink3 = DarkInk3,
         surface3 = DarkSurface3,
+        icons = DarkIcons,
     )
 }
 
@@ -125,9 +182,21 @@ fun FyiTheme(
 ) {
     val colorScheme = if (darkTheme) FyiDarkColorScheme else FyiLightColorScheme
     val extras = if (darkTheme) {
-        FyiExtraColors(positive = DarkPositive, warning = DarkWarning, ink3 = DarkInk3, surface3 = DarkSurface3)
+        FyiExtraColors(
+            positive = DarkPositive,
+            warning = DarkWarning,
+            ink3 = DarkInk3,
+            surface3 = DarkSurface3,
+            icons = DarkIcons,
+        )
     } else {
-        FyiExtraColors(positive = LightPositive, warning = LightWarning, ink3 = LightInk3, surface3 = LightSurface3)
+        FyiExtraColors(
+            positive = LightPositive,
+            warning = LightWarning,
+            ink3 = LightInk3,
+            surface3 = LightSurface3,
+            icons = LightIcons,
+        )
     }
     // No dynamic/Material-You colour: one deliberate accent, wallpaper never overrides it.
     CompositionLocalProvider(LocalFyiExtraColors provides extras) {

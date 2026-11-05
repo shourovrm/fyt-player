@@ -9,7 +9,6 @@
     <string name="home_tab_all">All</string>
     <string name="home_no_results">No results for “%1$s”.</string>
     <string name="home_for_you">For you</string>
-    <string name="home_feed_section_label">New from channels</string>
     <string name="home_feed_no_subscriptions">No videos yet.</string>
     <plurals name="home_feed_failed_channels">
         <item quantity="one">%1$d channel did not load. Pull down to refresh.</item>

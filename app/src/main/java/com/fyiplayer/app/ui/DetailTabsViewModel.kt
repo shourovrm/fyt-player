@@ -6,13 +6,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
+import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoDetail
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.core.VideoSource
+import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /** Which section is showing below the video header. DESCRIPTION needs no loaded/error state of
@@ -35,7 +39,16 @@ enum class DetailTab { SIMILAR, DESCRIPTION, COMMENTS }
  * them there refetched the detail and recorded the same watch again.
  */
 class DetailTabsViewModel(application: Application) : AndroidViewModel(application) {
+    private val app = application as FyiApp
+    private val subscriptionRepo = SubscriptionRepository(app.database.subscriptionDao())
+
     var selectedTab: DetailTab by mutableStateOf(DetailTab.SIMILAR)
+
+    fun isSubscribed(channelUrl: String): Flow<Boolean> = subscriptionRepo.isSubscribed(channelUrl)
+
+    fun toggleSubscription(channel: Listing) {
+        viewModelScope.launch { subscriptionRepo.toggle(channel.key, channel.sourceId, channel.title) }
+    }
 
     /** Null until the first resolve ends; then the real detail, or a bare placeholder if it failed. */
     var detail: VideoDetail? by mutableStateOf(null)

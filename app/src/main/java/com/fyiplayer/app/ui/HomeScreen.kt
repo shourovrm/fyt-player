@@ -227,6 +227,8 @@ fun HomeScreen(
             HomeAppBar(
                 layout = homeLayout,
                 onOpenSearch = { searchOpen = true },
+                // Only the subscription feed ("For you") has a refresh; topic tabs reload on selection.
+                onRefresh = if (browseSources.isNotEmpty() && vm.selectedTopic == null) ({ vm.refreshFeed(browseSources) }) else null,
                 onCycleLayout = { chosenLayout = homeLayout.next() },
                 onOpenSettings = onOpenSettings,
             )
@@ -322,7 +324,6 @@ fun HomeScreen(
                                 feed = vm.feed,
                                 onClick = ::openResult,
                                 onLongPress = { actionSheetRef = it },
-                                onRefresh = { vm.refreshFeed(browseSources) },
                                 gridState = gridState,
                                 feedLayout = homeLayout,
                                 modifier = Modifier.fillMaxSize(),
@@ -398,7 +399,6 @@ private fun HomeFeedSection(
     feed: FeedState,
     onClick: (VideoRef) -> Unit,
     onLongPress: (VideoRef) -> Unit,
-    onRefresh: () -> Unit,
     gridState: LazyGridState,
     feedLayout: HomeLayout,
     modifier: Modifier = Modifier,
@@ -444,24 +444,7 @@ private fun HomeFeedSection(
                 feedLayout = feedLayout,
                 modifier = modifier,
                 isLoadingMore = feed.loading,
-                topContent = { FeedSectionHeader(onRefresh) },
             )
-        }
-    }
-}
-
-/** "New from channels" label with the refresh button on the same line, full width above the grid. */
-@Composable
-private fun FeedSectionHeader(onRefresh: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = Spacing.s8), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            stringResource(R.string.home_feed_section_label),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = onRefresh) {
-            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.home_refresh_feed), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -617,11 +600,17 @@ internal fun isChannelPageUrl(pageUrl: String): Boolean {
 }
 
 /**
- * Home's app bar: app name, then search (opens the field), the layout toggle and settings. The
- * toggle's icon shows the layout Home has now; tapping moves to the next one.
+ * Home's app bar: app name, then search (opens the field), refresh (For you only), the layout
+ * toggle and settings. The toggle's icon shows the layout Home has now; tapping moves to the next.
  */
 @Composable
-private fun HomeAppBar(layout: HomeLayout, onOpenSearch: () -> Unit, onCycleLayout: () -> Unit, onOpenSettings: () -> Unit) {
+private fun HomeAppBar(
+    layout: HomeLayout,
+    onOpenSearch: () -> Unit,
+    onRefresh: (() -> Unit)?,
+    onCycleLayout: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val layoutIcon = when (layout) {
         HomeLayout.FULL_CARD -> ExtraIcons.LayoutCard
         HomeLayout.COMPACT -> ExtraIcons.LayoutCompact
@@ -639,6 +628,11 @@ private fun HomeAppBar(layout: HomeLayout, onOpenSearch: () -> Unit, onCycleLayo
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         IconButton(onClick = onOpenSearch) {
             Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.home_open_search), tint = MaterialTheme.colorScheme.onSurface)
+        }
+        if (onRefresh != null) {
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.home_refresh_feed), tint = MaterialTheme.colorScheme.onSurface)
+            }
         }
         IconButton(onClick = onCycleLayout) {
             Icon(layoutIcon, contentDescription = layoutLabel, tint = MaterialTheme.colorScheme.onSurface)
