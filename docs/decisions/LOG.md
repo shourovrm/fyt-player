@@ -282,3 +282,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | settings hub keeps subtitles only on Account and About; clear-recent-searches is an icon | user: no explanatory subtitles
 2026-11-05 | V4 Grid & sheets redesign, underline Home tabs, square segmented + switches, Schibsted Grotesk + Spline Sans Mono | user picked from full-page mocks; no pills
 2026-11-05 | de-slop pass: 64 dp icon bar, plain settings icons, grey section headers, single selection cue, no grid-card overflow, no detail icon tiles, no 'Downloaded' label | user: remove AI slop; built + unit tests, device check pending
+2026-11-05 | v0.2.38: de-slop build installed, checked on device (Home both orientations, Settings hub, Playback sheet) | closes the pending device check
