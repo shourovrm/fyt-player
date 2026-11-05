@@ -28,18 +28,16 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -59,13 +57,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fyiplayer.app.R
 import com.fyiplayer.app.player.asActivity
-import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
@@ -199,29 +197,38 @@ fun AppScaffold(
     }
 }
 
-private class NavTab(val route: String, @StringRes val labelRes: Int, val icon: ImageVector)
-
-private val NAV_TABS = listOf(
-    NavTab(Routes.HOME, R.string.shell_tab_home, Icons.Filled.Home),
-    NavTab(Routes.SHORTS, R.string.shell_tab_shorts, Icons.Filled.PlayArrow),
-    NavTab(Routes.LIBRARY, R.string.shell_tab_library, Icons.Filled.Favorite),
-    NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, ExtraIcons.Download),
+private class NavTab(
+    val route: String,
+    @StringRes val labelRes: Int,
+    val selectedIcon: ImageVector,
+    val icon: ImageVector,
 )
 
-/** Portrait: four icon-only destinations on the 64 dp bar, above the gesture-nav inset. */
+private val NAV_TABS = listOf(
+    NavTab(Routes.HOME, R.string.shell_tab_home, Icons.Filled.Home, Icons.Outlined.Home),
+    NavTab(Routes.SHORTS, R.string.shell_tab_shorts, Icons.Filled.PlayArrow, Icons.Outlined.PlayArrow),
+    NavTab(Routes.LIBRARY, R.string.shell_tab_library, Icons.Filled.Favorite, Icons.Filled.FavoriteBorder),
+    // material-icons-core has no outlined Download, so the same glyph serves both states.
+    NavTab(Routes.DOWNLOADS, R.string.shell_tab_downloads, ExtraIcons.Download, ExtraIcons.Download),
+)
+
+/** Portrait: four destinations on a 56 dp bar, flat on the page colour, above the gesture-nav inset. */
 @Composable
 private fun BottomNavBar(selected: String?, onSelect: (String) -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+    Column(
+        Modifier.fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.navigationBars),
     ) {
-        Row(
-            Modifier.fillMaxWidth().height(Sizes.navBar),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Row(Modifier.fillMaxWidth().height(Sizes.navBar)) {
             NAV_TABS.forEach { tab ->
-                NavTabItem(tab, selected = tab.route == selected, onClick = { onSelect(tab.route) })
+                NavTabItem(
+                    tab,
+                    selected = tab.route == selected,
+                    onClick = { onSelect(tab.route) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
             }
         }
     }
@@ -236,36 +243,41 @@ private fun NavRail(selected: String?, onSelect: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         NAV_TABS.forEach { tab ->
-            NavTabItem(tab, selected = tab.route == selected, onClick = { onSelect(tab.route) })
+            NavTabItem(
+                tab,
+                selected = tab.route == selected,
+                onClick = { onSelect(tab.route) },
+                modifier = Modifier.size(width = Spacing.s64, height = Sizes.navBar),
+            )
         }
     }
 }
 
 /**
- * One destination: a 48 dp target, icon only. Selected puts a 4 dp-cornered accent tint behind
- * the icon. Built from a plain Box rather than NavigationBarItem, whose indicator shape is fixed
- * to a pill. The long-press tooltip is the only visible name, so it carries the same label as the
- * content description.
+ * One destination: icon over label, no indicator. Selection is ink and a SemiBold label. The
+ * visible label is the name, so the icon has no content description; the selectable's merged
+ * semantics read the label. The tab's whole box is the touch target.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NavTabItem(tab: NavTab, selected: Boolean, onClick: () -> Unit) {
-    val label = stringResource(tab.labelRes)
-    val tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    val indicator = if (selected) Modifier.background(MaterialTheme.colorScheme.secondaryContainer, ControlShape) else Modifier
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text(label) } },
-        state = rememberTooltipState(),
+private fun NavTabItem(tab: NavTab, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val tint = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        modifier.selectable(selected = selected, role = Role.Tab, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            Modifier.size(Sizes.touchTarget).selectable(selected = selected, role = Role.Tab, onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(indicator.size(width = Sizes.touchTarget, height = Spacing.s32), contentAlignment = Alignment.Center) {
-                Icon(tab.icon, contentDescription = label, tint = tint)
-            }
-        }
+        Icon(
+            if (selected) tab.selectedIcon else tab.icon,
+            contentDescription = null,
+            modifier = Modifier.size(Sizes.icon),
+            tint = tint,
+        )
+        Text(
+            stringResource(tab.labelRes),
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }
 

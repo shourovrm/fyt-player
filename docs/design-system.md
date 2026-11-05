@@ -6,19 +6,20 @@ reference wherever they disagree. Change it in the same commit as the code that 
 
 ## Direction
 
-Chosen 2026-11-05 from full-page mocks: "Grid & sheets" (thumbnail grids, secondary pages as
-sheets), underline Home tabs, square segmented buttons and switches. Tokens:
+Chosen 2026-11-05 from full-page mocks: "Grid & sheets" (secondary pages as sheets), underline
+Home tabs, square segmented buttons and switches; revised the same day to monochrome, plain white
+pages, a labelled 56 dp bar and the round pre-redesign player. Tokens:
 
 - Fonts: Schibsted Grotesk (`res/font/schibsted_grotesk.ttf`, variable, OFL) for every role;
   Spline Sans Mono (`spline_sans_mono.ttf`, OFL) via `NumeralStyle` for times, durations, sizes,
   speeds and counts.
-- Colour, dark (default): bg `#000000`, surface `#101012`, surfaceContainerHigh `#1A1A1F`,
-  surface3 `#2A2A31`, outline `#24242A`, ink `#F2F2F4`, ink2 `#9D9DA8`, ink3 `#7E7E89`, accent
-  `#C6F24E` on `#0C1100`, selection tint accent at 15%, error `#FF7B6B`. Light keeps its neutrals;
-  accent `#4A6600`.
-- Shape: no pills. `ControlShape` 4 dp on buttons, chips, segmented buttons, switch tracks, the
-  search field and nav indicators; 8 dp small and 12 dp grid thumbnails; 28 dp sheet tops.
-- Density: grids, not rows, for browsing; 56 dp rows in sheets and settings.
+- Colour: monochrome, the accent is the ink. Dark (default): bg `#000000`, ink and accent
+  `#F1F1F1` on `#0F0F0F`, meta `#AAAAAA`. Light: bg and every surface `#FFFFFF`, ink and accent
+  `#0F0F0F` on `#FFFFFF`, meta `#606060`, hairline `#E5E5E5`. Selection tint ink at 8%. Red only
+  for LIVE and errors. Watched-progress bars are white on a video scrim.
+- Shape: `ControlShape` 4 dp on buttons, chips, segmented buttons, switch tracks and the search
+  field; 8 dp small and 12 dp grid thumbnails; 28 dp sheet tops. The player keeps round controls.
+- Density: 56 dp rows in sheets. Content sits flat on the page colour, never in tinted blocks.
 - Words: no explanatory subtitles or hints unless the label alone would cause a mistake.
 - Restraint: one selection cue per control (tint, no extra check); no tiles or tinted backdrops
   behind icons; section headers in onSurfaceVariant, never accent; the normal state carries no
@@ -43,9 +44,8 @@ Page margin 16 dp under 600 dp width, 24 dp above. Grid gutter 8 dp.
 Button 40 dp high, labelLarge, `ControlShape`, one filled per page. Text field and search field
 56 dp, `ControlShape`. Segmented button 48 dp, 1 dp outline dividers, selected = accent tint
 with accent text. Switch: 48 x 28 dp square track, `ControlShape`. List item 56 dp one-line,
-72 dp two-line. Bottom bar 64 dp (Material 3 short bar, icons only): Home, Shorts, Library,
-Downloads, each with a content description and a long-press tooltip; selected = 4 dp-cornered
-accent tint behind the icon. Touch target 48 x 48 dp on every clickable, including icons over
+72 dp two-line. Bottom bar 56 dp, page colour, 1 dp hairline on top: Home, Shorts, Library,
+Downloads, icon over a labelSmall label; selected = ink icon and SemiBold label, no indicator. Touch target 48 x 48 dp on every clickable, including icons over
 video. Never set `LocalMinimumInteractiveComponentSize` to 0.
 
 ## Colour
@@ -58,11 +58,11 @@ never body text. Contrast 4.5:1 small text, 3:1 large text and icons.
 
 ## Layout of the Home page
 
-App bar: titleLarge "FYT Player", search and settings icons. Underline tab row of topics (For you
-first), accent indicator, scrollable, labels never truncated. Feed: 2-column grid of cards (12 dp
-16:9 thumbnail with duration badge, titleMedium 2 lines, bodySmall meta; long-press opens the
-menu); 4
-columns in landscape. Mini player floats above the bottom bar.
+App bar: titleLarge "FYT Player", then search, layout and settings icons. The layout icon shows
+the current layout; a tap cycles cards, compact, grid for the session; the default (cards) is in
+Settings > Content. Underline tab row of topics (For you first), scrollable. Cards: full-width 16:9 thumbnail, titleMedium 2 lines,
+bodySmall meta. Compact: 120 x 68 dp thumbnail left, text right. Grid: 2 columns, 4 in landscape.
+Long-press opens the menu in every layout. Mini player floats above the bottom bar.
 
 ## Layout of the Detail page
 
@@ -73,9 +73,8 @@ bottom sheets over the page, never a new screen. Back closes a sheet before leav
 
 ## Layout of Shorts, Library and Downloads
 
-Shorts: 3-column 9:16 grid, a tile opens the full-bleed pager. Library: icon segmented filter
-(History, Likes, Playlists, Channels), playlists as a 2-column grid. Downloads: rows with the
-progress ring on the thumbnail as the pause/resume button; remove asks in a sheet.
+Shorts: 3-column 9:16 grid opening the full-bleed pager. Library: icon segmented filter, playlists
+as a 2-column grid. Downloads: rows, the thumbnail's progress ring pauses; remove asks in a sheet.
 
 ## Layout of the Settings page
 
@@ -86,14 +85,15 @@ more = check-mark list; destructive rows in error text with a confirm sheet.
 
 ## Layout of the Player chrome
 
-Bottom row: elapsed, scrubber, total (numerals), fullscreen. Above it: speed, quality, captions,
-audio language, chapters. Transport centred. Every icon 48 dp with a 24 dp glyph; text over
-video is onVideo on videoScrim. Landscape: the option icons stack in a strip on the right.
+Pre-redesign layout and shapes. Top right: chapters, captions, audio language as 48 dp round
+scrim buttons. Centre: previous and next 48 dp circles, play 64 dp circle. Bottom row: time,
+speed (12 dp pill when not 1x), quality badge, autoplay, loop, fullscreen; seek line on the
+video's bottom edge. Text over video is onVideo on videoScrim.
 
 ## Gates
 
-- `DesignTokensGateTest` fails on any `.dp` not in the Space list, any `.sp`, raw colour or pill
-  shape outside `ui/theme`.
+- `DesignTokensGateTest` fails on any `.dp` not in the Space list, any `.sp`, raw colour or
+  `RoundedCornerShape(50)` outside `ui/theme`.
 - `lint.xml`: `HardcodedText` and `ContentDescription` at error, `abortOnError true`.
 - Copy gate: every visible string in `res/values/strings*.xml`; `CopyGateTest` fails on a quoted
   literal passed to `Text(`, `contentDescription =`, `label =`, `placeholder =`, or a snackbar.

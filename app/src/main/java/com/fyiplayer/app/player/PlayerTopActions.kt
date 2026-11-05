@@ -1,7 +1,5 @@
 package com.fyiplayer.app.player
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -9,18 +7,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
-import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.fyiExtras
 
@@ -45,17 +42,15 @@ internal fun PlayerTopActions(
     val extras = MaterialTheme.fyiExtras
     Row(
         modifier = modifier.padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (chapters.isNotEmpty()) {
             val description = stringResource(R.string.player_chapters)
             IconButton(
                 onClick = onOpenChapters,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim),
                 modifier = Modifier
                     .size(Sizes.touchTarget)
-                    .clip(ControlShape)
-                    .background(extras.videoScrim)
                     .semantics { contentDescription = description },
             ) {
                 Icon(
@@ -70,10 +65,9 @@ internal fun PlayerTopActions(
             val description = stringResource(R.string.player_menu_captions)
             IconButton(
                 onClick = onOpenCaptions,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim),
                 modifier = Modifier
                     .size(Sizes.touchTarget)
-                    .clip(ControlShape)
-                    .background(extras.videoScrim)
                     .semantics { contentDescription = description },
             ) {
                 CaptionsGlyph(tint = extras.onVideo, size = Sizes.icon, filled = captionsSelected)
@@ -83,10 +77,9 @@ internal fun PlayerTopActions(
             val description = stringResource(R.string.player_audio_language)
             IconButton(
                 onClick = onOpenAudioTracks,
+                colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim),
                 modifier = Modifier
                     .size(Sizes.touchTarget)
-                    .clip(ControlShape)
-                    .background(extras.videoScrim)
                     .semantics { contentDescription = description },
             ) {
                 GlobeGlyph(tint = extras.onVideo, size = Sizes.icon)

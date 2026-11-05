@@ -19,6 +19,13 @@
     <string name="action_share">Share</string>
     <string name="action_download">Download</string>
     <string name="action_more">More options</string>
+    <string name="home_layout_card">Layout: cards</string>
+    <string name="home_layout_compact">Layout: compact</string>
+    <string name="home_layout_grid">Layout: grid</string>
+    <string name="settings_home_layout">Home layout</string>
+    <string name="settings_home_layout_card">Cards</string>
+    <string name="settings_home_layout_compact">Compact</string>
+    <string name="settings_home_layout_grid">Grid</string>
     <string name="action_like">Like</string>
     <string name="action_unlike">Unlike</string>
     <string name="action_add_to_queue">Add to queue</string>

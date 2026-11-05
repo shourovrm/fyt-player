@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -43,6 +45,20 @@ import kotlin.math.roundToInt
  */
 @Composable
 internal fun VideoGridCard(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit) {
+    VideoCard(ref, onClick, onLongPress, RoundedCornerShape(Radius.m), Modifier.padding(top = Spacing.s8))
+}
+
+/**
+ * Home's single-column card: the same parts as [VideoGridCard], but the thumbnail runs edge to edge
+ * and the text gets the page margin. No channel avatar: the listing does not carry one.
+ */
+@Composable
+internal fun FeedCard(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit) {
+    VideoCard(ref, onClick, onLongPress, RectangleShape, Modifier.padding(horizontal = Spacing.s16, vertical = Spacing.s8))
+}
+
+@Composable
+private fun VideoCard(ref: VideoRef, onClick: () -> Unit, onLongPress: () -> Unit, thumbnailShape: Shape, textPadding: Modifier) {
     Column(
         Modifier.fillMaxWidth().combinedClickable(
             onClick = onClick,
@@ -50,8 +66,8 @@ internal fun VideoGridCard(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
             onLongClick = onLongPress,
         ),
     ) {
-        VideoGridThumbnail(ref)
-        Column(Modifier.fillMaxWidth().padding(top = Spacing.s8)) {
+        VideoGridThumbnail(ref, thumbnailShape)
+        Column(Modifier.fillMaxWidth().then(textPadding)) {
             // A Library row can still be mid-enrichment; "Untitled" reads as loading, an empty line as broken.
             Text(
                 ref.title.ifBlank { stringResource(R.string.state_untitled) },
@@ -74,12 +90,12 @@ internal fun VideoGridCard(ref: VideoRef, onClick: () -> Unit, onLongPress: () -
 }
 
 @Composable
-private fun VideoGridThumbnail(ref: VideoRef) {
+private fun VideoGridThumbnail(ref: VideoRef, shape: Shape) {
     Box(
         Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
-            .clip(RoundedCornerShape(Radius.m))
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         // Library rows can carry only a bare pageUrl; fall back to the un-expiring hqdefault.
@@ -113,8 +129,8 @@ private fun VideoGridThumbnail(ref: VideoRef) {
             LinearProgressIndicator(
                 progress = { (position.positionMs.toFloat() / position.durationMs).coerceIn(0f, 1f) },
                 modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(Sizes.progressTrack),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.fyiExtras.videoScrimLight,
+                color = MaterialTheme.fyiExtras.onVideo,
+                trackColor = MaterialTheme.fyiExtras.videoScrim,
                 gapSize = 0.dp,
                 drawStopIndicator = {},
             )

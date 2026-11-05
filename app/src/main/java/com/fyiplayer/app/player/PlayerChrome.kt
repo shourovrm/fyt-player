@@ -47,8 +47,8 @@ import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.SeekThumbnails
-import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.NumeralStyle
+import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
@@ -112,7 +112,8 @@ internal fun ControlBar(
     val fraction = (shownMs.toFloat() / durationMs).coerceIn(0f, 1f)
     val sideInset = if (fullscreen) Spacing.s24 else 0.dp
     val extras = MaterialTheme.fyiExtras
-    val playedColor = MaterialTheme.colorScheme.primary
+    // White, not the accent: the accent is the ink colour, which vanishes over dark video.
+    val playedColor = extras.onVideo
     val currentChapterTitle: String = chapterAt(chapters, shownMs)?.title ?: ""
     // Fullscreen already sits 24dp in for the rounded corners. The 10dp portrait gutter on top of
     // that is what runs a 360dp fullscreen row out of room, so fullscreen drops it.
@@ -257,7 +258,7 @@ internal fun ControlBar(
             )
             Box(modifier = Modifier.weight(1f))
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
-                // Lit like Repeat: a filled square marks any non-default speed.
+                // Lit like Repeat: a filled pill marks any non-default speed.
                 Text(
                     speedLabel,
                     color = if (speedChanged) MaterialTheme.colorScheme.onPrimary else extras.onVideo,
@@ -265,7 +266,7 @@ internal fun ControlBar(
                     maxLines = 1,
                     modifier = if (speedChanged) {
                         Modifier
-                            .background(playedColor, ControlShape)
+                            .background(playedColor, RoundedCornerShape(Radius.m))
                             .padding(horizontal = Spacing.s8, vertical = 4.dp)
                     } else {
                         Modifier

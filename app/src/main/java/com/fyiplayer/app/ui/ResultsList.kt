@@ -244,8 +244,8 @@ internal fun ResultRow(
                 LinearProgressIndicator(
                     progress = { (position.positionMs.toFloat() / position.durationMs).coerceIn(0f, 1f) },
                     modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(Sizes.progressTrack),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.fyiExtras.videoScrimLight,
+                    color = MaterialTheme.fyiExtras.onVideo,
+                    trackColor = MaterialTheme.fyiExtras.videoScrim,
                     gapSize = 0.dp,
                     drawStopIndicator = {},
                 )

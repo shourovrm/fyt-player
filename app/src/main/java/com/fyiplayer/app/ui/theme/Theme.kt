@@ -63,8 +63,10 @@ private val FyiDarkColorScheme = darkColorScheme(
     surfaceContainer = DarkSurface1,
     surfaceContainerHigh = DarkSurface2,
     surfaceContainerHighest = DarkSurface3,
-    surfaceTint = DarkAccent,
+    // Transparent: elevation must not tint surfaces. Flat is the monochrome look.
+    surfaceTint = Color.Transparent,
     outline = DarkOutline,
+    outlineVariant = DarkOutline,
     error = DarkDestructive,
 )
 
@@ -84,8 +86,10 @@ private val FyiLightColorScheme = lightColorScheme(
     surfaceContainer = LightSurface1,
     surfaceContainerHigh = LightSurface2,
     surfaceContainerHighest = LightSurface3,
-    surfaceTint = LightAccent,
+    // Transparent: elevation must not tint white surfaces. Flat is the monochrome look.
+    surfaceTint = Color.Transparent,
     outline = LightOutline,
+    outlineVariant = LightOutline,
     error = LightDestructive,
 )
 

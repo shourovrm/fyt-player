@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +57,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
-import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
@@ -262,7 +262,7 @@ fun SeekThumbnailPreview(
 fun FastSeekOverlay(totalSeconds: Int, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .background(MaterialTheme.fyiExtras.videoScrimLight, ControlShape)
+            .background(MaterialTheme.fyiExtras.videoScrimLight, CircleShape)
             .padding(horizontal = Spacing.s16, vertical = 10.dp),
     ) {
         Text(
@@ -444,7 +444,7 @@ fun JumpGridSheet(
                     row.forEachIndexed { colIndex, t ->
                         val tileIndex = rowIndex * 3 + colIndex
                         val outline = if (tileIndex == activeIndex) {
-                            Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                            Modifier.border(2.dp, MaterialTheme.fyiExtras.onVideo, RoundedCornerShape(6.dp))
                         } else {
                             Modifier
                         }

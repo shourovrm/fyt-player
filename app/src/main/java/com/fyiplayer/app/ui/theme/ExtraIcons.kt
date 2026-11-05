@@ -21,6 +21,27 @@ object ExtraIcons {
         )
     }
 
+    // Home layout toggle: each glyph draws the layout it switches to.
+    val LayoutCard: ImageVector by lazy {
+        icon("LayoutCard", "M4,4h16c1.1,0 2,0.9 2,2v7c0,1.1 -0.9,2 -2,2H4c-1.1,0 -2,-0.9 -2,-2V6c0,-1.1 0.9,-2 2,-2z M2,18h20v2H2z")
+    }
+    val LayoutCompact: ImageVector by lazy {
+        icon(
+            "LayoutCompact",
+            "M2,4h6v6H2z M11,4h11v2H11z M11,7h11v2H11z M11,10h11v2H11z " +
+                "M2,14h6v6H2z M11,14h11v2H11z M11,17h11v2H11z M11,20h11v2H11z",
+        )
+    }
+    val LayoutGrid: ImageVector by lazy {
+        icon(
+            "LayoutGrid",
+            "M4,2h5c1.1,0 2,0.9 2,2v5c0,1.1 -0.9,2 -2,2H4c-1.1,0 -2,-0.9 -2,-2V4c0,-1.1 0.9,-2 2,-2z " +
+                "M15,2h5c1.1,0 2,0.9 2,2v5c0,1.1 -0.9,2 -2,2h-5c-1.1,0 -2,-0.9 -2,-2V4c0,-1.1 0.9,-2 2,-2z " +
+                "M4,13h5c1.1,0 2,0.9 2,2v5c0,1.1 -0.9,2 -2,2H4c-1.1,0 -2,-0.9 -2,-2v-5c0,-1.1 0.9,-2 2,-2z " +
+                "M15,13h5c1.1,0 2,0.9 2,2v5c0,1.1 -0.9,2 -2,2h-5c-1.1,0 -2,-0.9 -2,-2v-5c0,-1.1 0.9,-2 2,-2z",
+        )
+    }
+
     private fun icon(name: String, pathData: String): ImageVector =
         ImageVector.Builder(name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .addPath(pathData = addPathNodes(pathData), fill = SolidColor(Color.Black))

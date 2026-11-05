@@ -48,6 +48,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +74,7 @@ import com.fyiplayer.app.core.Topic
 import com.fyiplayer.app.settings.OnboardingSheet
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.ui.theme.ControlShape
+import com.fyiplayer.app.ui.theme.ExtraIcons
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 
@@ -101,6 +103,10 @@ fun HomeScreen(
     var searchFieldFocused by remember { mutableStateOf(false) }
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
     val onboardingDone by app.prefs.onboardingDone.collectAsStateWithLifecycle(initialValue = true)
+    val defaultLayout by app.prefs.homeLayout.collectAsStateWithLifecycle(initialValue = HomeLayout.FULL_CARD)
+    // The app-bar toggle changes the layout for this session only; Settings holds the default.
+    var chosenLayout by rememberSaveable { mutableStateOf<HomeLayout?>(null) }
+    val homeLayout = chosenLayout ?: defaultLayout
 
     val isSearching = vm.query.isNotBlank()
     val searchShown = searchOpen || isSearching
@@ -218,7 +224,12 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
             )
         } else {
-            HomeAppBar(onOpenSearch = { searchOpen = true }, onOpenSettings = onOpenSettings)
+            HomeAppBar(
+                layout = homeLayout,
+                onOpenSearch = { searchOpen = true },
+                onCycleLayout = { chosenLayout = homeLayout.next() },
+                onOpenSettings = onOpenSettings,
+            )
         }
         when {
             browseSources.isEmpty() -> {
@@ -264,6 +275,7 @@ fun HomeScreen(
                             onLongPress = { actionSheetRef = it },
                             gridState = gridState,
                             modifier = Modifier.weight(1f),
+                            feedLayout = homeLayout,
                             skeletonCards = 6,
                         )
                     }
@@ -282,6 +294,7 @@ fun HomeScreen(
                             onLongPress = { actionSheetRef = it },
                             gridState = gridState,
                             modifier = Modifier.weight(1f),
+                            feedLayout = homeLayout,
                             isLoadingMore = isLoadingMore,
                             endOfResults = allExhausted,
                             // Inside the grid, not pinned above it: a pinned shelf would hold
@@ -311,6 +324,7 @@ fun HomeScreen(
                                 onLongPress = { actionSheetRef = it },
                                 onRefresh = { vm.refreshFeed(browseSources) },
                                 gridState = gridState,
+                                feedLayout = homeLayout,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -333,6 +347,7 @@ fun HomeScreen(
                             onLongPress = { actionSheetRef = it },
                             gridState = gridState,
                             modifier = Modifier.weight(1f),
+                            feedLayout = homeLayout,
                             skeletonCards = if (result.loading && result.items.isEmpty()) 6 else 0,
                             topContent = if (topicShorts.isEmpty()) null else {
                                 { ShortsShelf(topicShorts) { ref -> onOpenShorts(topicShorts, topicShorts.indexOf(ref).coerceAtLeast(0)) } }
@@ -385,6 +400,7 @@ private fun HomeFeedSection(
     onLongPress: (VideoRef) -> Unit,
     onRefresh: () -> Unit,
     gridState: LazyGridState,
+    feedLayout: HomeLayout,
     modifier: Modifier = Modifier,
 ) {
     when {
@@ -396,6 +412,7 @@ private fun HomeFeedSection(
                 onClick = onClick,
                 onLongPress = onLongPress,
                 gridState = gridState,
+                feedLayout = feedLayout,
                 modifier = modifier,
                 skeletonCards = 6,
             )
@@ -424,6 +441,7 @@ private fun HomeFeedSection(
                 onClick = onClick,
                 onLongPress = onLongPress,
                 gridState = gridState,
+                feedLayout = feedLayout,
                 modifier = modifier,
                 isLoadingMore = feed.loading,
                 topContent = { FeedSectionHeader(onRefresh) },
@@ -464,6 +482,7 @@ private fun HomeGrid(
     onClick: (VideoRef) -> Unit,
     onLongPress: (VideoRef) -> Unit,
     gridState: LazyGridState,
+    feedLayout: HomeLayout,
     modifier: Modifier = Modifier,
     errors: List<ErrorRow> = emptyList(),
     isLoadingMore: Boolean = false,
@@ -482,20 +501,32 @@ private fun HomeGrid(
         if (nearEnd && hasMore && !isLoadingMore) onLoadMore()
     }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val singleColumn = feedLayout != HomeLayout.GRID
+    val columnCount = if (singleColumn) 1 else if (landscape) 4 else 2
+    // Single-column rows bring their own side padding (FeedCard's text, ResultRow), so the
+    // thumbnail can run edge to edge; the full-row items below get that padding here instead.
+    val sideMargin = if (singleColumn) 0.dp else Spacing.pageMargin
+    val fullRowInset = if (singleColumn) Modifier.padding(horizontal = Spacing.pageMargin) else Modifier
+    val gutter = if (singleColumn) 0.dp else Spacing.s8
+    val rowGap = if (feedLayout == HomeLayout.FULL_CARD) Spacing.s16 else gutter
     LazyVerticalGrid(
-        columns = GridCells.Fixed(if (landscape) 4 else 2),
+        columns = GridCells.Fixed(columnCount),
         state = gridState,
         modifier = modifier,
-        contentPadding = PaddingValues(start = Spacing.pageMargin, end = Spacing.pageMargin, bottom = Spacing.s24),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s8),
-        verticalArrangement = Arrangement.spacedBy(Spacing.s8),
+        contentPadding = PaddingValues(start = sideMargin, end = sideMargin, bottom = Spacing.s24),
+        horizontalArrangement = Arrangement.spacedBy(gutter),
+        verticalArrangement = Arrangement.spacedBy(rowGap),
     ) {
-        topContent?.let { content -> item(key = "topContent", span = fullRow) { content() } }
-        errors.forEach { row -> item(span = fullRow) { ErrorRowView(row) } }
+        topContent?.let { content -> item(key = "topContent", span = fullRow) { Box(fullRowInset) { content() } } }
+        errors.forEach { row -> item(span = fullRow) { Box(fullRowInset) { ErrorRowView(row) } } }
         if (items.isEmpty()) items(skeletonCards) { VideoGridSkeletonCard() }
         // Deduped by page URL: the grid's `key` throws on a duplicate, and one video can turn up twice.
         items(items.distinctBy { it.pageUrl }, key = { it.pageUrl }) { ref ->
-            VideoGridCard(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
+            when (feedLayout) {
+                HomeLayout.FULL_CARD -> FeedCard(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
+                HomeLayout.COMPACT -> ResultRow(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
+                HomeLayout.GRID -> VideoGridCard(ref, onClick = { onClick(ref) }, onLongPress = { onLongPress(ref) })
+            }
         }
         when {
             isLoadingMore -> item(span = fullRow) { GridLoadingTail() }
@@ -585,9 +616,22 @@ internal fun isChannelPageUrl(pageUrl: String): Boolean {
     return path.startsWith("/channel/") || path.startsWith("/@") || path.startsWith("/c/") || path.startsWith("/user/")
 }
 
-/** Home's app bar: app name, then search (opens the field) and settings. */
+/**
+ * Home's app bar: app name, then search (opens the field), the layout toggle and settings. The
+ * toggle's icon shows the layout Home has now; tapping moves to the next one.
+ */
 @Composable
-private fun HomeAppBar(onOpenSearch: () -> Unit, onOpenSettings: () -> Unit) {
+private fun HomeAppBar(layout: HomeLayout, onOpenSearch: () -> Unit, onCycleLayout: () -> Unit, onOpenSettings: () -> Unit) {
+    val layoutIcon = when (layout) {
+        HomeLayout.FULL_CARD -> ExtraIcons.LayoutCard
+        HomeLayout.COMPACT -> ExtraIcons.LayoutCompact
+        HomeLayout.GRID -> ExtraIcons.LayoutGrid
+    }
+    val layoutLabel = when (layout) {
+        HomeLayout.FULL_CARD -> stringResource(R.string.home_layout_card)
+        HomeLayout.COMPACT -> stringResource(R.string.home_layout_compact)
+        HomeLayout.GRID -> stringResource(R.string.home_layout_grid)
+    }
     Row(
         Modifier.fillMaxWidth().height(Spacing.s56).padding(start = Spacing.pageMargin, end = Spacing.s8),
         verticalAlignment = Alignment.CenterVertically,
@@ -595,6 +639,9 @@ private fun HomeAppBar(onOpenSearch: () -> Unit, onOpenSettings: () -> Unit) {
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         IconButton(onClick = onOpenSearch) {
             Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.home_open_search), tint = MaterialTheme.colorScheme.onSurface)
+        }
+        IconButton(onClick = onCycleLayout) {
+            Icon(layoutIcon, contentDescription = layoutLabel, tint = MaterialTheme.colorScheme.onSurface)
         }
         IconButton(onClick = onOpenSettings) {
             Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.shell_tab_settings), tint = MaterialTheme.colorScheme.onSurface)

@@ -12,6 +12,7 @@ import com.fyiplayer.app.core.SponsorCategory
 import com.fyiplayer.app.core.SponsorMode
 import com.fyiplayer.app.core.canonicalChannelKey
 import com.fyiplayer.app.player.CaptionSize
+import com.fyiplayer.app.ui.HomeLayout
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -51,6 +52,7 @@ class Prefs(private val context: Context) {
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
         val LAST_PLAYED_PAGE_URL = stringPreferencesKey("last_played_page_url")
         val LAST_PLAYED_TITLE = stringPreferencesKey("last_played_title")
+        val HOME_LAYOUT = stringPreferencesKey("home_layout")
     }
 
     // only platform live today; default matches SourceRegistry without this file naming it
@@ -65,6 +67,10 @@ class Prefs(private val context: Context) {
     /** First-run language/country prompt (Home shows it until this flips). */
     val onboardingDone: Flow<Boolean> = flow(ONBOARDING_DONE, false)
     suspend fun setOnboardingDone() = set(ONBOARDING_DONE, true)
+
+    // Default Home layout, stored by enum name. Unknown or missing names read as FULL_CARD.
+    val homeLayout: Flow<HomeLayout> = data.map { HomeLayout.fromName(it[HOME_LAYOUT]) }
+    suspend fun setHomeLayout(v: HomeLayout) = set(HOME_LAYOUT, v.name)
 
     val maxResolutionWifi: Flow<Int> = flow(MAX_RES_WIFI, 1080)
     suspend fun setMaxResolutionWifi(v: Int) = set(MAX_RES_WIFI, v)
