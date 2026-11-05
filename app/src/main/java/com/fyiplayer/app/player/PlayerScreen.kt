@@ -146,7 +146,13 @@ fun PlayerScreen(
     // here is what guarantees the bars come back on every exit path, not just this one.
     DisposableEffect(fullscreen) {
         activity?.let { setFullscreen(it, fullscreen) }
-        onDispose { activity?.let { setFullscreen(it, false) } }
+        onDispose {
+            activity?.let {
+                setFullscreen(it, false)
+                // The brightness gesture only exists in fullscreen, so its level ends with it.
+                clearWindowBrightness(it)
+            }
+        }
     }
     // Portrait video must stay portrait fullscreen, not get force-landscaped into a letterbox —
     // narrows the sensor-default lock above once the decoder reports real dimensions.

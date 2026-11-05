@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -24,9 +25,19 @@ fun setWindowBrightness(activity: Activity, percent: Int) {
     activity.window.attributes = attrs
 }
 
+/** Drops the override so the window follows the system brightness again. */
+fun clearWindowBrightness(activity: Activity) {
+    val attrs = activity.window.attributes
+    attrs.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+    activity.window.attributes = attrs
+}
+
+/** The override if one is set, else the system level, so the first drag starts where the screen is. */
 fun currentBrightnessPercent(activity: Activity): Int {
     val b = activity.window.attributes.screenBrightness
-    return if (b in 0f..1f) (b * 100).toInt() else 50
+    if (b in 0f..1f) return (b * 100).toInt()
+    val system = Settings.System.getInt(activity.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+    return system * 100 / 255
 }
 
 /** Sets STREAM_MUSIC volume to a 0..100 percent of the stream's max. */
