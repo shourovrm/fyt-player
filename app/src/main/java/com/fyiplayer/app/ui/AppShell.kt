@@ -1,5 +1,6 @@
 package com.fyiplayer.app.ui
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -155,6 +156,8 @@ fun AppShell(navController: NavHostController) {
 
     // Watch trail for single-video Detail playback. A depth change observed here is how any video
     // opened by another route (list, mini player, autoplay) ends forward history.
+    // Previous/Next needs the full back stack; Navigation has no public API that exposes it.
+    @SuppressLint("RestrictedApi")
     val navBackStack by navController.currentBackStack.collectAsState()
     var watchTrail by remember { mutableStateOf(WatchTrail()) }
     LaunchedEffect(navBackStack.size) { watchTrail = watchTrail.onBackStackDepthChanged(navBackStack.size) }
