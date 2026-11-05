@@ -7,6 +7,8 @@ rootProject.name only. applicationId stays `com.fyiplayer.app` (a new id = a new
 no in-place update, all local data lost). README.md added; repo public at github.com/shourovrm/fyt-player.
 
 Signed release APKs, one per ABI (arm64-v8a, armeabi-v7a, x86_64); 495 JVM unit tests green (v0.2.26). Compose + Material 3, single Activity.
+Releases: bump versionName, push tag `vX.Y.Z`; `.github/workflows/release.yml` signs (keystore + passwords in repo
+secrets RELEASE_*) and publishes the three APKs. CI on every push: `.github/workflows/ci.yml` = `just check`.
 
 In: `core/` contracts + `SourceRegistry`; `data/` (Room + DataStore + repositories); `ui/` shell
 (AppScaffold + NavHost + placeholder screens); `engine/` (gate, resolver, error mapping, read-only

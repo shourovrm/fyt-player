@@ -13,7 +13,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 
 ## Next
 - 2026-11-05 v0.2.43: GitHub CI (`.github/workflows/ci.yml` = `just check`), one APK per ABI (arm64-v8a,
-  armeabi-v7a, x86_64; release uploads all three), Android 8-10 insets-log crash fixed. Releases stay local-signed.
+  armeabi-v7a, x86_64; release uploads all three), Android 8-10 insets-log crash fixed. Releases: push a vX.Y.Z tag (release.yml).
 - 2026-11-05 released v0.2.42 (v0.2.36-42: monochrome + coloured-icon theme, home layouts, channel row, downloads play
   from file, library date groups + selection; see ui.md). Unverified: dark theme, landscape rail, font scale 1.3,
   missing-download-offline error.
