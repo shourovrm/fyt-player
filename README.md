@@ -15,16 +15,16 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/screenshot-home.png" alt="Home feed as full-width cards" width="23%">
+  <img src="docs/images/screenshot-cards.png" alt="Home feed as full-width cards" width="23%">
+  <img src="docs/images/screenshot-compact.png" alt="Home feed as a compact list" width="23%">
   <img src="docs/images/screenshot-grid.png" alt="Home feed as a two-column grid" width="23%">
-  <img src="docs/images/screenshot-video.png" alt="Video page with channel row and action icons" width="23%">
-  <img src="docs/images/screenshot-quality.png" alt="Quality sheet over the playing video" width="23%">
+  <img src="docs/images/screenshot-video.png" alt="Video page with player controls, channel row and action icons" width="23%">
 </p>
 
 <p align="center">
-  <img src="docs/images/screenshot-history.png" alt="History grouped by day, with a day selected" width="23%">
-  <img src="docs/images/screenshot-downloads.png" alt="Downloads with a play-all button" width="23%">
-  <img src="docs/images/screenshot-shorts.png" alt="Shorts as a portrait grid" width="23%">
+  <img src="docs/images/screenshot-quality.png" alt="Quality sheet over the playing video" width="23%">
+  <img src="docs/images/screenshot-channel.png" alt="Channel page with the mini player" width="23%">
+  <img src="docs/images/screenshot-shorts.png" alt="Channel Shorts as a portrait grid" width="23%">
   <img src="docs/images/screenshot-settings.png" alt="Settings with coloured section icons" width="23%">
 </p>
 
