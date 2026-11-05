@@ -30,12 +30,33 @@ import com.fyiplayer.app.ui.theme.Spacing
 fun QualitySheet(
     heights: List<Int>,
     selectedHeight: Int?,
+    playingDownload: Boolean,
     onSelect: (Int?) -> Unit,
+    onStream: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(modifier = Modifier.padding(bottom = Spacing.s16)) {
             item { SheetTitleRow(stringResource(R.string.player_menu_quality), onClose = onDismiss) }
+            if (playingDownload) {
+                // A download has one rendition; the only other choice is streaming the video.
+                item {
+                    ChoiceListItem(
+                        headline = selectedHeight?.let { stringResource(R.string.player_quality_downloaded_height, it) }
+                            ?: stringResource(R.string.player_quality_downloaded),
+                        selected = true,
+                        onSelect = onDismiss,
+                    )
+                }
+                item {
+                    ChoiceListItem(
+                        headline = stringResource(R.string.player_quality_stream),
+                        selected = false,
+                        onSelect = onStream,
+                    )
+                }
+                return@LazyColumn
+            }
             item {
                 ChoiceListItem(
                     headline = stringResource(R.string.player_quality_auto),

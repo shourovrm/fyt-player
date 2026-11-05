@@ -234,7 +234,7 @@ fun AppShell(navController: NavHostController) {
             )
         }
         composable(Routes.DOWNLOADS) {
-            DownloadsScreen()
+            DownloadsScreen(onOpenDetail = { navController.openDetail(it) })
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(onBack = { navController.popBackStack() })

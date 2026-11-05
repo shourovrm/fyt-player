@@ -288,3 +288,5 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | Theme F: fixed icon colours (nav, Detail actions), Settings hub colour tiles, sheets take their row colour | user picked mocks v6 F, F1, F5
 2026-11-05 | Detail channel row: avatar, name, @handle · subscribers, bell toggles subscription; extractor patch 0003 adds StreamInfo.uploaderHandle | user picked mock v6 B; StreamInfo had no handle
 2026-11-05 | Home refresh moved into the app bar (For you only); "New from channels" row removed | user request
+2026-11-05 | Downloaded videos play in-app: PlaybackSession.resolveItem uses a COMPLETED download's file first (FyiApp seam), online captions added in the background, Quality sheet offers "Stream instead", missing file + offline = error line | user picked option 2
+2026-11-05 | Downloads row tap opens Detail; ⋮ menu has "Open with another app" (chooser) and Remove. Landscape Home skips the Cards layout | user request

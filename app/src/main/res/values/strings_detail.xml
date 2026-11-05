@@ -147,4 +147,5 @@
     <string name="downloads_file_missing">Download missing.</string>
     <string name="downloads_no_app">No app can open this.</string>
     <string name="downloads_cannot_open">Cannot open this download.</string>
+    <string name="downloads_open_with">Open with another app</string>
 </resources>

@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.dash.DashMediaSource
@@ -119,7 +120,7 @@ object MediaItemFactory {
     private fun sourceFor(format: MediaFormat, metadata: MediaMetadata): MediaSource {
         if (format.protocol == Protocol.SABR) return sabrSourceFor(format, metadata)
         val item = MediaItem.Builder().setUri(format.url).setMediaMetadata(metadata).build()
-        val dsFactory = dataSourceFactory(format.headers)
+        val dsFactory = dataSourceFactoryFor(format.url, format.headers)
         return when (format.protocol) {
             Protocol.HLS -> HlsMediaSource.Factory(dsFactory)
                 .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
@@ -230,9 +231,11 @@ object MediaItemFactory {
         )
     }
 
-    // No headers: a caption URL's own signature/query carries what it needs, same as the video
-    // formats' -- but subtitles never came with a per-format header map to reuse.
-    private val subtitleDataSourceFactory: DataSource.Factory by lazy { dataSourceFactory(emptyMap()) }
+    // A downloaded file (file:// URL) is read straight from disk: the HTTP stack cannot open it,
+    // and copying local bytes into MediaCache would only evict real network entries.
+    // Captions pass no headers: a caption URL's own signature/query carries what it needs.
+    private fun dataSourceFactoryFor(url: String, headers: Map<String, String>): DataSource.Factory =
+        if (url.startsWith("file:")) FileDataSource.Factory() else dataSourceFactory(headers)
 
     /** One sideloaded text track. [SingleSampleMediaSource] is the media3 mechanism for exactly
      *  this -- a subtitle URL with no container of its own -- merged in alongside audio/video by
@@ -245,7 +248,7 @@ object MediaItemFactory {
             .setLanguage(track.languageCode)
             .setLabel(track.label)
             .build()
-        return SingleSampleMediaSource.Factory(subtitleDataSourceFactory)
+        return SingleSampleMediaSource.Factory(dataSourceFactoryFor(track.url, emptyMap()))
             .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
             .createMediaSource(config, C.TIME_UNSET)
     }

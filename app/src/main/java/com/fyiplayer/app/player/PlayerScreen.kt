@@ -70,7 +70,9 @@ private fun friendlyMessage(e: ExtractionError): String = when (e) {
     is ExtractionError.AccessChallenge -> e.userMessage()
     // Never claim a retry here: by the time this renders, the one permitted re-resolve is spent.
     is ExtractionError.Expired -> stringResource(R.string.error_link_expired)
-    is ExtractionError.Unsupported -> stringResource(R.string.player_error_cannot_play)
+    is ExtractionError.Unsupported ->
+        if (e.message.orEmpty().startsWith(DOWNLOAD_MISSING_PREFIX)) stringResource(R.string.player_error_download_missing)
+        else stringResource(R.string.player_error_cannot_play)
 }
 
 /**
@@ -444,7 +446,9 @@ fun PlayerScreen(
                     QualitySheet(
                         heights = state.availableHeights,
                         selectedHeight = if (state.qualityIsAuto) null else state.selectedHeight,
+                        playingDownload = state.playingDownload,
                         onSelect = { PlaybackSession.selectQuality(it); showQualitySheet = false },
+                        onStream = { PlaybackSession.streamCurrent(); showQualitySheet = false },
                         onDismiss = { showQualitySheet = false },
                     )
                 }

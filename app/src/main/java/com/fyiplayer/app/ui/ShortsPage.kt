@@ -342,7 +342,9 @@ internal fun ShortsPage(
         QualitySheet(
             heights = playerState.availableHeights,
             selectedHeight = if (playerState.qualityIsAuto) null else playerState.selectedHeight,
+            playingDownload = playerState.playingDownload,
             onSelect = { PlaybackSession.selectQuality(it); showQualitySheet = false },
+            onStream = { PlaybackSession.streamCurrent(); showQualitySheet = false },
             onDismiss = { showQualitySheet = false },
         )
     }

@@ -6,6 +6,10 @@ import androidx.core.content.getSystemService
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.db.AppDatabase
+import com.fyiplayer.app.data.repo.DownloadState
+import com.fyiplayer.app.data.repo.DownloadRepository
+import java.io.File
+import android.net.NetworkCapabilities
 import com.fyiplayer.app.data.prefs.Prefs
 import com.fyiplayer.app.data.repo.PositionsRepository
 import com.fyiplayer.app.engine.ChainResolver
@@ -135,6 +139,7 @@ class FyiApp : Application() {
             autoplayEnabled = { autoplayNextEnabled },
             loadPosition = ::loadPositionFor, savePosition = ::savePositionFor,
             saveLastPlayed = prefs::setLastPlayed, loadLastPlayed = ::lastPlayedRef,
+            downloadedFile = ::downloadedFileFor, isOnline = ::hasWorkingConnection,
         )
 
         // Native init takes seconds on a cold install; resolves await EngineGate rather than
@@ -146,6 +151,21 @@ class FyiApp : Application() {
         val (pageUrl, title) = prefs.lastPlayed.first() ?: return null
         val sourceId = SourceRegistry.forUrl(pageUrl)?.id ?: ""
         return VideoRef(sourceId = sourceId, pageUrl = pageUrl, remoteId = pageUrl, title = title)
+    }
+
+    /** The file of a finished download of [pageUrl], or null when there is none. The file itself may
+     *  since have been deleted: the player checks. */
+    private suspend fun downloadedFileFor(pageUrl: String): File? {
+        val row = DownloadRepository(database.downloadDao()).get(pageUrl) ?: return null
+        if (row.state != DownloadState.COMPLETED) return null
+        return row.filePath?.let(::File)
+    }
+
+    /** A network that the system has checked reaches the internet, not just a joined Wi-Fi. */
+    private fun hasWorkingConnection(): Boolean {
+        val connectivity = getSystemService<ConnectivityManager>() ?: return false
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     /** Metered is the question that matters, not the radio: a metered hotspot must not burn data. */

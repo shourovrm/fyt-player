@@ -106,7 +106,9 @@ fun HomeScreen(
     val defaultLayout by app.prefs.homeLayout.collectAsStateWithLifecycle(initialValue = HomeLayout.FULL_CARD)
     // The app-bar toggle changes the layout for this session only; Settings holds the default.
     var chosenLayout by rememberSaveable { mutableStateOf<HomeLayout?>(null) }
-    val homeLayout = chosenLayout ?: defaultLayout
+    // Full-width cards waste a landscape screen: there Home shows Grid instead and the toggle skips Cards.
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val homeLayout = (chosenLayout ?: defaultLayout).let { if (landscape && it == HomeLayout.FULL_CARD) HomeLayout.GRID else it }
 
     val isSearching = vm.query.isNotBlank()
     val searchShown = searchOpen || isSearching
@@ -229,7 +231,10 @@ fun HomeScreen(
                 onOpenSearch = { searchOpen = true },
                 // Only the subscription feed ("For you") has a refresh; topic tabs reload on selection.
                 onRefresh = if (browseSources.isNotEmpty() && vm.selectedTopic == null) ({ vm.refreshFeed(browseSources) }) else null,
-                onCycleLayout = { chosenLayout = homeLayout.next() },
+                onCycleLayout = {
+                    val next = homeLayout.next()
+                    chosenLayout = if (landscape && next == HomeLayout.FULL_CARD) next.next() else next
+                },
                 onOpenSettings = onOpenSettings,
             )
         }

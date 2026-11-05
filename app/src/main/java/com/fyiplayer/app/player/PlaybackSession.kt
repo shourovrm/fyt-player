@@ -52,6 +52,9 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.fyiplayer.app.R
+import java.io.File
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.runInterruptible
 
@@ -101,6 +104,8 @@ data class PlayerState(
     // False from the moment an item becomes current until its first frame hits the surface --
     // the window where the player's shutter is black. Shorts pages cover it with the thumbnail.
     val firstFrameRendered: Boolean = false,
+    /** The current item plays from its finished download, not a stream. */
+    val playingDownload: Boolean = false,
 )
 
 /** Position/duration only, ticked every 500ms by [PlaybackSession.tickPosition] -- split out of
@@ -163,6 +168,15 @@ object PlaybackSession {
     // the process or service reborn over an empty player. Defaults make resumption a no-op.
     private var saveLastPlayed: suspend (pageUrl: String, title: String) -> Unit = { _, _ -> }
     private var loadLastPlayed: suspend () -> VideoRef? = { null }
+    // Download seams, injected by FyiApp: the file of a COMPLETED download for a page URL (it may
+    // since have been deleted), and whether the device has a working connection right now.
+    private var downloadedFile: suspend (pageUrl: String) -> File? = { null }
+    private var isOnline: () -> Boolean = { true }
+    // Page URL the user asked to stream although it is downloaded (Quality sheet). Reset by play().
+    private var streamInsteadOf: String? = null
+    // The current item plays from its download: rebuilds reuse its one format as-is (no height
+    // ceiling), and online captions are added to it once they arrive.
+    private var currentIsDownload = false
     private var sponsorFetchJob: Job? = null
     // Segments for the item currently at `index`. Never trusted after an item change until
     // fetchSponsorSegments's own index check confirms the response is still for the right item.
@@ -245,6 +259,7 @@ object PlaybackSession {
         val resolved: Resolved,
         val selection: FormatSelection,
         val height: Int?,
+        val downloaded: Boolean = false,
     )
 
     fun init(
@@ -258,6 +273,8 @@ object PlaybackSession {
         savePosition: suspend (String, Long, Long) -> Unit = { _, _, _ -> },
         saveLastPlayed: suspend (pageUrl: String, title: String) -> Unit = { _, _ -> },
         loadLastPlayed: suspend () -> VideoRef? = { null },
+        downloadedFile: suspend (pageUrl: String) -> File? = { null },
+        isOnline: () -> Boolean = { true },
     ) {
         if (::player.isInitialized) return
         this.resolver = resolver
@@ -269,6 +286,8 @@ object PlaybackSession {
         this.savePosition = savePosition
         this.saveLastPlayed = saveLastPlayed
         this.loadLastPlayed = loadLastPlayed
+        this.downloadedFile = downloadedFile
+        this.isOnline = isOnline
         appContext = context.applicationContext
         MediaItemFactory.init(appContext)
         // Backstop for any launch without its own catch: log the class and carry on rather than
@@ -475,8 +494,10 @@ object PlaybackSession {
         prepared = null
         retriedIndex = null
         autoplayFired = false
+        streamInsteadOf = null
         currentFormats = emptyList()
         currentCaptions = emptyList()
+        currentIsDownload = false
         // a fresh state must seed isPlaying from the player: onIsPlayingChanged only fires on a
         // change, and skipping between two already-playing items would otherwise never fire it.
         // speed is seeded too: it's a player-level setting that survives across queues.
@@ -750,8 +771,9 @@ object PlaybackSession {
      *  keeping position and play state. The chosen ids are read back from the selection itself. */
     private fun rebuildCurrent(height: Int, audioTrackId: String?) {
         if (currentFormats.isEmpty()) return
-        val result = FormatSelector.select(currentFormats, height, audioTrackId = audioTrackId)
-        val selection = result.selection ?: return
+        // A download has exactly one format; the quality ceiling must not reject it.
+        val selection = if (currentIsDownload) FormatSelection.Single(currentFormats.single())
+        else FormatSelector.select(currentFormats, height, audioTrackId = audioTrackId).selection ?: return
         val resumeAt = player.currentPosition
         // A quality or dub change must not start playback the user had paused.
         val wasPlayWhenReady = player.playWhenReady
@@ -903,6 +925,7 @@ object PlaybackSession {
         window = emptyList(); prepared = null; retriedIndex = null
         currentFormats = emptyList()
         currentCaptions = emptyList()
+        currentIsDownload = false
         clearSponsorSegments()
         player.stop()
         player.clearMediaItems()
@@ -996,6 +1019,8 @@ object PlaybackSession {
             window = listOf(i)
             currentFormats = item.resolved.formats
             currentCaptions = item.resolved.captions
+            currentIsDownload = item.downloaded
+            if (item.downloaded) addOnlineCaptions(i, ref)
             fetchSponsorSegments(i, ref)
             // A different item always starts captions at Off, never whatever the previous item had.
             val language = carryOverCaptionSelection(_state.value.selectedCaptionLanguage, isSameItem = false)
@@ -1003,7 +1028,7 @@ object PlaybackSession {
             _state.update {
                 it.copy(
                     current = playRef, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
-                    selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats),
+                    selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
                     availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                     availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                     selectedAudioTrackId = audioTrackIdOf(item.selection),
@@ -1067,6 +1092,17 @@ object PlaybackSession {
      *  error (or success) with a stale one. */
     private suspend fun resolveItem(i: Int, ref: VideoRef): PreparedItem? {
         val resolveBeganAtMs = SystemClock.elapsedRealtime()
+        val download = if (ref.pageUrl == streamInsteadOf) null else downloadedFile(ref.pageUrl)
+        if (download != null) {
+            val item = downloadedItem(i, ref, download)
+            if (item != null) return item
+            // The file is gone or unreadable: stream instead, unless there is nothing to stream over.
+            if (!isOnline()) {
+                diag("download missing offline index=$i")
+                failItem(i, ref, ExtractionError.Unsupported(DOWNLOAD_MISSING_PREFIX + "file gone, no connection"))
+                return null
+            }
+        }
         val resolved = try {
             resolver.resolve(ref)
         } catch (cancelled: CancellationException) {
@@ -1106,6 +1142,59 @@ object PlaybackSession {
         return PreparedItem(i, resolved, selection, height)
     }
 
+    /** [file] as item [i]'s only format, with the subtitle saved beside it as its only caption.
+     *  Null when the file is gone or is not readable media. */
+    private suspend fun downloadedItem(i: Int, ref: VideoRef, file: File): PreparedItem? {
+        val captionLabel = appContext.getString(R.string.player_caption_downloaded)
+        val local = try {
+            withContext(Dispatchers.IO) {
+                if (!file.isFile) return@withContext null
+                val format = downloadedFormat(file)
+                val captions = listOfNotNull(downloadedSubtitleOf(file)?.let { downloadedCaption(it, captionLabel) })
+                format to captions
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: RuntimeException) {
+            diag("download unreadable index=$i error=${e.javaClass.simpleName}")
+            null
+        } ?: return null
+        val (format, captions) = local
+        diag("playing download index=$i")
+        val resolved = Resolved(ref = ref, formats = listOf(format), resolvedAtMillis = System.currentTimeMillis(), captions = captions)
+        return PreparedItem(i, resolved, FormatSelection.Single(format), format.height, downloaded = true)
+    }
+
+    /** A download carries at most one caption track; when online, the video's published tracks are
+     *  added beside it. Runs after playback has started, so the file plays at once; the source is
+     *  rebuilt (same position) once the tracks are known, because captions are merged into it. */
+    private fun addOnlineCaptions(i: Int, ref: VideoRef) {
+        if (!isOnline()) return
+        scope.launch {
+            val online = try {
+                resolver.resolve(ref).captions
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                diag("online captions failed error=${e.javaClass.simpleName}")
+                return@launch
+            }
+            if (online.isEmpty() || i != index || !currentIsDownload || queue.getOrNull(i)?.pageUrl != ref.pageUrl) return@launch
+            currentCaptions = currentCaptions + online
+            _state.update { it.copy(availableCaptions = currentCaptions) }
+            rebuildCurrent(_state.value.selectedHeight ?: maxHeight(), null)
+        }
+    }
+
+    /** Plays the current item from its stream although it is downloaded (the Quality sheet's
+     *  Stream row). Holds until the next [play]. */
+    fun streamCurrent() {
+        ensureInit()
+        val ref = queue.getOrNull(index) ?: return
+        streamInsteadOf = ref.pageUrl
+        retryCurrent()
+    }
+
     /** Puts [error] on screen for [i], but only if [i] is still the item being loaded. */
     private fun failItem(i: Int, ref: VideoRef, error: ExtractionError) {
         if (i != index) return
@@ -1120,11 +1209,12 @@ object PlaybackSession {
         prepared = null
         currentFormats = emptyList()
         currentCaptions = emptyList()
+        currentIsDownload = false
         clearSponsorSegments()
         _state.update {
             it.copy(
                 current = ref, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue,
-                error = error, availableHeights = emptyList(), availableCaptions = emptyList(),
+                error = error, availableHeights = emptyList(), availableCaptions = emptyList(), playingDownload = false,
                 availableAudioTracks = emptyList(), selectedAudioTrackId = null,
             )
         }
@@ -1184,6 +1274,8 @@ object PlaybackSession {
         rememberForResumption(ref)
         currentFormats = item.resolved.formats
         currentCaptions = item.resolved.captions
+        currentIsDownload = item.downloaded
+        if (item.downloaded) addOnlineCaptions(item.queueIndex, ref)
         clearSponsorSegments() // different item, same as startAt -- old item's segments must not carry over
         fetchSponsorSegments(item.queueIndex, ref)
         // A different item, same as startAt -- captions reset to Off, never carried over.
@@ -1192,7 +1284,7 @@ object PlaybackSession {
         _state.update {
             it.copy(
                 current = ref, firstFrameRendered = if (resetFirstFrame) false else it.firstFrameRendered, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
-                selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats),
+                selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
                 availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
                 availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                 selectedAudioTrackId = audioTrackIdOf(item.selection),

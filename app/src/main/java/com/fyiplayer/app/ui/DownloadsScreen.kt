@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.fyiplayer.app.R
+import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.repo.DownloadItem
 import com.fyiplayer.app.data.repo.DownloadState
 import com.fyiplayer.app.data.repo.youtubeThumbnailFor
@@ -85,7 +86,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadsScreen() {
+fun DownloadsScreen(onOpenDetail: (VideoRef) -> Unit) {
     val context = LocalContext.current
     val queue = remember(context) { DownloadQueue.get(context) }
     val rows by queue.rows.collectAsStateWithLifecycle()
@@ -93,7 +94,8 @@ fun DownloadsScreen() {
     val progress by queue.progress.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    // Neither sheet defaults to the destructive choice -- see RemoveSheet.
+    // No sheet defaults to the destructive choice -- see RemoveSheet.
+    var menuTarget by remember { mutableStateOf<DownloadItem?>(null) }
     var removeTarget by remember { mutableStateOf<DownloadItem?>(null) }
     var confirmClearCompleted by remember { mutableStateOf(false) }
 
@@ -132,12 +134,21 @@ fun DownloadsScreen() {
                             onResume = { scope.launch { queue.resume(item.ref.pageUrl) } },
                             onRemove = { removeTarget = item },
                             onRetry = { scope.launch { queue.retry(item.ref.pageUrl) } },
-                            onOpen = { openDownloadedFile(context, item.filePath) },
+                            onMore = { menuTarget = item },
+                            onOpen = { onOpenDetail(item.ref) },
                         )
                     }
                 }
             }
         }
+    }
+
+    menuTarget?.let { item ->
+        DownloadMenuSheet(
+            onOpenWithApp = { openDownloadedFile(context, item.filePath); menuTarget = null },
+            onRemove = { removeTarget = item; menuTarget = null },
+            onDismiss = { menuTarget = null },
+        )
     }
 
     removeTarget?.let { item ->
@@ -245,6 +256,18 @@ private fun RemoveSheet(
     }
 }
 
+/** The per-row menu for a finished download. Both rows are plain actions, so neither is in error colour. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DownloadMenuSheet(onOpenWithApp: () -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth()) {
+            SheetRow(label = stringResource(R.string.downloads_open_with), color = MaterialTheme.colorScheme.onSurface, onClick = onOpenWithApp)
+            SheetRow(label = stringResource(R.string.action_remove), color = MaterialTheme.colorScheme.onSurface, onClick = onRemove)
+        }
+    }
+}
+
 @Composable
 private fun SheetRow(label: String, color: Color, onClick: () -> Unit, trailing: @Composable () -> Unit = {}) {
     Row(
@@ -269,6 +292,7 @@ private fun DownloadRow(
     onResume: () -> Unit,
     onRemove: () -> Unit,
     onRetry: () -> Unit,
+    onMore: () -> Unit,
     onOpen: () -> Unit,
 ) {
     val extras = MaterialTheme.fyiExtras
@@ -352,7 +376,7 @@ private fun DownloadRow(
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_clear))
                     }
                 }
-                DownloadState.COMPLETED -> IconButton(onClick = onRemove) {
+                DownloadState.COMPLETED -> IconButton(onClick = onMore) {
                     Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
                 }
             }
@@ -447,7 +471,7 @@ internal fun formatBytes(bytes: Long): String {
 }
 
 /**
- * Hand a finished download to whatever app the user has for it. The file lives in this app's own
+ * Hand a finished download to an app the user picks from the chooser. The file lives in this app's own
  * external files dir, so it can only cross a process boundary as a content:// Uri with a
  * read grant — ACTION_VIEW on a file:// Uri throws FileUriExposedException on this targetSdk.
  */
@@ -462,7 +486,7 @@ private fun openDownloadedFile(context: Context, filePath: String?) {
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, "video/*")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        context.startActivity(intent)
+        context.startActivity(Intent.createChooser(intent, null))
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, context.getString(R.string.downloads_no_app), Toast.LENGTH_LONG).show()
     } catch (e: IllegalArgumentException) {

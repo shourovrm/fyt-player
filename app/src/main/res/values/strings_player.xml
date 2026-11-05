@@ -10,6 +10,7 @@
     <!-- states -->
     <string name="player_nothing_playing">Nothing playing</string>
     <string name="player_error_cannot_play">Cannot play this video.</string>
+    <string name="player_error_download_missing">The downloaded file is missing. Connect to the internet to stream this video.</string>
 
     <!-- transport and top bar -->
     <string name="player_pause">Pause</string>
@@ -29,6 +30,10 @@
 
     <!-- sheet rows -->
     <string name="player_quality_auto">Auto</string>
+    <string name="player_quality_downloaded">Downloaded</string>
+    <string name="player_quality_downloaded_height">Downloaded · %1$dp</string>
+    <string name="player_quality_stream">Stream instead</string>
+    <string name="player_caption_downloaded">Downloaded</string>
     <string name="player_quality_height">%1$dp</string>
     <string name="player_speed_reset">Reset to 1x</string>
     <string name="player_speed_minus">&#8722;</string>
