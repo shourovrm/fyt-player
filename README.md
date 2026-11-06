@@ -143,7 +143,7 @@ source/        one module per platform behind the VideoSource interface
 engine/        stream resolver chain
 core/          contracts: VideoRef, VideoDetail, MediaFormat, ...
 data/          Room database, DataStore settings, backup codec
-third_party/   vendored PipePipeExtractor and its patches
+third_party/   PipePipeExtractor submodule (our patched fork)
 ```
 
 YouTube metadata and streams come from [PipePipeExtractor](https://github.com/InfinityLoop1308/PipePipeExtractor), a NewPipeExtractor fork. Its source is included in `third_party/PipePipeExtractor` at upstream v5.5.0 with three small patches: shorts shelves in search results, the related-videos sidebar, and the channel @handle on the video page. The patches are in `third_party/patches/`; `third_party/README.md` explains how to move to a newer upstream tag.

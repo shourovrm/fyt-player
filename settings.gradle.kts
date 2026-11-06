@@ -12,7 +12,7 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-// PipePipeExtractor (GPLv3, vendored in third_party/ with our patches, see
+// PipePipeExtractor (GPLv3, git submodule of our patched fork, see
 // third_party/README.md): built from source exactly like PipePipe's own client does --
 // jitpack has no working build of its current history. Substitutes the
 // com.github.InfinityLoop1308.PipePipeExtractor:extractor dependency below.

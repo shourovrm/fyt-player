@@ -299,3 +299,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-05 | brightness gesture override cleared when fullscreen ends; starts from system level | media-player convention: brightness belongs to the fullscreen session
 2026-11-05 | signing key in GitHub secrets; tag push publishes release | user approved; one command releases all three APKs
 2026-11-06 | Extractor patch 0004: embedded player for refused kids videos (SABR backoff skip tried, rejected: server timer) | kids videos took 8-12 s via mweb/SABR
+2026-11-06 | Extractor comes from the shared fork repo pipe-extractor-patched as a submodule, patch files dropped | one source of truth for both apps

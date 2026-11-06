@@ -2,7 +2,8 @@
 
 ## Current state
 
-2026-11-06: extractor patch 0004 (written in tubepipe, same base 1a09d20e, see third_party/README.md): when
+2026-11-06: the extractor is now the submodule `third_party/PipePipeExtractor` = fork `shourovrm/pipe-extractor-patched`
+branch `patched` (upstream 1a09d20e + our patch commits; tubepipe pins the same commit). Last patch: when
 visionos refuses a video (made-for-kids), the extractor asks the embedded player (`WEB_EMBEDDED_PLAYER` +
 `thirdParty.embedUrl` + the embed page's `encryptedHostFlags`, as yt-dlp's `web_embedded`) in the same pass and gets
 1080p HTTPS formats, so `LowQualityOffer` no longer fires and playback uses the DASH path; the Android-reel 360p and
