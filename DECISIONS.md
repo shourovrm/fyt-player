@@ -12,6 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-06: extractor patch 0004 (embedded player for kids videos, no SABR), identical vendored tree in tubepipe;
+  kids videos start like normal ones. See extraction.md. Shared fork repo for both apps: next.
 - 2026-11-05 v0.2.43: GitHub CI (`.github/workflows/ci.yml` = `just check`), one APK per ABI (arm64-v8a,
   armeabi-v7a, x86_64; release uploads all three), Android 8-10 insets-log crash fixed. Releases: push a vX.Y.Z tag (release.yml).
 - 2026-11-05 released v0.2.42 (v0.2.36-42: monochrome + coloured-icon theme, home layouts, channel row, downloads play

@@ -2,6 +2,19 @@
 
 ## Current state
 
+2026-11-06: extractor patch 0004 (written in tubepipe, same base 1a09d20e, see third_party/README.md): when
+visionos refuses a video (made-for-kids), the extractor asks the embedded player (`WEB_EMBEDDED_PLAYER` +
+`thirdParty.embedUrl` + the embed page's `encryptedHostFlags`, as yt-dlp's `web_embedded`) in the same pass and gets
+1080p HTTPS formats, so `LowQualityOffer` no longer fires and playback uses the DASH path; the Android-reel 360p and
+the mweb retry stay as last resorts, and still carry videos whose owner disabled embedding (the Grizzy & the
+Lemmings compilations answer "playback on other websites disabled"; Booba and Masha allow it). Normal videos are
+untouched (the fallback only runs after a refusal). Both embed
+requests carry the extractor's consent cookie: a signed-in embed page has no host flags, and NewPipeDownloader would
+otherwise inject the account session. Tried and rejected: skipping SABR's first-response 4800 ms backoff (it is a
+server-side timer; an early resend just gets the remaining wait back). Open: the first embedded-player playback
+after a process start got one 403 (phone and TV); PlayerErrorPolicy re-resolved and played 1.8 s later, later plays
+were clean. Device 2026-11-06: Booba Kt-b9kbJyVs 4.6 s incl. that retry, AC-CHexlKnc 2.0 s, normal AYFcmnQrZCg 2.0 s.
+
 2026-10-31: wall second chance (`WallRetry.kt`): any wall except GEO_BLOCK/PAID gets visionos again after 1s, then mweb + PO token (TubePipe's order), for resolve AND detail (shared lock, so one retry per page). PipePipe itself has no client fallback; same extractor v5.5.0 (`1a09d20e` = upstream main). NOT device-verified on a walled network.
 
 2026-10-28: vendored extractor bumped to PipePipeExtractor v5.5.0 (1a09d20e; TubePipe's pin), two
