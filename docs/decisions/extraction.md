@@ -15,9 +15,11 @@ otherwise inject the account session. Tried and rejected: skipping SABR's first-
 server-side timer; an early resend just gets the remaining wait back). Later the same day: the embedded player is retried once when it answers 360p-only (c3e64b4f), and live streams
 offer only their HLS manifest on every client (55375817): visionos served a Booba live stream with `isLive` and an
 HLS manifest, but also eight live chunk URLs that FormatSelection took as a progressive pair, so the player showed one
-frame and spun at 0:00; now `source=hls`, ready in 3-5 s (KaqhNKCBsE0, ih8IeNBam8o). Open: the first embedded-player
-playback after a process start gets one 403 every time (seen 3 of 3 on the phone, once on TV); PlayerErrorPolicy
-re-resolves and plays about 2 s later. Device 2026-11-06: Booba Kt-b9kbJyVs 4.6 s incl. that retry, AC-CHexlKnc 2.0 s, normal AYFcmnQrZCg 2.0 s.
+frame and spun at 0:00; now `source=hls`, ready in 3-5 s (KaqhNKCBsE0, ih8IeNBam8o). Open: intermittent googlevideo 403s on embedded-player
+URLs (phone: 2 of 7 cold starts clean, the rest mixed 403/200 on the same URL set within one play). Instrumented
+2026-11-06: every n and signature resolved, no placeholder left, same sts; so not a decode fault. Seen after dozens
+of replays of one video from one network in a day, which reads as server-side throttling; PlayerErrorPolicy
+re-resolves and plays about 2 s later. Re-check under normal viewing before touching the media request pattern. Device 2026-11-06: Booba Kt-b9kbJyVs 4.6 s incl. that retry, AC-CHexlKnc 2.0 s, normal AYFcmnQrZCg 2.0 s.
 
 2026-10-31: wall second chance (`WallRetry.kt`): any wall except GEO_BLOCK/PAID gets visionos again after 1s, then mweb + PO token (TubePipe's order), for resolve AND detail (shared lock, so one retry per page). PipePipe itself has no client fallback; same extractor v5.5.0 (`1a09d20e` = upstream main). NOT device-verified on a walled network.
 
