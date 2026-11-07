@@ -12,6 +12,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-07 v0.2.46: updater downloads the APK matching the device ABI; fullscreen shows video title + channel top-left.
 - 2026-11-06 v0.2.45: extractor from the shared fork submodule (kids videos via the embedded player, no SABR; live
   streams from the HLS manifest); kids videos start in ~2 s, embed-blocked ones still 8-10 s. See extraction.md.
 - 2026-11-05 v0.2.43: GitHub CI (`.github/workflows/ci.yml` = `just check`), one APK per ABI (arm64-v8a,
