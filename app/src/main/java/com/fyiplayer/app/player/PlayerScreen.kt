@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -395,6 +396,21 @@ fun PlayerScreen(
                         onOpenCaptions = { interact(); showCaptionSheet = true },
                         modifier = Modifier.align(Alignment.TopEnd),
                     )
+                    // Fullscreen hides the Detail page, so the video title and channel go here.
+                    state.current?.takeIf { fullscreen }?.let { video ->
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .fillMaxWidth()
+                                .background(Brush.verticalGradient(listOf(extras.videoScrimLight, Color.Transparent)))
+                                .padding(start = Spacing.s24, top = Spacing.s8, end = Spacing.s64 * 3, bottom = Spacing.s16),
+                        ) {
+                            Text(video.title, style = MaterialTheme.typography.titleMedium, color = extras.onVideo, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            video.uploader?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = extras.onVideoDim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
                     // Top-left close / minimize, portrait only (PipePipe hides its X in
                     // fullscreen too). Fullscreen has the exit-fullscreen button instead.
                     if (!fullscreen && (onClose != null || onMinimize != null)) {
