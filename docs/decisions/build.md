@@ -29,7 +29,7 @@ shorts grid thumbnails+meta, Channels tab, background-play notification/lockscre
 version" (0.2.13 > released 0.2.12). Banner untestable until a release newer than installed
 exists.
 - **In-app update** (`update/UpdateCheck.kt`, `update/ApkInstaller.kt`): GitHub
-  releases/latest (unauthenticated; tag_name minus "v", first .apk asset), `isNewer` numeric
+  releases/latest (unauthenticated; tag_name minus "v", asset ending -<Build.SUPPORTED_ABIS[0]>-release.apk), `isNewer` numeric
   segment compare (unit-tested, garbage tag -> false). Auto check once per process
   (FyiApp.onCreate, silent offline) -> dismissible banner above content in AppScaffold (hidden on
   full-player routes; dismissal per version in Prefs.dismissedUpdateVersion). Settings > App:

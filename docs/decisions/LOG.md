@@ -301,3 +301,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-06 | Extractor patch 0004: embedded player for refused kids videos (SABR backoff skip tried, rejected: server timer) | kids videos took 8-12 s via mweb/SABR
 2026-11-06 | Extractor comes from the shared fork repo pipe-extractor-patched as a submodule, patch files dropped | one source of truth for both apps
 2026-11-06 | Live streams expose only the HLS manifest (extractor patch) | a live stream's chunk URLs were picked as a progressive pair and stalled at 0:00
+2026-11-07 | updater picks the APK matching Build.SUPPORTED_ABIS[0], no fallback | first-.apk pick could offer another ABI's build

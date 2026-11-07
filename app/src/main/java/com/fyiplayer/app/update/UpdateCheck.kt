@@ -1,5 +1,6 @@
 package com.fyiplayer.app.update
 
+import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -7,6 +8,7 @@ import com.fyiplayer.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -48,9 +50,9 @@ object UpdateCheck {
         }
         val root = Json.parseToJsonElement(body).jsonObject
         val version = root.getValue("tag_name").jsonPrimitive.content.removePrefix("v")
-        val apkUrl = root["assets"]?.jsonArray.orEmpty().map { it.jsonObject }
-            .firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-            ?.get("browser_download_url")?.jsonPrimitive?.content
+        val assets = root["assets"]?.jsonArray.orEmpty().map { it.jsonObject }
+        // No ABI fallback: an APK for another ABI would install but crash or not install at all.
+        val apkUrl = apkUrlForAbi(assets, Build.SUPPORTED_ABIS.first())
         val info = if (apkUrl != null && isNewer(version, BuildConfig.VERSION_NAME)) {
             UpdateInfo(version, apkUrl)
         } else null
@@ -58,6 +60,12 @@ object UpdateCheck {
         info
     }
 }
+
+/** Download URL of the release APK built for [abi] (release.yml names them `...-<abi>-release.apk`),
+ *  or null when the release has none. */
+fun apkUrlForAbi(assets: List<JsonObject>, abi: String): String? =
+    assets.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith("-$abi-release.apk") == true }
+        ?.get("browser_download_url")?.jsonPrimitive?.content
 
 /** True iff [latest] is strictly newer than [current]: dot-separated numeric segments compared
  *  left to right, the shorter side zero-padded ("0.3" == "0.3.0"). Any non-numeric segment on
