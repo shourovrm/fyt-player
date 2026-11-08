@@ -305,3 +305,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-08 | Shorts slot order is round-robin across channels, random within a round | random per-clip keys alone put 3-4 clips of one channel at the top
 2026-11-08 | Shorts ordered by each clip's own date (3-day slots), round-robin across channels per slot | per-channel slots put 3 clips of one channel at the top; needs one detail call per shown clip
 2026-11-08 | Shorts grid pinned to top while the feed loads | keyed grid anchored the first-landed tile; newest clips sat off-screen above (device-confirmed, no date lookups failed)
+2026-11-08 | Samsung A13 install closed | works with non-arm64 APK via ABI-matched updater

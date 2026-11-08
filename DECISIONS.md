@@ -27,8 +27,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
   device-verified (A059, Wi-Fi + mobile data, no VPN).
 - Other user's phone (Robi 4G, signed out) gets a wall we can't reproduce; next report: screenshot of
   the new per-cause message tells which wall.
-- Open: Samsung A13 install fails (need `getprop ro.product.cpu.abilist`; armeabi-v7a build?);
-  kids-video 1080p download + pause/resume unverified;
+- Open: kids-video 1080p download + pause/resume unverified;
   lintRelease 138 errors.
 - History rewritten 2026-10-31 (noreply email, .playwright-mcp dropped); backup bundle at
   ~/fyt-player-pre-rewrite-2026-10-31.bundle. Older backlog: topic files' Open items.
