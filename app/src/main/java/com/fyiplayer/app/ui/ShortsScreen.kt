@@ -95,6 +95,10 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
     BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false; PlaybackSession.clear() }
 
     val feed = vm.feed
+    // Channels land one by one and newer clips are inserted above older ones. A keyed grid keeps
+    // its first visible tile in place, so it would scroll the newest clips off-screen above it.
+    // Must run before the grid measures the new list.
+    if (feed.loading && gridState.firstVisibleItemIndex == 0) gridState.requestScrollToItem(0)
     // The app bar is part of the grid, not the pager: the pager is full-bleed and must reach every edge.
     Column(Modifier.fillMaxSize()) {
         if (!vm.showPlayer) {

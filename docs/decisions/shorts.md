@@ -96,6 +96,9 @@ seekbar; mini player on the shorts grid.
 
 ## Gotchas
 
+- The Shorts grid is keyed by pageUrl, so Compose keeps the first visible tile in place when clips are
+  inserted above it. Channels land one by one, newer slots above older ones: without
+  `requestScrollToItem(0)` while loading, a cold start showed old clips with the newest scrolled off above.
 - Channel search rows carry NO shorts signal from YouTube (plain videoRenderer, /watch, overlay
   DEFAULT, 16:9 thumb — verified live 2026-08-22); `shortByDuration` (<=60 s) is the only tell.
 - Shorts grid and pager are ONE nav route (`Routes.SHORTS`) toggled by `ShortsViewModel.showPlayer`;
