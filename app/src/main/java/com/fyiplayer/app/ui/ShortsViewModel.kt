@@ -15,6 +15,7 @@ import com.fyiplayer.app.data.repo.SubscriptionRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -45,10 +46,10 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
     private var sourcesById: Map<String, VideoSource> = emptyMap()
     private val shuffleKeys = HashMap<String, Double>()
 
-    /** Newest-short page URL -> its upload instant (null = lookup failed). Kept across refreshes so
-     *  a channel whose newest short is unchanged is not looked up again. Failed (null) entries are
-     *  dropped at each refresh, so a manual refresh retries them once. */
-    private val newestDateByPageUrl = HashMap<String, Long?>()
+    /** Short page URL -> its upload instant (null = lookup failed). Kept across refreshes so a
+     *  short already looked up is not looked up again. Failed (null) entries are dropped at each
+     *  refresh, so a manual refresh retries them once. */
+    private val uploadMillisByPageUrl = HashMap<String, Long?>()
 
     /** Clips already written to watch history this session, so the pager settling on one clip
      *  twice writes it once. */
@@ -88,7 +89,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         cursors = emptyList()
         shuffleKeys.clear() // new random order per refresh (app start / pull-to-refresh only)
         // A failed lookup may have been a transient network error, so each refresh retries it once.
-        newestDateByPageUrl.values.removeAll { it == null }
+        uploadMillisByPageUrl.values.removeAll { it == null }
         feed = ShortsFeedState(loading = true)
         feedJob = viewModelScope.launch {
             // Every subscription, same as Home: the old newest-8 cap silently left older
@@ -104,9 +105,9 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
             val outcomes = MutableList<ChannelFetchOutcome>(channels.size) {
                 ChannelFetchOutcome.Ok(emptyList())
             }
-            // A channel lands here only once its newest-short date is settled, so no clip is shown
+            // A channel lands here only once its clips' dates are settled, so no clip is shown
             // in the unknown slot and then moved to its real slot.
-            val settled = MutableList<ChannelShorts?>(channels.size) { null }
+            val settled = MutableList<List<VideoRef>?>(channels.size) { null }
             val gate = Semaphore(FEED_CONCURRENCY)
             val jobs = channels.mapIndexed { i, channel ->
                 launch {
@@ -124,14 +125,8 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                     val ok = outcomes[i] as? ChannelFetchOutcome.Ok
-                    val newest = ok?.items?.firstOrNull()
-                    val newestDate = if (src != null && newest != null) {
-                        gate.withPermit { newestShortDateMillis(src, newest) }
-                    } else {
-                        null
-                    }
-                    if (ok != null) {
-                        settled[i] = ChannelShorts(newestDate, ok.items.take(SHORTS_ITEMS_PER_CHANNEL))
+                    if (src != null && ok != null) {
+                        settled[i] = withUploadDates(src, ok.items.take(SHORTS_ITEMS_PER_CHANNEL), gate)
                     }
                     val reordered = orderShortsFeed(settled.filterNotNull(), System.currentTimeMillis(), seenPageUrls, shuffleKeys)
                     feed = feed.copy(items = feedAfterLanding(feed.items, reordered, pagerOpen = showPlayer))
@@ -145,7 +140,6 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                     sourceId = channel.sourceId, key = channel.key,
                     buffer = ok?.items?.drop(SHORTS_ITEMS_PER_CHANNEL).orEmpty(),
                     nextPage = ok?.nextPage, exhausted = ok?.nextPage == null,
-                    newestDateMillis = settled[i]?.newestDateMillis,
                 )
             }
             feed = feed.copy(
@@ -159,14 +153,21 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Upload instant of a channel's newest short, from the session cache when that short was
-     *  already looked up. One detail call per newest short, never per clip. */
-    private suspend fun newestShortDateMillis(source: VideoSource, newest: VideoRef): Long? {
-        if (newest.pageUrl in newestDateByPageUrl) return newestDateByPageUrl[newest.pageUrl]
-        val dateMillis = lookupUploadMillis { source.detail(newest) }
-        newestDateByPageUrl[newest.pageUrl] = dateMillis
-        return dateMillis
-    }
+    /** [clips] with `uploadEpochMs` filled from one detail call each (session-cached by page URL),
+     *  looked up in parallel under [gate]. A failed lookup leaves the date null: unknown slot. */
+    private suspend fun withUploadDates(source: VideoSource, clips: List<VideoRef>, gate: Semaphore): List<VideoRef> =
+        coroutineScope {
+            clips.map { clip ->
+                async {
+                    gate.withPermit {
+                        if (clip.pageUrl !in uploadMillisByPageUrl) {
+                            uploadMillisByPageUrl[clip.pageUrl] = lookupUploadMillis { source.detail(clip) }
+                        }
+                        clip.copy(uploadEpochMs = uploadMillisByPageUrl[clip.pageUrl])
+                    }
+                }
+            }.awaitAll()
+        }
 
     /** One more round: [SHORTS_ITEMS_PER_CHANNEL] per channel that still has any, ordered like the
      *  first page and APPENDED -- never re-merged over what's already shown, a reshuffle under the
@@ -181,15 +182,17 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                 async {
                     val src = sourcesById[cursor.sourceId]
                     if (src == null || !cursor.hasMore) emptyList<VideoRef>() to cursor.copy(exhausted = true)
-                    else gate.withPermit {
-                        cursor.next(SHORTS_ITEMS_PER_CHANNEL) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
+                    else {
+                        val (served, after) = gate.withPermit {
+                            cursor.next(SHORTS_ITEMS_PER_CHANNEL) { page -> src.channelTab(cursor.key, ChannelTab.SHORTS, page) }
+                        }
+                        withUploadDates(src, served, gate) to after
                     }
                 }
             }.awaitAll()
             cursors = rounds.map { it.second }
             val seen = feed.items.mapTo(HashSet()) { it.pageUrl }
-            val batches = rounds.map { (served, after) -> ChannelShorts(after.newestDateMillis, served) }
-            val fresh = orderShortsFeed(batches, System.currentTimeMillis(), seenPageUrls, shuffleKeys)
+            val fresh = orderShortsFeed(rounds.map { it.first }, System.currentTimeMillis(), seenPageUrls, shuffleKeys)
                 .filter { seen.add(it.pageUrl) }
             feed = feed.copy(items = feed.items + fresh, loadingMore = false, hasMore = cursors.any { it.hasMore })
         }

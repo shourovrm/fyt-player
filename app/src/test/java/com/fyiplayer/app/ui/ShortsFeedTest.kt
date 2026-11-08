@@ -30,12 +30,12 @@ class ShortsFeedTest {
         durationSeconds = duration,
     )
 
-    private fun channel(newestAgeDays: Double?, vararg ids: String) = ChannelShorts(
-        newestDateMillis = newestAgeDays?.let { nowMillis - (it * dayMillis).toLong() },
-        shorts = ids.map { ref(it) },
-    )
+    /** A channel whose clips all share one age, in tab order; null age = no known upload date. */
+    private fun channel(ageDays: Double?, vararg ids: String) = ids.map {
+        ref(it).copy(uploadEpochMs = ageDays?.let { days -> nowMillis - (days * dayMillis).toLong() })
+    }
 
-    private fun order(channels: List<ChannelShorts>, seen: Set<String> = emptySet(), keys: HashMap<String, Double> = HashMap(), seed: Int = 1) =
+    private fun order(channels: List<List<VideoRef>>, seen: Set<String> = emptySet(), keys: HashMap<String, Double> = HashMap(), seed: Int = 1) =
         orderShortsFeed(channels, nowMillis, seen.map { ref(it).pageUrl }.toSet(), keys, Random(seed)).map { it.remoteId }
 
     @Test fun `interleave round-robins channels with uneven shorts counts`() {
@@ -201,10 +201,27 @@ class ShortsFeedTest {
         }
     }
 
-    @Test fun `shuffled order differs from tab order within a slot`() {
-        val tab = (1..8).map { "s$it" }
-        val result = order(listOf(channel(1.0, *tab.toTypedArray())), seed = 3)
-        assertTrue(result != tab)
+    @Test fun `one channel's clips keep tab order within a slot`() {
+        val result = order(listOf(channel(1.0, "s1", "s2", "s3", "s4")))
+        assertEquals(listOf("s1", "s2", "s3", "s4"), result)
+    }
+
+    // The case that motivated per-clip dates: a channel's older clips must not ride along with its newest.
+    @Test fun `each clip is placed by its own date, not its channel's newest`() {
+        val mixed = listOf(
+            ref("a-new").copy(uploadEpochMs = nowMillis - dayMillis),
+            ref("a-old").copy(uploadEpochMs = nowMillis - 30 * dayMillis),
+        )
+        val result = order(listOf(mixed, channel(10.0, "b-mid")))
+        assertEquals(listOf("a-new", "b-mid", "a-old"), result)
+    }
+
+    @Test fun `a channel never opens a round right after closing the previous one`() {
+        val channels = listOf(channel(1.0, "a1", "a2", "a3"), channel(1.0, "b1", "b2", "b3"))
+        repeat(50) { seed ->
+            val result = order(channels, seed = seed)
+            result.zipWithNext().forEach { (x, y) -> assertTrue(x.first() != y.first()) }
+        }
     }
 
     private fun cursor(buffer: List<VideoRef> = emptyList(), nextPage: String? = null, exhausted: Boolean = false) =

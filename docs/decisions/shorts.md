@@ -2,11 +2,12 @@
 
 ## Current state
 
-2026-10-28 (tests NOT run, device-UNverified): order is by recency slot, not a plain shuffle.
-Each channel's newest short gets one `VideoSource.detail` call (session-cached by its pageUrl; a
-failure is cached as unknown until the next refresh, which retries it once). Slot 0 = newest short <= 3 days old, slot k = (3k,
+2026-11-08 (tests pass, device check pending): order is by recency slot of each CLIP's own date,
+round-robin across channels. Every shown clip gets one `VideoSource.detail` call (session-cached by
+pageUrl; a failure is cached as unknown until the next refresh, which retries it once); the tab has no per-clip date. Slot 0 = newest short <= 3 days old, slot k = (3k,
 3k+3] days, unknown date = last. Inside a slot unseen clips come first, seen clips last, both
-shuffled by per-session keys and spread round-robin across channels (one clip per channel per round; 2026-11-08, top of feed had 3-4 clips of one channel). Watched shorts are NO LONGER removed. Seen = `watch_history` read at
+spread round-robin across channels: round N = each channel's N-th clip in that slot, channel order by
+per-session keys, last channel of a round never opens the next. A channel's own clips keep tab order. Watched shorts are NO LONGER removed. Seen = `watch_history` read at
 refresh only, so a clip watched mid-session keeps its place. Pager settle writes the clip to
 `watch_history` once per session (`ShortsViewModel.recordShown`, honours recordWatchHistory). The
 Shorts channel-tab route is not recorded (its pager passes no callback). Pure: `orderShortsFeed`,

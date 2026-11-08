@@ -303,3 +303,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-06 | Live streams expose only the HLS manifest (extractor patch) | a live stream's chunk URLs were picked as a progressive pair and stalled at 0:00
 2026-11-07 | updater picks the APK matching Build.SUPPORTED_ABIS[0], no fallback | first-.apk pick could offer another ABI's build
 2026-11-08 | Shorts slot order is round-robin across channels, random within a round | random per-clip keys alone put 3-4 clips of one channel at the top
+2026-11-08 | Shorts ordered by each clip's own date (3-day slots), round-robin across channels per slot | per-channel slots put 3 clips of one channel at the top; needs one detail call per shown clip

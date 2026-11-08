@@ -47,8 +47,6 @@ internal data class ShortsFeedState(
  * Where one channel's shorts tab paging stands. [buffer] holds fetched-but-not-yet-shown items
  * (a tab page is ~48 clips; the feed serves [SHORTS_ITEMS_PER_CHANNEL] per round so every channel
  * keeps its place in the feed). [nextPage] null with [exhausted] false = first page not fetched yet.
- * [newestDateMillis] is the upload instant of the channel's newest short, carried so load-more
- * rounds land in the same recency slot as the first page.
  */
 internal data class ChannelShortsCursor(
     val sourceId: String,
@@ -56,50 +54,46 @@ internal data class ChannelShortsCursor(
     val buffer: List<VideoRef> = emptyList(),
     val nextPage: String? = null,
     val exhausted: Boolean = false,
-    val newestDateMillis: Long? = null,
 ) {
     val hasMore: Boolean get() = buffer.isNotEmpty() || !exhausted
 }
 
-/** Clips per channel per round. The Shorts tab carries no upload date per clip, so a channel's
- *  date comes from one detail lookup of its newest short (see [lookupUploadMillis]). */
+/** Clips per channel per round. The Shorts tab carries no upload date per clip, so each shown clip
+ *  gets one detail lookup (see [lookupUploadMillis]) that fills its `uploadEpochMs`. */
 internal const val SHORTS_ITEMS_PER_CHANNEL = 4
 
-/** Width of one recency slot: three days. Channels whose newest short is at most three days old
- *  share slot 0; each further three days is the next slot. */
+/** Width of one recency slot: three days. Clips at most three days old share slot 0; each further
+ *  three days is the next slot. */
 internal const val SHORTS_SLOT_MILLIS = 3L * 24 * 60 * 60 * 1000
 
-/** Slot of a channel whose newest short has no known date. Larger than every dated slot, so such
- *  channels come last: a missing date must never promote a channel. */
+/** Slot of a clip with no known date. Larger than every dated slot, so such clips come last: a
+ *  missing date must never promote a clip. */
 internal const val UNKNOWN_DATE_SLOT = Int.MAX_VALUE
 
 /**
- * Slot index of a channel from the age of its newest short. Slot 0 is ages up to three days; slot k
+ * Slot index of a clip from its age. Slot 0 is ages up to three days; slot k
  * is ages in (3k, 3k+3] days, so exactly six days old is slot 1. Written as ceiling(age / slot) - 1
  * in integers to avoid floating-point edge cases at the boundaries. Negative ages (a clock behind
  * the server) fall into slot 0.
  */
-internal fun shortsSlotFor(newestDateMillis: Long?, nowMillis: Long): Int {
-    if (newestDateMillis == null) return UNKNOWN_DATE_SLOT
-    val ageMillis = nowMillis - newestDateMillis
+internal fun shortsSlotFor(uploadMillis: Long?, nowMillis: Long): Int {
+    if (uploadMillis == null) return UNKNOWN_DATE_SLOT
+    val ageMillis = nowMillis - uploadMillis
     if (ageMillis <= SHORTS_SLOT_MILLIS) return 0
     return ((ageMillis + SHORTS_SLOT_MILLIS - 1) / SHORTS_SLOT_MILLIS - 1).toInt()
 }
 
-/** One channel's clips for the feed: [shorts] are its first-page clips in tab order, and
- *  [newestDateMillis] is the upload instant of its newest short (null when unknown). */
-internal data class ChannelShorts(val newestDateMillis: Long?, val shorts: List<VideoRef>)
-
 /**
- * The Shorts feed order. Channels are grouped by the recency slot of their newest short, and slots
+ * The Shorts feed order. Clips are grouped by the recency slot of their own upload date, and slots
  * are emitted from newest to oldest. Within a slot, unseen clips come first and seen clips last,
  * because a clip already watched should not block a fresh one, but it stays in the feed rather
- * than vanishing. Each part is shuffled by the per-session keys in [keys]: the order is random
- * per session, and a repeat call never reorders clips whose keys were already drawn. A clip listed
- * by two channels keeps the first channel's slot.
+ * than vanishing. Each part is spread across channels (see [spreadAcrossChannels]); the random
+ * choice of which channel goes first uses the per-session keys in [keys], so a repeat call never
+ * reorders clips whose keys were already drawn. A clip listed by two channels keeps the first
+ * channel's place. Each channel's list is in tab order and its clips carry `uploadEpochMs`.
  */
 internal fun orderShortsFeed(
-    channels: List<ChannelShorts>,
+    channels: List<List<VideoRef>>,
     nowMillis: Long,
     seenPageUrls: Set<String>,
     keys: MutableMap<String, Double>,
@@ -108,35 +102,43 @@ internal fun orderShortsFeed(
     val channelsBySlot = sortedMapOf<Int, MutableList<List<VideoRef>>>()
     val placed = HashSet<String>()
     for (channel in channels) {
-        val clips = channel.shorts.filter { placed.add(it.pageUrl) }
-        if (clips.isEmpty()) continue
-        channelsBySlot.getOrPut(shortsSlotFor(channel.newestDateMillis, nowMillis)) { mutableListOf() }.add(clips)
+        val clipsBySlot = channel.filter { placed.add(it.pageUrl) }.groupBy { shortsSlotFor(it.uploadEpochMs, nowMillis) }
+        for ((slot, clips) in clipsBySlot) channelsBySlot.getOrPut(slot) { mutableListOf() }.add(clips)
     }
     return channelsBySlot.values.flatMap { slot -> orderWithinSlot(slot, seenPageUrls, keys, random) }
 }
 
-/** Unseen clips, then seen clips; each part is spread across channels (see [spreadAcrossChannels]).
- *  Keys are drawn for every clip before sorting, so the draw order does not depend on the sort. */
+/** A clip in one slot: which channel (index in the slot) it came from and its random key. */
+private class SlotClip(val channel: Int, val clip: VideoRef, val key: Double)
+
+/** Unseen clips, then seen clips; each part is spread across channels. Keys are drawn for every
+ *  clip before sorting, so the draw order does not depend on the sort algorithm. */
 private fun orderWithinSlot(
     channelClips: List<List<VideoRef>>,
     seenPageUrls: Set<String>,
     keys: MutableMap<String, Double>,
     random: Random,
 ): List<VideoRef> {
-    val keyed = channelClips.map { clips -> clips.map { clip -> clip to keys.getOrPut(clip.pageUrl) { random.nextDouble() } } }
-    val unseen = keyed.map { clips -> clips.filter { (clip, _) -> clip.pageUrl !in seenPageUrls } }
-    val seen = keyed.map { clips -> clips.filter { (clip, _) -> clip.pageUrl in seenPageUrls } }
+    val keyed = channelClips.mapIndexed { channel, clips ->
+        clips.map { clip -> SlotClip(channel, clip, keys.getOrPut(clip.pageUrl) { random.nextDouble() }) }
+    }
+    val unseen = keyed.map { clips -> clips.filter { it.clip.pageUrl !in seenPageUrls } }
+    val seen = keyed.map { clips -> clips.filter { it.clip.pageUrl in seenPageUrls } }
     return spreadAcrossChannels(unseen) + spreadAcrossChannels(seen)
 }
 
-/** Round-robin: round N holds each channel's N-th clip, shuffled by key within the round. A
- *  channel never puts two clips in a row while another channel still has clips for that round. */
-private fun spreadAcrossChannels(channels: List<List<Pair<VideoRef, Double>>>): List<VideoRef> {
-    val sorted = channels.map { clips -> clips.sortedBy { (_, key) -> key } }
-    val rounds = sorted.maxOfOrNull { it.size } ?: 0
-    return (0 until rounds).flatMap { round ->
-        sorted.mapNotNull { it.getOrNull(round) }.sortedBy { (_, key) -> key }.map { (clip, _) -> clip }
+/** Round-robin: round N holds each channel's N-th clip, in random channel order. The channel that
+ *  closed the previous round never opens the next one, so no channel shows twice in a row. */
+private fun spreadAcrossChannels(channels: List<List<SlotClip>>): List<VideoRef> {
+    val ordered = mutableListOf<SlotClip>()
+    for (round in 0 until (channels.maxOfOrNull { it.size } ?: 0)) {
+        val turn = channels.mapNotNull { it.getOrNull(round) }.sortedBy { it.key }.toMutableList()
+        if (turn.size > 1 && turn.first().channel == ordered.lastOrNull()?.channel) {
+            turn.add(turn.removeAt(0))
+        }
+        ordered += turn
     }
+    return ordered.map { it.clip }
 }
 
 /**
@@ -171,7 +173,7 @@ internal suspend fun lookupUploadMillis(fetchDetail: suspend () -> VideoDetail):
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        runCatching { android.util.Log.d("ShortsFeed", "newest-short date lookup failed: ${e::class.simpleName}") }
+        runCatching { android.util.Log.d("ShortsFeed", "short date lookup failed: ${e::class.simpleName}") }
         null
     }
 
@@ -211,8 +213,7 @@ internal suspend fun ChannelShortsCursor.next(
 
 /**
  * One channel's shorts tab first page, in tab order -- NOT capped and NOT filtered: the caller shows
- * [SHORTS_ITEMS_PER_CHANNEL], buffers the rest in a [ChannelShortsCursor], and uses the first clip as
- * the channel's newest short. Neither failure mode fails the whole feed, but they are reported apart:
+ * [SHORTS_ITEMS_PER_CHANNEL], buffers the rest in a [ChannelShortsCursor]. Neither failure mode fails the whole feed, but they are reported apart:
  * only a genuine tab-unavailable means "this channel posts no shorts". [fetch] is injected so this
  * stays a pure, network-free unit under test.
  */
