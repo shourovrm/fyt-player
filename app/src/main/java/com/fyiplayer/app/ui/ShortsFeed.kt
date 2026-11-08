@@ -105,30 +105,38 @@ internal fun orderShortsFeed(
     keys: MutableMap<String, Double>,
     random: Random = Random.Default,
 ): List<VideoRef> {
-    val clipsBySlot = sortedMapOf<Int, MutableList<VideoRef>>()
+    val channelsBySlot = sortedMapOf<Int, MutableList<List<VideoRef>>>()
     val placed = HashSet<String>()
     for (channel in channels) {
-        val clips = clipsBySlot.getOrPut(shortsSlotFor(channel.newestDateMillis, nowMillis)) { mutableListOf() }
-        for (clip in channel.shorts) {
-            if (placed.add(clip.pageUrl)) clips.add(clip)
-        }
+        val clips = channel.shorts.filter { placed.add(it.pageUrl) }
+        if (clips.isEmpty()) continue
+        channelsBySlot.getOrPut(shortsSlotFor(channel.newestDateMillis, nowMillis)) { mutableListOf() }.add(clips)
     }
-    return clipsBySlot.values.flatMap { clips -> orderWithinSlot(clips, seenPageUrls, keys, random) }
+    return channelsBySlot.values.flatMap { slot -> orderWithinSlot(slot, seenPageUrls, keys, random) }
 }
 
-/** Unseen clips shuffled, then seen clips shuffled. Keys are drawn for every clip before sorting,
- *  so the draw order does not depend on the sort algorithm. */
+/** Unseen clips, then seen clips; each part is spread across channels (see [spreadAcrossChannels]).
+ *  Keys are drawn for every clip before sorting, so the draw order does not depend on the sort. */
 private fun orderWithinSlot(
-    clips: List<VideoRef>,
+    channelClips: List<List<VideoRef>>,
     seenPageUrls: Set<String>,
     keys: MutableMap<String, Double>,
     random: Random,
 ): List<VideoRef> {
-    val keyed = clips.map { clip -> clip to keys.getOrPut(clip.pageUrl) { random.nextDouble() } }
-    val (seen, unseen) = keyed.partition { (clip, _) -> clip.pageUrl in seenPageUrls }
-    val unseenInOrder = unseen.sortedBy { (_, key) -> key }.map { (clip, _) -> clip }
-    val seenInOrder = seen.sortedBy { (_, key) -> key }.map { (clip, _) -> clip }
-    return unseenInOrder + seenInOrder
+    val keyed = channelClips.map { clips -> clips.map { clip -> clip to keys.getOrPut(clip.pageUrl) { random.nextDouble() } } }
+    val unseen = keyed.map { clips -> clips.filter { (clip, _) -> clip.pageUrl !in seenPageUrls } }
+    val seen = keyed.map { clips -> clips.filter { (clip, _) -> clip.pageUrl in seenPageUrls } }
+    return spreadAcrossChannels(unseen) + spreadAcrossChannels(seen)
+}
+
+/** Round-robin: round N holds each channel's N-th clip, shuffled by key within the round. A
+ *  channel never puts two clips in a row while another channel still has clips for that round. */
+private fun spreadAcrossChannels(channels: List<List<Pair<VideoRef, Double>>>): List<VideoRef> {
+    val sorted = channels.map { clips -> clips.sortedBy { (_, key) -> key } }
+    val rounds = sorted.maxOfOrNull { it.size } ?: 0
+    return (0 until rounds).flatMap { round ->
+        sorted.mapNotNull { it.getOrNull(round) }.sortedBy { (_, key) -> key }.map { (clip, _) -> clip }
+    }
 }
 
 /**

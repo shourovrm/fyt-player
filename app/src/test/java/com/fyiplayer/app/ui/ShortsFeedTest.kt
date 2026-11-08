@@ -187,6 +187,20 @@ class ShortsFeedTest {
         assertNull(millis)
     }
 
+    // Without the spread, random keys alone put 3+ of the first 4 clips from one channel often.
+    @Test fun `the top of a slot has one clip per channel before any channel repeats`() {
+        val channels = listOf(
+            channel(1.0, "a1", "a2", "a3", "a4"),
+            channel(1.0, "b1", "b2", "b3", "b4"),
+            channel(1.0, "c1", "c2", "c3", "c4"),
+        )
+        repeat(50) { seed ->
+            val result = order(channels, seed = seed)
+            assertEquals(setOf('a', 'b', 'c'), result.take(3).map { it.first() }.toSet())
+            assertEquals(setOf('a', 'b', 'c'), result.drop(3).take(3).map { it.first() }.toSet())
+        }
+    }
+
     @Test fun `shuffled order differs from tab order within a slot`() {
         val tab = (1..8).map { "s$it" }
         val result = order(listOf(channel(1.0, *tab.toTypedArray())), seed = 3)

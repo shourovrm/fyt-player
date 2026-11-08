@@ -6,7 +6,7 @@
 Each channel's newest short gets one `VideoSource.detail` call (session-cached by its pageUrl; a
 failure is cached as unknown until the next refresh, which retries it once). Slot 0 = newest short <= 3 days old, slot k = (3k,
 3k+3] days, unknown date = last. Inside a slot unseen clips come first, seen clips last, both
-shuffled by per-session keys. Watched shorts are NO LONGER removed. Seen = `watch_history` read at
+shuffled by per-session keys and spread round-robin across channels (one clip per channel per round; 2026-11-08, top of feed had 3-4 clips of one channel). Watched shorts are NO LONGER removed. Seen = `watch_history` read at
 refresh only, so a clip watched mid-session keeps its place. Pager settle writes the clip to
 `watch_history` once per session (`ShortsViewModel.recordShown`, honours recordWatchHistory). The
 Shorts channel-tab route is not recorded (its pager passes no callback). Pure: `orderShortsFeed`,
