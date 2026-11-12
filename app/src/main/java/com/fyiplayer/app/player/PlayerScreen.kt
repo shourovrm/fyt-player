@@ -134,6 +134,7 @@ fun PlayerScreen(
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showCaptionSheet by remember { mutableStateOf(false) }
+    var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showAudioSheet by remember { mutableStateOf(false) }
     var showChaptersSheet by remember { mutableStateOf(false) }
     var seekThumbs by remember { mutableStateOf<SeekThumbnails?>(null) }
@@ -384,8 +385,8 @@ fun PlayerScreen(
                             TransportSkipButton(forward = true) { PlaybackSession.skipNext(); interact() }
                         }
                     }
-                    // Top-right corner, both orientations: chapters, captions, dub. Hidden with the rest
-                    // of the controls; each button draws nothing when it has nothing to offer.
+                    // Top-right corner, both orientations: chapters, captions, dub, sleep timer. Hidden
+                    // with the rest of the controls; each button draws nothing when it has nothing to offer.
                     PlayerTopActions(
                         audioTracks = state.availableAudioTracks,
                         onOpenAudioTracks = { interact(); showAudioSheet = true },
@@ -394,6 +395,7 @@ fun PlayerScreen(
                         captionsAvailable = state.availableCaptions.isNotEmpty(),
                         captionsSelected = state.selectedCaptionLanguage != null,
                         onOpenCaptions = { interact(); showCaptionSheet = true },
+                        onOpenSleepTimer = { interact(); showSleepTimerSheet = true },
                         modifier = Modifier.align(Alignment.TopEnd),
                     )
                     // Fullscreen hides the Detail page, so the video title and channel go here.
@@ -484,6 +486,9 @@ fun PlayerScreen(
                         onChange = PlaybackSession::setSpeed,
                         onDismiss = { showSpeedSheet = false },
                     )
+                }
+                if (showSleepTimerSheet) {
+                    SleepTimerSheet(onDismiss = { showSleepTimerSheet = false })
                 }
                 if (showCaptionSheet) {
                     CaptionSheet(

@@ -70,6 +70,8 @@ import com.fyiplayer.app.data.repo.PlaylistRepository
 import com.fyiplayer.app.player.CaptionSheet
 import com.fyiplayer.app.player.CaptionSize
 import com.fyiplayer.app.player.CaptionsGlyph
+import com.fyiplayer.app.player.SleepTimerGlyph
+import com.fyiplayer.app.player.SleepTimerSheet
 import com.fyiplayer.app.player.PauseGlyph
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.player.PlaybackSession
@@ -115,6 +117,7 @@ internal fun ShortsPage(
     var showQualitySheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showCaptionSheet by remember { mutableStateOf(false) }
+    var showSleepTimerSheet by remember { mutableStateOf(false) }
     val shareChooserTitle = stringResource(R.string.action_share)
     val extras = MaterialTheme.fyiExtras
 
@@ -280,6 +283,7 @@ internal fun ShortsPage(
             onCaptions = if (isActive) { { showCaptionSheet = true } } else null,
             captionsAvailable = playerState.availableCaptions.isNotEmpty(),
             captionsSelected = playerState.selectedCaptionLanguage != null,
+            onSleepTimer = { showSleepTimerSheet = true },
             // Quality/speed act on PlaybackSession's current item -- only meaningful while this
             // page is the one actually loaded, so the buttons don't show on inactive pages.
             onQuality = if (isActive) { { showQualitySheet = true } } else null,
@@ -356,6 +360,9 @@ internal fun ShortsPage(
             onDismiss = { showSpeedSheet = false },
         )
     }
+    if (showSleepTimerSheet) {
+        SleepTimerSheet(onDismiss = { showSleepTimerSheet = false })
+    }
     if (showCaptionSheet) {
         CaptionSheet(
             tracks = playerState.availableCaptions,
@@ -378,6 +385,7 @@ private fun ShortsActionRail(
     onCaptions: (() -> Unit)?,
     captionsAvailable: Boolean,
     captionsSelected: Boolean,
+    onSleepTimer: () -> Unit,
     onQuality: (() -> Unit)?,
     speed: Float,
     onSpeed: (() -> Unit)?,
@@ -408,6 +416,9 @@ private fun ShortsActionRail(
             ) {
                 CaptionsGlyph(tint = extras.onVideo, size = Sizes.icon, filled = captionsSelected, dim = !captionsAvailable)
             }
+        }
+        RailButton(onClick = onSleepTimer, description = stringResource(R.string.player_sleep_timer)) {
+            SleepTimerGlyph(tint = extras.onVideo)
         }
         // Not a circle: the badge is wider than the 48dp round target, and a circle clip would cut
         // its outline at the corners. ControlShape keeps it square-cornered like every other control.
