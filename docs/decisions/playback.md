@@ -264,6 +264,7 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   sponsored-segment skip is still user-unverified.
 
 ## Gotchas
+- YouTube TTML captions carry a size (Media3: 1/15 of view height) that overrides `setFractionalTextSize`; the shared SubtitleView sets `setApplyEmbeddedFontSizes(false)` so the caption-size setting applies.
 - Link-opened (bare) refs take the resolved title before the MediaItem is built (startAt), so notification + mini player have it. Device-verified 2026-10-31.
 - Media3 notification redraws on playback/metadata events only, not on available-commands change: PlaybackService calls triggerNotificationUpdate() on onAvailableCommandsChanged.
 - A hidden app does not recompose: session Previous/trail-Next must start playback themselves (AppShell), not rely on the Detail page's play effect. Device-verified 2026-10-31.

@@ -48,6 +48,9 @@ private object SharedSurface {
     private fun applyCaptionSize(v: PlayerView, captionSize: CaptionSize) {
         if (captionSize == appliedCaptionSize) return
         val subtitles = requireNotNull(v.subtitleView) { "shared_player_view has no SubtitleView" }
+        // YouTube's TTML captions carry their own size (Media3 sets 1/15 of the view height),
+        // which would override ours and make the size setting do nothing.
+        subtitles.setApplyEmbeddedFontSizes(false)
         subtitles.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionSize.scale)
         appliedCaptionSize = captionSize
     }
