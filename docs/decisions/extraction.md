@@ -3,7 +3,9 @@
 ## Current state
 
 2026-11-06: the extractor is now the submodule `third_party/PipePipeExtractor` = fork `shourovrm/pipe-extractor-patched`
-branch `patched` (upstream 1a09d20e + our patch commits; tubepipe pins the same commit). Last patch: when
+branch `patched` (upstream 1a09d20e + our patch commits; tubepipe pins the same commit). 2026-11-12: pin moved to
+`ed08d9ca` (no caption download during extraction: `getSubtitles` no longer fetches the first caption track on
+every `StreamInfo.getInfo`; timedtext is rate-limited per IP). Kids-video patch: when
 visionos refuses a video (made-for-kids), the extractor asks the embedded player (`WEB_EMBEDDED_PLAYER` +
 `thirdParty.embedUrl` + the embed page's `encryptedHostFlags`, as yt-dlp's `web_embedded`) in the same pass and gets
 1080p HTTPS formats, so `LowQualityOffer` no longer fires and playback uses the DASH path; the Android-reel 360p and

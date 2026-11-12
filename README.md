@@ -109,10 +109,10 @@ If the `arm64-v8a` APK says "App not installed", try `armeabi-v7a`.
 
 ## Build from source
 
-The build needs JDK 21 and an Android SDK with platform 36 and build-tools 36. The extractor library is included in `third_party/`, so no other checkout is needed.
+The build needs JDK 21 and an Android SDK with platform 36 and build-tools 36. The extractor library is a git submodule in `third_party/`, so clone with submodules.
 
 ```sh
-git clone https://github.com/shourovrm/fyt-player.git
+git clone --recurse-submodules https://github.com/shourovrm/fyt-player.git
 cd fyt-player
 ```
 
@@ -146,7 +146,7 @@ data/          Room database, DataStore settings, backup codec
 third_party/   PipePipeExtractor submodule (our patched fork)
 ```
 
-YouTube metadata and streams come from [PipePipeExtractor](https://github.com/InfinityLoop1308/PipePipeExtractor), a NewPipeExtractor fork. Its source is included in `third_party/PipePipeExtractor` at upstream v5.5.0 with three small patches: shorts shelves in search results, the related-videos sidebar, and the channel @handle on the video page. The patches are in `third_party/patches/`; `third_party/README.md` explains how to move to a newer upstream tag.
+YouTube metadata and streams come from [pipe-extractor-patched](https://github.com/shourovrm/pipe-extractor-patched), our fork of PipePipeExtractor. It is the submodule `third_party/PipePipeExtractor`: upstream v5.5.0 with our patches on top, for shorts shelves in search and related videos, the channel @handle on the video page, made-for-kids videos, live streams, and no caption download while a video loads. `third_party/README.md` explains how to add a patch or move to a newer upstream version.
 
 Other platforms, YouTube downloads and the sign-in path use [yt-dlp](https://github.com/yt-dlp/yt-dlp) on the device through [youtubedl-android](https://github.com/yausername/youtubedl-android). yt-dlp can be updated from Settings without a new APK.
 
@@ -156,6 +156,6 @@ Extraction code stays out of the UI, and media URLs only come from the resolver 
 
 The source in this repository is [MIT](LICENSE), except `third_party/PipePipeExtractor`, which keeps its own GPL-3.0 license.
 
-The release APK contains PipePipeExtractor (GPL-3.0) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), so the built app as a whole is distributed under the terms of the GPL-3.0.
+The release APK contains our PipePipeExtractor fork (GPL-3.0) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense), so the built app as a whole is distributed under the terms of the GPL-3.0.
 
 The screenshots show public YouTube pages. The videos, thumbnails and channel names in them belong to their owners.
