@@ -68,5 +68,5 @@ internal fun formatSleepTimerRemaining(remainingMs: Long): String {
     return "%d:%02d".format(minutes, seconds)
 }
 
-/** Reads the custom-minutes field: whole minutes from 1 to 12 hours, else null. */
-internal fun parseSleepTimerMinutes(text: String): Int? = text.trim().toIntOrNull()?.takeIf { it in 1..720 }
+/** Total minutes of a custom timer if it is from 1 minute to 12 hours, else null. */
+internal fun sleepTimerTotalMinutes(hours: Int, minutes: Int): Int? = (hours * 60 + minutes).takeIf { it in 1..720 }

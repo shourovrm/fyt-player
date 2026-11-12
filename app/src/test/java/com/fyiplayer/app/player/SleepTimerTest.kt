@@ -24,16 +24,14 @@ class SleepTimerTest {
         assertEquals("2:05:09", formatSleepTimerRemaining((2 * 3_600 + 5 * 60 + 9) * 1_000L))
     }
 
-    @Test fun `custom minutes accept 1 to 720`() {
-        assertEquals(1, parseSleepTimerMinutes("1"))
-        assertEquals(90, parseSleepTimerMinutes(" 90 "))
-        assertEquals(720, parseSleepTimerMinutes("720"))
+    @Test fun `custom timer accepts 1 minute to 12 hours`() {
+        assertEquals(5, sleepTimerTotalMinutes(0, 5))
+        assertEquals(90, sleepTimerTotalMinutes(1, 30))
+        assertEquals(720, sleepTimerTotalMinutes(12, 0))
     }
 
-    @Test fun `custom minutes reject empty, zero and too long`() {
-        assertNull(parseSleepTimerMinutes(""))
-        assertNull(parseSleepTimerMinutes("0"))
-        assertNull(parseSleepTimerMinutes("721"))
-        assertNull(parseSleepTimerMinutes("99999999999"))
+    @Test fun `custom timer rejects zero and past 12 hours`() {
+        assertNull(sleepTimerTotalMinutes(0, 0))
+        assertNull(sleepTimerTotalMinutes(12, 5))
     }
 }

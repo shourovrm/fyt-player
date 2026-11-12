@@ -1,7 +1,7 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
-- Sleep timer (2026-11-12): `SleepTimer` object (own main-thread scope) pauses the player after Off/15/30/45/60/Custom minutes; moon in the player top corner and the Shorts rail, badge = minutes left; not saved. Device-verified: 1-min custom timer paused a Short.
+- Sleep timer (2026-11-12): `SleepTimer` object (own main-thread scope) pauses the player after Off/15/30/45/60 min or Custom (hours 0-12 + minutes step 5 on `NumberWheel`s, shows the pause clock time); moon in the player top corner and the Shorts rail, badge = minutes left; not saved. Device-verified: 1-min custom timer paused a Short.
 2026-10-31 (b): the media session wraps `SessionPlayer` (ForwardingPlayer over ExoPlayer), not ExoPlayer.
 Notification/lockscreen/headset Next+Previous = `QueueMath.canSkipNext/Previous` (queue: next/prev index;
 single video: watch-trail entry or autoplay on) and run `skipNextFromSession/skipPreviousFromSession`

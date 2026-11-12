@@ -1,25 +1,28 @@
 package com.fyiplayer.app.player
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,22 +33,23 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import java.util.Date
 
 /** The preset choices, in minutes. Anything else is a custom timer. */
 private val SLEEP_TIMER_PRESETS = listOf(15, 30, 45, 60)
 
 /**
  * Sleep timer picker, same shape as [CaptionSheet]: Off, the presets, then Custom, which asks for
- * a number of minutes. A preset or Off closes the sheet. While a timer runs, a line under the
+ * hours and minutes on two wheels. A preset or Off closes the sheet. While a timer runs, a line under the
  * title counts down and the chosen row carries the check.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,25 +112,38 @@ private fun sleepTimerPresetLabel(minutes: Int): String =
         pluralStringResource(R.plurals.sleep_timer_minutes, minutes, minutes)
     }
 
-/** Asks for whole minutes; Start stays disabled until the field holds 1 to 720. */
+/** Hours and minutes wheels; Start stays disabled at 0:00 and past 12 hours. */
 @Composable
 private fun CustomSleepTimerDialog(onStart: (Int) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf("") }
-    val minutes = parseSleepTimerMinutes(text)
+    var hours by remember { mutableIntStateOf(1) }
+    var minutes by remember { mutableIntStateOf(30) }
+    val total = sleepTimerTotalMinutes(hours, minutes)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.sleep_timer_custom_title)) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it.filter(Char::isDigit) },
-                label = { Text(stringResource(R.string.sleep_timer_minutes_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    WheelWithLabel(stringResource(R.string.sleep_timer_hours_label), Modifier.weight(1f)) {
+                        NumberWheel(SLEEP_TIMER_HOURS, hours, onSelect = { hours = it }, format = Int::toString)
+                    }
+                    Text(stringResource(R.string.sleep_timer_separator), style = MaterialTheme.typography.titleLarge)
+                    WheelWithLabel(stringResource(R.string.sleep_timer_minutes_label), Modifier.weight(1f)) {
+                        NumberWheel(SLEEP_TIMER_MINUTES, minutes, onSelect = { minutes = it }, format = { "%02d".format(it) })
+                    }
+                }
+                if (total != null) {
+                    Text(
+                        stringResource(R.string.sleep_timer_pauses_at, pauseClockTime(total)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Spacing.s16),
+                    )
+                }
+            }
         },
         confirmButton = {
-            TextButton(shape = ControlShape, enabled = minutes != null, onClick = { minutes?.let(onStart) }) {
+            TextButton(shape = ControlShape, enabled = total != null, onClick = { total?.let(onStart) }) {
                 Text(stringResource(R.string.sleep_timer_start))
             }
         },
@@ -136,6 +153,24 @@ private fun CustomSleepTimerDialog(onStart: (Int) -> Unit, onDismiss: () -> Unit
             }
         },
     )
+}
+
+private val SLEEP_TIMER_HOURS = (0..12).toList()
+private val SLEEP_TIMER_MINUTES = (0..55 step 5).toList()
+
+@Composable
+private fun WheelWithLabel(label: String, modifier: Modifier, wheel: @Composable () -> Unit) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        wheel()
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** The wall-clock time [minutes] from now, in the phone's 12- or 24-hour format. */
+@Composable
+private fun pauseClockTime(minutes: Int): String {
+    val format = DateFormat.getTimeFormat(LocalContext.current)
+    return format.format(Date(System.currentTimeMillis() + minutes * 60_000L))
 }
 
 /**
@@ -152,8 +187,12 @@ fun SleepTimerGlyph(tint: Color, size: Dp = Sizes.icon) {
                 sleepTimerMinutesLeft(timer.remainingMs).toString(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.scrim,
+                maxLines = 1,
+                softWrap = false,
+                // Wider than the glyph from 100 minutes up; it grows left instead of wrapping.
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .wrapContentWidth(Alignment.End, unbounded = true)
                     .offset(x = 10.dp, y = (-6).dp)
                     .background(tint, CircleShape)
                     .padding(horizontal = 4.dp),
