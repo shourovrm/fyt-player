@@ -43,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
 import com.fyiplayer.app.core.VideoRef
+import com.fyiplayer.app.player.CAPTIONS_AT_TOP
 import com.fyiplayer.app.player.CaptionSize
 import com.fyiplayer.app.player.PlaybackSession
 import com.fyiplayer.app.player.SharedVideoSurface
@@ -285,6 +286,8 @@ internal fun ShortsPager(
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT,
             captionSize = captionSize,
             modifier = Modifier.fillMaxSize(),
+            // The bottom of a Short holds the title, channel and action buttons.
+            captionBottomPadding = CAPTIONS_AT_TOP,
         )
         VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val ref = items[page]

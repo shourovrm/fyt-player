@@ -307,3 +307,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-08 | Shorts grid pinned to top while the feed loads | keyed grid anchored the first-landed tile; newest clips sat off-screen above (device-confirmed, no date lookups failed)
 2026-11-08 | Samsung A13 install closed | works with non-arm64 APK via ABI-matched updater
 2026-11-12 | ignore embedded caption font sizes | TTML cue size overrode the Shorts/video caption-size setting
+2026-11-12 | caption sizes 8/10/14/16 pt; Shorts captions at top | fraction-of-height made Shorts captions huge; bottom of a Short holds title and buttons

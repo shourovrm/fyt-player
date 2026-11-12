@@ -1,14 +1,15 @@
 package com.fyiplayer.app.player
 
 /**
- * One of four caption text sizes. [scale] multiplies Media3's default caption size, so [MEDIUM]
- * (1.0) is exactly the size captions had before this setting existed.
+ * One of four caption text sizes, in typographic points (1/72 inch). A fixed size, not a fraction
+ * of the video height: a tall Short would otherwise get captions several times bigger than a
+ * landscape video's.
  */
-enum class CaptionSize(val scale: Float) {
-    SMALL(0.8f),
-    MEDIUM(1.0f),
-    LARGE(1.3f),
-    EXTRA_LARGE(1.7f);
+enum class CaptionSize(val points: Float) {
+    SMALL(8f),
+    MEDIUM(10f),
+    LARGE(14f),
+    EXTRA_LARGE(16f);
 
     companion object {
         val DEFAULT: CaptionSize = MEDIUM

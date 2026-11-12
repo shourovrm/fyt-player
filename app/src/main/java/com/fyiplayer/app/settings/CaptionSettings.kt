@@ -14,7 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import android.util.TypedValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -86,10 +89,14 @@ private fun CaptionSizeRow(label: String, selected: CaptionSize, onSelect: (Capt
 /** Shows the videos size on a line of body text, so the change is visible before leaving the page. */
 @Composable
 private fun CaptionSample(size: CaptionSize) {
+    // Same physical size the player draws: points converted to pixels, then to sp.
+    val metrics = LocalContext.current.resources.displayMetrics
+    val pixels = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_PT, size.points, metrics)
     val bodyLarge = MaterialTheme.typography.bodyLarge
+    val captionSp = with(LocalDensity.current) { pixels.toSp() }
     Text(
         stringResource(R.string.settings_caption_sample),
-        style = bodyLarge.scaledBy(size.scale),
+        style = bodyLarge.scaledBy(captionSp.value / bodyLarge.fontSize.value),
         color = MaterialTheme.colorScheme.onSurface,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),

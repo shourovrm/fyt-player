@@ -3,6 +3,7 @@
 package com.fyiplayer.app.player
 
 import android.content.Context
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -34,9 +35,9 @@ private object SharedSurface {
     // detach() re-homes the view to whoever's next in line rather than just removing it.
     private val registry = AttachRegistry<FrameLayout, SurfaceLook>()
 
-    // Last size written to the shared SubtitleView. update runs on every recomposition, and
-    // re-setting the same text size would invalidate the captions view each time.
-    private var appliedCaptionSize: CaptionSize? = null
+    // Last caption look written to the shared SubtitleView. update runs on every recomposition,
+    // and re-setting the same values would invalidate the captions view each time.
+    private var appliedCaptionLook: Pair<CaptionSize, Float>? = null
 
     // Inflated rather than constructed: surface_type is only read from compiled XML.
     private fun view(context: Context): PlayerView =
@@ -45,19 +46,21 @@ private object SharedSurface {
                 .inflate(R.layout.shared_player_view, null) as PlayerView
             ).also { view = it }
 
-    private fun applyCaptionSize(v: PlayerView, captionSize: CaptionSize) {
-        if (captionSize == appliedCaptionSize) return
+    private fun applyCaptionLook(v: PlayerView, look: SurfaceLook) {
+        val captionLook = look.captionSize to look.captionBottomPadding
+        if (captionLook == appliedCaptionLook) return
         val subtitles = requireNotNull(v.subtitleView) { "shared_player_view has no SubtitleView" }
         // YouTube's TTML captions carry their own size (Media3 sets 1/15 of the view height),
         // which would override ours and make the size setting do nothing.
         subtitles.setApplyEmbeddedFontSizes(false)
-        subtitles.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * captionSize.scale)
-        appliedCaptionSize = captionSize
+        subtitles.setFixedTextSize(TypedValue.COMPLEX_UNIT_PT, look.captionSize.points)
+        subtitles.setBottomPaddingFraction(look.captionBottomPadding)
+        appliedCaptionLook = captionLook
     }
 
     private fun parent(v: PlayerView, host: FrameLayout, look: SurfaceLook) {
         v.resizeMode = look.resizeMode
-        applyCaptionSize(v, look.captionSize)
+        applyCaptionLook(v, look)
         if (v.parent !== host) {
             (v.parent as? ViewGroup)?.removeView(v)
             host.addView(
@@ -112,19 +115,30 @@ internal class AttachRegistry<H, V> {
 
 /** How the shared view looks while a given host owns it. Held per host so a hand-off to another
  *  host restores that host's look, not the previous owner's. */
-internal data class SurfaceLook(val resizeMode: Int, val captionSize: CaptionSize)
+internal data class SurfaceLook(val resizeMode: Int, val captionSize: CaptionSize, val captionBottomPadding: Float)
+
+/** Caption lift that puts captions near the top of the video: a cue without its own position
+ *  sits this fraction of the view height above the bottom edge. */
+const val CAPTIONS_AT_TOP: Float = 0.8f
 
 /**
  * Renders the shared surface here. [resizeMode] is per-host ([androidx.media3.ui.AspectRatioFrameLayout]
  * constants): the full player letterboxes (`RESIZE_MODE_FIT`), a mini bar fills its box (`RESIZE_MODE_ZOOM`).
  * [captionSize] is the host's own caption pref: videos pass the video pref, the Shorts pager passes the Shorts pref.
+ * [captionBottomPadding] is how high captions sit, as a fraction of the view height above its bottom.
  */
 @Composable
-fun SharedVideoSurface(player: Player?, resizeMode: Int, captionSize: CaptionSize, modifier: Modifier = Modifier) {
+fun SharedVideoSurface(
+    player: Player?,
+    resizeMode: Int,
+    captionSize: CaptionSize,
+    modifier: Modifier = Modifier,
+    captionBottomPadding: Float = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION,
+) {
     AndroidView(
         factory = { ctx -> FrameLayout(ctx) },
         update = { host ->
-            SharedSurface.attach(host, SurfaceLook(resizeMode, captionSize))
+            SharedSurface.attach(host, SurfaceLook(resizeMode, captionSize, captionBottomPadding))
             SharedSurface.bind(player)
         },
         onRelease = { host -> SharedSurface.detach(host) },

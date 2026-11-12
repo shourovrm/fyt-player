@@ -5,13 +5,12 @@ import org.junit.Test
 
 class CaptionSizeTest {
 
-    @Test fun `medium is the default and keeps today's caption size`() {
+    @Test fun `medium is the default`() {
         assertEquals(CaptionSize.MEDIUM, CaptionSize.DEFAULT)
-        assertEquals(1.0f, CaptionSize.DEFAULT.scale, 0f)
     }
 
-    @Test fun `the four steps scale as specified`() {
-        assertEquals(listOf(0.8f, 1.0f, 1.3f, 1.7f), CaptionSize.entries.map { it.scale })
+    @Test fun `the four steps are 8, 10, 14 and 16 points`() {
+        assertEquals(listOf(8f, 10f, 14f, 16f), CaptionSize.entries.map { it.points })
     }
 
     @Test fun `every stored name reads back as its own step`() {
