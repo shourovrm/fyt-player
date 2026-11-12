@@ -12,6 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-12 v0.3.0: sleep timer (player + Shorts, custom hour/minute wheels), caption sizes 8/10/14/16 pt,
+  Shorts captions at top, TTML embedded caption size ignored. See playback.md.
 - 2026-11-08 v0.2.47: Shorts ordered by clip date in 3-day slots, round-robin channels; grid stays at top while loading.
 - 2026-11-07 v0.2.46: updater downloads the APK matching the device ABI; fullscreen shows video title + channel top-left.
 - 2026-11-06 v0.2.45: extractor from the shared fork submodule (kids videos via the embedded player, no SABR; live
