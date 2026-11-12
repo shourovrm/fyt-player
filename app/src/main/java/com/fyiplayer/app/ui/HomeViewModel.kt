@@ -20,6 +20,7 @@ import com.fyiplayer.app.source.newpipe.SearchSuggestions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -67,6 +68,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Home's "Explore" chip row: null is the existing feed (For you), a [Topic] switches the
      *  list below to that topic's shelf. */
     var selectedTopic: Topic? by mutableStateOf(null)
+
+    /** Counts channels hidden from the feed too: they are still subscriptions. */
+    val subscriptionCount: Flow<Int> = subscriptionRepo.observeCount()
     internal val topicResults = mutableStateMapOf<Topic, TabResult>()
 
     init {

@@ -30,6 +30,7 @@ class Prefs(private val context: Context) {
     private companion object {
         val ENABLED_SOURCES = stringSetPreferencesKey("enabled_sources")
         val EXPLORE_TOPICS = stringSetPreferencesKey("explore_topics")
+        val SHOW_FOR_YOU = booleanPreferencesKey("show_for_you")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val MAX_RES_WIFI = intPreferencesKey("max_res_wifi")
         val MAX_RES_MOBILE = intPreferencesKey("max_res_mobile")
@@ -63,6 +64,12 @@ class Prefs(private val context: Context) {
      *  opt-in: PipePipe's "trending" kiosk is really this feed and it reads as noise next to News. */
     val exploreTopics: Flow<Set<String>> = flow(EXPLORE_TOPICS, setOf("LOCAL", "NEWS", "MOVIES", "SPORTS", "MUSIC"))
     suspend fun setExploreTopics(v: Set<String>) = set(EXPLORE_TOPICS, v)
+
+    /** Home's "For you" tab. Its own key, not a name in [exploreTopics]: existing installs have no
+     *  such name stored, so they would read it as switched off. Home still hides the tab until a
+     *  channel is subscribed. */
+    val showForYou: Flow<Boolean> = flow(SHOW_FOR_YOU, true)
+    suspend fun setShowForYou(v: Boolean) = set(SHOW_FOR_YOU, v)
 
     /** First-run language/country prompt (Home shows it until this flips). */
     val onboardingDone: Flow<Boolean> = flow(ONBOARDING_DONE, false)

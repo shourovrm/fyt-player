@@ -142,7 +142,8 @@ device-verified fresh-install:
   (`FEmusic_analytics_charts_home`, chart_type=TRENDING_MOVIES), same request NewPipe 0.29's
   "Trending movies and shows" kiosk sends. Charts carries chart position + release date, NEVER a
   view count -- `viewCountText` stays null there (no per-item fetch to fake one, rule: no I/O per
-  list item). Which chips show is a Settings toggle (`Prefs.exploreTopics`, News/Movies/Sports/Music
+  list item). For you shows only with >=1 subscription AND `Prefs.showForYou` (own switch atop Home
+  topics); otherwise Home opens on the first topic (Local). Which chips show is a Settings toggle (`Prefs.exploreTopics`, News/Movies/Sports/Music
   on by default, Live off -- it's really PipePipe's "Recommended Lives" kiosk under a friendlier
   name). Country/language change clears the cached topic pages and refetches (`HomeViewModel.init`
   drops+refetches the selected topic on `contentLanguage`/`contentCountry` change).

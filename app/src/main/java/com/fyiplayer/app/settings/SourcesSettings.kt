@@ -18,6 +18,7 @@ fun SourcesSettings(prefs: Prefs) {
     val scope = rememberCoroutineScope()
     val enabled by prefs.enabledSources.collectAsStateWithLifecycle(initialValue = emptySet())
     val topics by prefs.exploreTopics.collectAsStateWithLifecycle(initialValue = emptySet())
+    val showForYou by prefs.showForYou.collectAsStateWithLifecycle(initialValue = true)
 
     SettingsSection(stringResource(R.string.settings_sources)) {
         SourceRegistry.all.forEach { source ->
@@ -33,6 +34,11 @@ fun SourcesSettings(prefs: Prefs) {
     }
     // Switches, not chips: the design system keeps chips for content filters, never for settings.
     SettingsSection(stringResource(R.string.settings_home_topics)) {
+        SettingsSwitchRow(
+            label = stringResource(R.string.home_for_you),
+            checked = showForYou,
+            onCheckedChange = { checked -> scope.launch { prefs.setShowForYou(checked) } },
+        )
         Topic.entries.forEach { topic ->
             val on = topic.name in topics
             SettingsSwitchRow(

@@ -312,3 +312,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-12 | custom sleep timer = hour and minute wheels | chosen from hh:mm mocks (option 3); Compose has no wheel, so a snapping LazyColumn
 2026-11-12 | caption/audio pickers ordered: original, written, auto; Latin then other scripts, by English name | platform order (English-name sort, native labels) read as random; sleep timer moved to bottom row
 2026-11-12 | extractor pin 55375817 -> ed08d9ca (no caption download during extraction) | app was one patch behind the fork and tubepipe; every video load with captions spent one timedtext request
+2026-11-12 | For you tab hidden until a channel is subscribed, Local default; For you switch in Home topics; Shorts no-subs text "No channel with shorts is subscribed yet." | user request: a fresh install opened on an empty feed

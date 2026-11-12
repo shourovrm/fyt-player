@@ -72,7 +72,7 @@ Filled in from the rebuild; one row per string. Reason is one phrase.
 | Results | LIVE / UPCOMING | Live / Upcoming | sentence case |
 | Results | No more results | No more videos. | vocabulary |
 | Shorts | You're all caught up — no more Shorts from your subscriptions. | No more Shorts from your channels. | no dash |
-| Shorts | Your Shorts feed is built from the channels you subscribe to. Subscribe to a channel to see its shorts here. | No Shorts yet. Subscribe to a channel to see its Shorts here. | empty-state pattern |
+| Shorts | Your Shorts feed is built from the channels you subscribe to. Subscribe to a channel to see its shorts here. | No channel with shorts is subscribed yet. | user's wording (2026-11-12), overrides the "No <noun> yet." pattern |
 | Shorts | Couldn't load shorts from your subscriptions. Check your connection and try again. | Could not load Shorts. Check your connection and try again. | plain words |
 | Shorts | Couldn't load shorts from N of your subscriptions. The rest post no shorts. | Could not load Shorts from N channels. The others have none. | plain words |
 | Shorts | None of your subscribed channels post Shorts. | No Shorts yet. Your channels have not posted any. | empty-state pattern |

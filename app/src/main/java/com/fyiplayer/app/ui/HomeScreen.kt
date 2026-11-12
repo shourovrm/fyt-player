@@ -317,10 +317,23 @@ fun HomeScreen(
                 Column(Modifier.fillMaxSize()) {
                     val exploreTopics by app.prefs.exploreTopics.collectAsStateWithLifecycle(initialValue = emptySet())
                     val topics = Topic.entries.filter { it.name in exploreTopics }
-                    if (topics.isNotEmpty()) TopicTabRow(topics, selected = vm.selectedTopic, onSelect = { vm.selectTopic(it) })
+                    val subscriptionCount: Int? = vm.subscriptionCount.collectAsStateWithLifecycle(initialValue = null).value
+                    val showForYou: Boolean? = app.prefs.showForYou.collectAsStateWithLifecycle(initialValue = null).value
+                    // null until both are read, so a subscribed user never sees Local flash first.
+                    val forYouVisible: Boolean? = if (subscriptionCount == null || showForYou == null) {
+                        null
+                    } else {
+                        subscriptionCount > 0 && showForYou
+                    }
+                    // With no subscriptions For you can only be empty, so open on the first topic (Local).
+                    LaunchedEffect(forYouVisible, topics) {
+                        if (forYouVisible == false && vm.selectedTopic == null) vm.selectTopic(topics.firstOrNull())
+                    }
+                    val tabs: List<Topic?> = if (forYouVisible == true) listOf(null) + topics else topics
+                    if (tabs.isNotEmpty()) TopicTabRow(tabs, selected = vm.selectedTopic, onSelect = { vm.selectTopic(it) })
                     val topic = vm.selectedTopic
                     if (topic == null) {
-                        PullToRefreshBox(
+                        if (forYouVisible == true) PullToRefreshBox(
                             isRefreshing = vm.feed.loading,
                             onRefresh = { vm.refreshFeed(browseSources) },
                             modifier = Modifier.weight(1f),
@@ -369,12 +382,11 @@ fun HomeScreen(
     if (!onboardingDone) OnboardingSheet(app.prefs)
 }
 
-/** Home's topic tabs: "For you" (the subscriptions feed, [selected] null) then each [Topic] in
- *  declaration order. Underline style; scrolls sideways once the row is wider than the screen. */
+/** Home's topic tabs: a null entry is "For you" (the subscriptions feed), the rest are [Topic]s.
+ *  Underline style; scrolls sideways once the row is wider than the screen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TopicTabRow(topics: List<Topic>, selected: Topic?, onSelect: (Topic?) -> Unit) {
-    val tabs: List<Topic?> = listOf(null) + topics
+private fun TopicTabRow(tabs: List<Topic?>, selected: Topic?, onSelect: (Topic?) -> Unit) {
     PrimaryScrollableTabRow(
         // A topic switched off in Settings can stay selected; -1 would crash the indicator.
         selectedTabIndex = tabs.indexOf(selected).coerceAtLeast(0),

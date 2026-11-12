@@ -40,7 +40,8 @@
     <string name="shorts_details">Details</string>
     <string name="shorts_title">Shorts</string>
     <string name="shorts_channel_link">%1$s  ›</string>
-    <string name="shorts_empty_no_subscriptions">No Shorts yet.</string>
+    <string name="shorts_empty_no_subscriptions">No channel with shorts is subscribed yet.</string>
+    <string name="shorts_empty">No Shorts yet.</string>
     <string name="shorts_failed_all">Shorts did not load. Try again.</string>
     <plurals name="shorts_failed_some">
         <item quantity="one">Shorts from %1$d channel did not load. Try again.</item>

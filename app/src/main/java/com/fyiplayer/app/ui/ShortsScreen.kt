@@ -173,7 +173,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
                     },
                 )
                 else -> EmptyStateScreen(
-                    title = stringResource(R.string.shorts_empty_no_subscriptions),
+                    title = stringResource(R.string.shorts_empty),
                 )
             }
         }
