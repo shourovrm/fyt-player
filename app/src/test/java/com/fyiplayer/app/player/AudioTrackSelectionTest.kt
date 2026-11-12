@@ -123,6 +123,7 @@ class AudioTrackSelectionTest {
             audioFormat("zh-b", "zh.2", 96_000, isOriginal = false, label = "Chinese"),
             audioFormat("en", "en.0", 96_000, isOriginal = true, label = "English"),
         )
-        assertEquals(listOf("Chinese 1", "Chinese 2", "English"), audioTrackOptionsOf(formats).map { it.label })
+        // The original (English) leads the picker; the numbering of the two Chinese tracks is what is under test.
+        assertEquals(listOf("English", "Chinese 1", "Chinese 2"), audioTrackOptionsOf(formats).map { it.label })
     }
 }

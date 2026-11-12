@@ -15,11 +15,11 @@ data class SelectionResult(val selection: FormatSelection?, val reason: String? 
 /** One row of the audio-language picker: [trackId] is what [FormatSelector.select] takes back. */
 data class AudioTrackOption(val trackId: String, val label: String)
 
-/** The distinct audio language tracks a format list offers, in the order the platform listed them.
+/** The distinct audio language tracks a format list offers, in picker order ([orderAudioFormats]).
  *  Empty when the list has no track ids. Used as the dub picker's rows, and shown only when there
  *  is more than one row (a single-language video has nothing to switch to). */
 fun audioTrackOptionsOf(formats: List<MediaFormat>): List<AudioTrackOption> =
-    formats.filter { it.isAudioOnly }
+    orderAudioFormats(formats.filter { it.isAudioOnly })
         .mapNotNull { format -> format.audioTrackId?.let { id -> AudioTrackOption(id, format.audioLabel ?: id) } }
         .distinctBy { it.trackId }
         .let(::numberDuplicateLabels)

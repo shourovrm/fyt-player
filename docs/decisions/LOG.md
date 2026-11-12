@@ -310,3 +310,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-12 | caption sizes 8/10/14/16 pt; Shorts captions at top | fraction-of-height made Shorts captions huge; bottom of a Short holds title and buttons
 2026-11-12 | sleep timer pauses playback, moon in top corner + Shorts rail | YouTube-style list chosen from mock A; End of video dropped (autoplay off already stops)
 2026-11-12 | custom sleep timer = hour and minute wheels | chosen from hh:mm mocks (option 3); Compose has no wheel, so a snapping LazyColumn
+2026-11-12 | caption/audio pickers ordered: original, written, auto; Latin then other scripts, by English name | platform order (English-name sort, native labels) read as random; sleep timer moved to bottom row

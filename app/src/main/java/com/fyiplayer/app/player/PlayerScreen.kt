@@ -385,8 +385,8 @@ fun PlayerScreen(
                             TransportSkipButton(forward = true) { PlaybackSession.skipNext(); interact() }
                         }
                     }
-                    // Top-right corner, both orientations: chapters, captions, dub, sleep timer. Hidden
-                    // with the rest of the controls; each button draws nothing when it has nothing to offer.
+                    // Top-right corner, both orientations: chapters, captions, dub. Hidden with the rest
+                    // of the controls; each button draws nothing when it has nothing to offer.
                     PlayerTopActions(
                         audioTracks = state.availableAudioTracks,
                         onOpenAudioTracks = { interact(); showAudioSheet = true },
@@ -395,7 +395,6 @@ fun PlayerScreen(
                         captionsAvailable = state.availableCaptions.isNotEmpty(),
                         captionsSelected = state.selectedCaptionLanguage != null,
                         onOpenCaptions = { interact(); showCaptionSheet = true },
-                        onOpenSleepTimer = { interact(); showSleepTimerSheet = true },
                         modifier = Modifier.align(Alignment.TopEnd),
                     )
                     // Fullscreen hides the Detail page, so the video title and channel go here.
@@ -452,6 +451,7 @@ fun PlayerScreen(
                     speedLabel = formatSpeed(state.speed),
                     speedChanged = state.speed != 1f,
                     onOpenSpeed = { interact(); showSpeedSheet = true },
+                    onOpenSleepTimer = { interact(); showSleepTimerSheet = true },
                     looping = state.repeatMode == RepeatMode.ONE,
                     onToggleLoop = { interact(); PlaybackSession.toggleLoop() },
                     autoplayNext = autoplayNext,

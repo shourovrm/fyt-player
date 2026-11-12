@@ -63,8 +63,9 @@ import com.fyiplayer.app.ui.theme.fyiExtras
  *    icon buttons right) and the bar on the video's edge, full width (YouTube); in fullscreen the
  *    bar 24dp in from the screen sides with the row BELOW it (PipePipe -- the thumb otherwise sits
  *    under the rounded screen corner).
- * The row is the time label, then four targets of at least 40dp: Speed, Quality, Loop, Fullscreen.
- * Captions moved to the top-right corner (PlayerTopActions). Speed and Quality both draw their
+ * The row is the time label, then targets of at least 40dp: Sleep timer, Speed, Quality, Loop,
+ * Fullscreen. Captions moved to the top-right corner (PlayerTopActions). The budget below predates
+ * the Sleep timer's 40dp; check font scale 1.3 with an hour-long video after changing the row. Speed and Quality both draw their
  * current value as text: Quality is an outlined badge with the playing height or "Auto", and
  * it is the only target wider than 40dp. Budget at the default font scale: the three 40dp targets
  * are 120dp, the badge is about 45dp for a four-digit height, and the label is about 105dp (an
@@ -88,6 +89,7 @@ internal fun ControlBar(
     speedLabel: String,
     speedChanged: Boolean,
     onOpenSpeed: () -> Unit,
+    onOpenSleepTimer: () -> Unit,
     looping: Boolean,
     onToggleLoop: () -> Unit,
     autoplayNext: Boolean,
@@ -257,6 +259,9 @@ internal fun ControlBar(
                 style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
             )
             Box(modifier = Modifier.weight(1f))
+            ControlIcon(description = stringResource(R.string.player_sleep_timer), onClick = onOpenSleepTimer) {
+                SleepTimerGlyph(tint = extras.onVideo)
+            }
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
                 // Lit like Repeat: a filled pill marks any non-default speed.
                 Text(

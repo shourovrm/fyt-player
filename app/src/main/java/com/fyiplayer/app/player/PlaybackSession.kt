@@ -1033,7 +1033,7 @@ object PlaybackSession {
                 it.copy(
                     current = playRef, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
                     selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
-                    availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
+                    availableCaptions = orderCaptions(item.resolved.captions, item.resolved.formats), selectedCaptionLanguage = language,
                     availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                     selectedAudioTrackId = audioTrackIdOf(item.selection),
                     isPlaying = player.isPlaying,
@@ -1185,7 +1185,7 @@ object PlaybackSession {
             }
             if (online.isEmpty() || i != index || !currentIsDownload || queue.getOrNull(i)?.pageUrl != ref.pageUrl) return@launch
             currentCaptions = currentCaptions + online
-            _state.update { it.copy(availableCaptions = currentCaptions) }
+            _state.update { it.copy(availableCaptions = orderCaptions(currentCaptions, currentFormats)) }
             rebuildCurrent(_state.value.selectedHeight ?: maxHeight(), null)
         }
     }
@@ -1289,7 +1289,7 @@ object PlaybackSession {
             it.copy(
                 current = ref, firstFrameRendered = if (resetFirstFrame) false else it.firstFrameRendered, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
                 selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
-                availableCaptions = item.resolved.captions, selectedCaptionLanguage = language,
+                availableCaptions = orderCaptions(item.resolved.captions, item.resolved.formats), selectedCaptionLanguage = language,
                 availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                 selectedAudioTrackId = audioTrackIdOf(item.selection),
                 // seed from the player: an advance between two already-playing items never fires

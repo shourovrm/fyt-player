@@ -22,8 +22,7 @@ import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.fyiExtras
 
 /**
- * The top-end corner of the player, left to right: Chapters, Captions, Dub (audio language), then
- * Sleep timer, which always shows: it applies to whatever plays, not to this video.
+ * The top-end corner of the player, left to right: Chapters, Captions, then Dub (audio language).
  * The caller places this at Alignment.TopEnd and shows it only while the controls are up. Each
  * button shows only when it has something to offer: Chapters when the video has any, Captions
  * when it has subtitle tracks, Dub when there is more than one audio language to switch between.
@@ -38,7 +37,6 @@ internal fun PlayerTopActions(
     captionsAvailable: Boolean,
     captionsSelected: Boolean,
     onOpenCaptions: () -> Unit,
-    onOpenSleepTimer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val extras = MaterialTheme.fyiExtras
@@ -86,16 +84,6 @@ internal fun PlayerTopActions(
             ) {
                 GlobeGlyph(tint = extras.onVideo, size = Sizes.icon)
             }
-        }
-        val sleepTimerDescription = stringResource(R.string.player_sleep_timer)
-        IconButton(
-            onClick = onOpenSleepTimer,
-            colors = IconButtonDefaults.iconButtonColors(containerColor = extras.videoScrim),
-            modifier = Modifier
-                .size(Sizes.touchTarget)
-                .semantics { contentDescription = sleepTimerDescription },
-        ) {
-            SleepTimerGlyph(tint = extras.onVideo)
         }
     }
 }
