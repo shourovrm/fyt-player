@@ -2,7 +2,8 @@
 
 ## Current state
 - 2026-11-14 (device-verified A059: portrait sheet, fullscreen card, tap-outside close, outlined button): speed sheet restructured per mock (value, Fine tune = minus/slider/plus in one row, Presets = six equal outlined tiles; Reset removed, the 1x tile does it). Fullscreen player opens `SpeedCard` (360 dp card above the seek bar, tap outside or Back closes) instead of the sheet; Shorts keeps the sheet. Bar speed button = `QualityBadge` outline when speed != 1x (the filled pill read as too white). Supersedes the 2026-10-31 speed line below.
-- 2026-11-14: search suggestion debounce 300 ms -> 100 ms. Device (A059, Wi-Fi, rough screenshot timing): suggestions still land ~0.6-1 s after a keystroke, while the endpoint answers in ~0.1 s warm / ~0.3 s cold from the laptop on the same network. The rest is unexplained: add a timing line around `SearchSuggestions.fetch` before changing more.
+- 2026-11-14 (device-verified A059, screen-recorded): search suggestions = own request in `SearchSuggestions` to `www.google.com/complete/search?client=firefox&ds=yt` (own OkHttp client, no cookies, 3 s call timeout, hl/gl from `NewPipeInit`), no longer the extractor's `suggestqueries.google.com`; debounce 100 ms. Keystroke to list: ~730 ms before, ~320-350 ms now.
+- 2026-11-14 (device-verified A059): `FeedCache` (`data/repo`, one JSON file `filesDir/home_feed.json`, max 60 items) saves the For you feed after each complete refresh; `HomeViewModel.refreshFeed` shows it at once on a fresh start and swaps in the fresh feed in ONE step when every channel has answered (an empty screen still fills channel by channel; all channels failing keeps the shown/saved feed). Stored: page URL, title, uploader, duration, upload time, unsigned thumbnail path; view count and age text are not stored (stale). YouTube thumbnails are rebuilt from the id on read (`youtubeThumbnailFor`). Cold start: titles + thumbnails ~0.4 s after the splash, was 1.5-3 s of skeleton.
 2026-11-05 (built, NOT device-checked: phone disconnected; v0.2.42): Library icon switcher + `LibrarySectionHeading(name, count)`, History date groups (`LibraryHistoryGroups.kt`, tests), shared selection on History/Likes/Channels/Downloads, play-all/play-selected icons.
 2026-11-05 (device-verified; v0.2.41): downloaded videos play from the file (`player/DownloadedPlayback.kt`; caption language "qaa" for the downloaded .srt so it never collides with an online track). Untested on device: missing file while offline (needs airplane mode + a deleted file).
 2026-11-05 (device-verified light, portrait; v0.2.40): theme F coloured icons (`IconColours` in fyiExtras), Settings hub tiles, sheets recoloured per row via nested MaterialTheme; Detail ChannelRow (avatar, @handle from patch 0003, subscriber count, bell = SubscriptionRepository toggle); Home refresh in app bar. Download icon is coloured only once downloaded.
@@ -232,7 +233,7 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
 `Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
 ## Open items
-- App start delay (user report 2026-11-14), measured on A059: cold start to first frame 0.26-0.64 s (fine); then ~1.5-3 s of skeleton until the For you feed arrives from the network, cards reorder as channels land, refresh spinner ~7 s. Cause: feed is memory-only. Fix needs a decision: persisting the last feed means storing thumbnail URLs (rule: image URLs stay in memory) or deriving them from the video id.
+- Feed swap after a refresh can move cards under the finger (one swap, ~7 s after start on A059); watch for complaints before adding a 'new videos' prompt.
 - V4 unverified: dark theme, landscape side rail, font scale 1.3, 360 dp phones (grid card title width).
 
 - Not done from the 2026-10-06 review: strings to resources (app is not localisable, ~93
@@ -254,6 +255,8 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
   remove), playlist tab thumbnails, unsubscribe flow.
 
 ## Gotchas
+- `suggestqueries.google.com` and `suggestqueries-clients6.youtube.com` resolve to a far Google node under some DNS (AdGuard private DNS on A059: ping ~350 ms vs ~40 ms for `www.google.com` / `www.youtube.com`). Check `adb shell ping` per host before blaming app code for a slow request.
+- A YouTube listing thumbnail (`hq720.jpg?sqp=..`) can 404 once the signed query is stripped; `hqdefault.jpg` built from the id always exists.
 - Material SegmentedButton's `icon` slot is the selection check: an icon-only unselected segment draws nothing; put the glyph in `label`.
 - Bottom sheets read surfaceContainerLow; unset, it falls back to baseline lavender. Theme.kt pins every surfaceContainer slot.
 - Any `.dp` literal outside ui/theme other than 0/1/2/4/6/10, any `.sp`, any raw colour, or any

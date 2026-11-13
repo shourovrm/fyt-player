@@ -114,17 +114,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Source ids the cached feed was built for, so enabling/disabling a source rebuilds it. */
     private var loadedForSourceIds: Set<String>? = null
 
-    /** Rebuilds the feed from scratch: re-reads subscriptions, re-fetches every channel. */
+    /**
+     * Rebuilds the feed: re-reads subscriptions, re-fetches every channel. A feed already on
+     * screen stays there and is swapped once, when every channel has answered; on a fresh start
+     * that feed is the one saved by the last run ([FeedCache]). Only an empty screen fills
+     * channel by channel.
+     */
     fun refreshFeed(sources: List<VideoSource>) {
         feedJob?.cancel()
         val byId = sources.associateBy { it.id }
-        feed = FeedState(loading = true)
+        feed = feed.copy(loading = true)
         feedJob = viewModelScope.launch {
+            if (feed.items.isEmpty()) feed = feed.copy(items = app.feedCache.load())
+            val fillAsChannelsArrive = feed.items.isEmpty()
             // Every subscribed channel, not the newest-subscribed 8 (Shorts still caps): a channel
             // that never gets fetched can't have its 2-day-old upload land at the top.
             val channels = subscriptionRepo.observeFeedChannels().first()
             if (channels.isEmpty()) {
                 feed = FeedState(loaded = true, hasSubscriptions = false)
+                app.feedCache.save(emptyList())
                 return@launch
             }
             // ponytail: one burst per refresh; bounded so 30 subscriptions != 30 parallel innertube calls.
@@ -144,7 +152,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                             android.util.Log.d("HomeFeed", "no source for sourceId='${channel.sourceId}'")
                         }
                         outcomes[i] = ChannelFetchOutcome.Failed
-                        feed = feed.copy(items = sortByRecency(interleave(outcomes.map(::itemsOf))))
                         return@launch
                     }
                     val page = try {
@@ -165,16 +172,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         ChannelFetchOutcome.Ok(page.items.take(FEED_ITEMS_PER_CHANNEL))
                     }
                     // Append as each channel returns rather than waiting for the slowest one.
-                    feed = feed.copy(items = sortByRecency(interleave(outcomes.map(::itemsOf))))
+                    if (fillAsChannelsArrive) feed = feed.copy(items = sortByRecency(interleave(outcomes.map(::itemsOf))))
                 }
             }
             jobs.joinAll()
+            val failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed }
+            // Every channel failing means no connection: keep what is shown and the saved feed.
+            val nothingFetched = failedChannels == channels.size
+            val items = if (nothingFetched) feed.items else sortByRecency(interleave(outcomes.map(::itemsOf)))
             feed = feed.copy(
+                items = items,
                 loading = false,
                 loaded = true,
                 hasSubscriptions = true,
-                failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed },
+                failedChannels = failedChannels,
             )
+            if (!nothingFetched) app.feedCache.save(items)
         }
     }
 

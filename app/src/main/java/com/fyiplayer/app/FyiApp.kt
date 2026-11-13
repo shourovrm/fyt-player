@@ -8,6 +8,7 @@ import com.fyiplayer.app.core.VideoRef
 import com.fyiplayer.app.data.db.AppDatabase
 import com.fyiplayer.app.data.repo.DownloadState
 import com.fyiplayer.app.data.repo.DownloadRepository
+import com.fyiplayer.app.data.repo.FeedCache
 import java.io.File
 import android.net.NetworkCapabilities
 import com.fyiplayer.app.data.prefs.Prefs
@@ -44,6 +45,7 @@ class FyiApp : Application() {
     // Lazy: cheap until first real use, but constructed once so DataStore and Room state is shared.
     val prefs: Prefs by lazy { Prefs(this) }
     val database: AppDatabase by lazy { AppDatabase.get(this) }
+    val feedCache: FeedCache by lazy { FeedCache(File(filesDir, "home_feed.json")) }
 
     // Shared by NewPipeResolver only -- distinct from MediaItemFactory's playback client, a
     // different concern (metadata fetch vs. media datasource).

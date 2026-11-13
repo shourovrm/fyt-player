@@ -13,7 +13,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 
 ## Next
 - 2026-11-14 (unreleased, device-verified A059 in part): resume marker instead of auto-resume, end-of-video sleep timer,
-  speed card + outlined speed button, 100 ms suggestions. Open: app-start delay, Honor 200 fullscreen button. See playback.md, ui.md.
+  speed card + outlined speed button, suggestions from www.google.com, saved For you feed at start. Open: Honor 200 fullscreen button. See playback.md, ui.md.
 - 2026-11-12 v0.3.2: extractor pin moved to ed08d9ca (no caption download while a video loads), README links our extractor fork.
 - 2026-11-12 v0.3.1: picker track order (original, written, auto; Latin then other scripts), sleep timer moved to bottom row.
 - 2026-11-12 v0.3.0: sleep timer (player + Shorts, custom hour/minute wheels), caption sizes 8/10/14/16 pt,

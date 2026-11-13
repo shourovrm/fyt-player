@@ -317,3 +317,5 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-14 | sleep timer "When this video ends" added (reverses the 2026-11-12 drop) | user request; autoplay-off does not cover a queue or autoplay on
 2026-11-14 | speed: outlined bar button, restructured sheet, floating card in fullscreen | user: filled pill too white, presets stacked left, full-width sheet too much in fullscreen
 2026-11-14 | suggestion debounce 300 -> 100 ms | user-reported lag; the wait was the fixed floor
+2026-11-14 | suggestions fetched from www.google.com by the app, not via the extractor | device: suggestqueries host resolved 350 ms away under AdGuard DNS; same list from www.google.com at 40 ms
+2026-11-14 | For you feed saved to a JSON file and shown at start, one swap after refresh | user: start felt slow; start itself was 0.3 s, the wait was the network feed
