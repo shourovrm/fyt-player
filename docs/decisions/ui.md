@@ -1,6 +1,8 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
+- 2026-11-14 (built, NOT RUN ON A DEVICE): speed sheet restructured per mock (value, Fine tune = minus/slider/plus in one row, Presets = six equal outlined tiles; Reset removed, the 1x tile does it). Fullscreen player opens `SpeedCard` (360 dp card above the seek bar, tap outside or Back closes) instead of the sheet; Shorts keeps the sheet. Bar speed button = `QualityBadge` outline when speed != 1x (the filled pill read as too white). Supersedes the 2026-10-31 speed line below.
+- 2026-11-14: search suggestion debounce 300 ms -> 100 ms.
 2026-11-05 (built, NOT device-checked: phone disconnected; v0.2.42): Library icon switcher + `LibrarySectionHeading(name, count)`, History date groups (`LibraryHistoryGroups.kt`, tests), shared selection on History/Likes/Channels/Downloads, play-all/play-selected icons.
 2026-11-05 (device-verified; v0.2.41): downloaded videos play from the file (`player/DownloadedPlayback.kt`; caption language "qaa" for the downloaded .srt so it never collides with an online track). Untested on device: missing file while offline (needs airplane mode + a deleted file).
 2026-11-05 (device-verified light, portrait; v0.2.40): theme F coloured icons (`IconColours` in fyiExtras), Settings hub tiles, sheets recoloured per row via nested MaterialTheme; Detail ChannelRow (avatar, @handle from patch 0003, subscriber count, bell = SubscriptionRepository toggle); Home refresh in app bar. Download icon is coloured only once downloaded.
@@ -212,7 +214,7 @@ the ref instead of plain text.
 
 2026-08-08 field-report wave (tests green, device-UNverified): search: BackHandler exits search
 mode, suggestion dropdown (fork `YoutubeSuggestionExtractor` via
-`source/newpipe/SearchSuggestions.kt`, 300ms debounce), Clear-all in history dropdown,
+`source/newpipe/SearchSuggestions.kt`, 100ms debounce), Clear-all in history dropdown,
 PullToRefreshBox on home feed; search returns playlists (stopgap VideoRef, canonical
 `playlist?list=` URL, RD* mixes dropped, HomeScreen URL-heuristic routes to listing) and
 LIVE/UPCOMING badges (`VideoRef.isLive/isUpcoming`; upcoming = future upload date, the fork
@@ -230,6 +232,7 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
 `Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
 ## Open items
+- App start delay (user report 2026-11-14), not diagnosed: no phone attached. Known from code: home shows nothing until the subscribed-channel feed is fetched (feed is memory-only), first frame has empty `enabledSources`, no baseline profile. Measure on device before changing.
 - V4 unverified: dark theme, landscape side rail, font scale 1.3, 360 dp phones (grid card title width).
 
 - Not done from the 2026-10-06 review: strings to resources (app is not localisable, ~93

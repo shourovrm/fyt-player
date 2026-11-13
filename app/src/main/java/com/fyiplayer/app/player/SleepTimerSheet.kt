@@ -56,6 +56,7 @@ private val SLEEP_TIMER_PRESETS = listOf(15, 30, 45, 60)
 @Composable
 fun SleepTimerSheet(onDismiss: () -> Unit) {
     val running by SleepTimer.running.collectAsState()
+    val pausesAtEndOfVideo by SleepTimer.pausesAtEndOfVideo.collectAsState()
     var askCustom by remember { mutableStateOf(false) }
     val chosen = running?.minutes
     val customChosen = chosen != null && chosen !in SLEEP_TIMER_PRESETS
@@ -73,10 +74,20 @@ fun SleepTimerSheet(onDismiss: () -> Unit) {
                     )
                 }
             }
+            if (pausesAtEndOfVideo) {
+                item {
+                    Text(
+                        stringResource(R.string.sleep_timer_pauses_at_end),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.pageMargin),
+                    )
+                }
+            }
             item {
                 ChoiceListItem(
                     headline = stringResource(R.string.sleep_timer_off),
-                    selected = chosen == null,
+                    selected = chosen == null && !pausesAtEndOfVideo,
                     onSelect = { SleepTimer.cancel(); onDismiss() },
                 )
             }
@@ -85,6 +96,13 @@ fun SleepTimerSheet(onDismiss: () -> Unit) {
                     headline = sleepTimerPresetLabel(minutes),
                     selected = minutes == chosen,
                     onSelect = { SleepTimer.start(minutes); onDismiss() },
+                )
+            }
+            item {
+                ChoiceListItem(
+                    headline = stringResource(R.string.sleep_timer_end_of_video),
+                    selected = pausesAtEndOfVideo,
+                    onSelect = { SleepTimer.pauseAtEndOfVideo(); onDismiss() },
                 )
             }
             item {
@@ -175,13 +193,17 @@ private fun pauseClockTime(minutes: Int): String {
 
 /**
  * The sleep timer button's face: a crescent moon, plus a badge with the whole minutes left while
- * a timer runs. Shared by the player's top corner and the Shorts rail.
+ * a timer runs, or a plain dot while it waits for the video to end. Shared by the player's top corner and the Shorts rail.
  */
 @Composable
 fun SleepTimerGlyph(tint: Color, size: Dp = Sizes.icon) {
     val running by SleepTimer.running.collectAsState()
+    val pausesAtEndOfVideo by SleepTimer.pausesAtEndOfVideo.collectAsState()
     Box(Modifier.size(size)) {
         MoonGlyph(tint, size)
+        if (pausesAtEndOfVideo) {
+            Box(Modifier.align(Alignment.TopEnd).size(Spacing.s8).background(tint, CircleShape))
+        }
         running?.let { timer ->
             Text(
                 sleepTimerMinutesLeft(timer.remainingMs).toString(),

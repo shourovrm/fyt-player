@@ -480,7 +480,14 @@ fun PlayerScreen(
                         onDismiss = { showQualitySheet = false },
                     )
                 }
-                if (showSpeedSheet) {
+                if (showSpeedSheet && fullscreen) {
+                    SpeedCard(
+                        current = state.speed,
+                        onChange = PlaybackSession::setSpeed,
+                        onDismiss = { showSpeedSheet = false },
+                    )
+                }
+                if (showSpeedSheet && !fullscreen) {
                     SpeedSheet(
                         current = state.speed,
                         onChange = PlaybackSession::setSpeed,

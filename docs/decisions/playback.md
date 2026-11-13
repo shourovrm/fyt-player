@@ -1,6 +1,8 @@
 # Playback: player, session, queue, fullscreen and insets, captions, background service
 
 ## Current state
+- 2026-11-14 (built, NOT RUN ON A DEVICE -- no phone attached): a video with a saved position now starts from the BEGINNING; `PlaybackSession.resumeOffer` holds the saved position for 5 s after the first frame and `ResumeMarker` (PlayerChrome) draws a dot + time on the seek bar, tap = seek there. Supersedes the automatic resume described below; `segmentStartFor` now serves only same-item restarts (retry, expiry). Fullscreen with controls hidden shows no seek bar, so no marker. The 5 s tick save overwrites the old position once playback passes 5 s.
+- 2026-11-14 (built, NOT RUN ON A DEVICE): sleep timer option "When this video ends" = `SleepTimer.pauseAtEndOfVideo()` sets ExoPlayer `pauseAtEndOfMediaItems`; PlaybackSession cancels it on `PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM` or on STATE_ENDED (and then starts no next item / autoplay). Moon shows a plain dot while armed. It stays armed across a manual skip.
 - Sleep timer (2026-11-12): `SleepTimer` object (own main-thread scope) pauses the player after Off/15/30/45/60 min or Custom (hours 0-12 + minutes step 5 on `NumberWheel`s, shows the pause clock time); moon in the player bottom row left of Speed and in the Shorts rail, badge = minutes left; not saved. Device-verified: 1-min custom timer paused a Short.
 - Track order (2026-11-12, `TrackOrder.kt`): captions = Off, original language (written before auto), written, auto; audio = original, rest. Each group Latin-script labels then other scripts, A-Z by English language name. Original = audio track flagged original, else the single auto caption track, else none (no title guessing). Device-verified on a 16-dub video.
 2026-10-31 (b): the media session wraps `SessionPlayer` (ForwardingPlayer over ExoPlayer), not ExoPlayer.
@@ -232,6 +234,9 @@ selection survives quality switch. Edge-to-edge chrome (scaffold background behi
   `loadPosition` in startAt (shorts never resume). Resume bars in Library now light up.
 
 ## Open items
+- Device-verify the 2026-11-14 resume marker (portrait, fullscreen, tap lands on the time shown) and the end-of-video timer (queue with a prefetched next item, autoplay on, last item, Shorts).
+- Honor 200, seen once by the user, not reproduced: in fullscreen the fullscreen button drew garbled and could not be tapped for a while. No code change made; needs a screenshot or a repro. Fullscreen controls use a fixed 24 dp side inset and no rounded-corner inset.
+- Shade Next/Previous hidden on a single video with autoplay off once its page is not on top (the 2026-10-31 rule): user is checking whether that is what they see.
 
 - Headset/lockscreen play after the service died: `onPlaybackResumption` + last-played prefs
   are wired (`Prefs.lastPlayed`, page URL + title only) but DORMANT -- the manifest has no

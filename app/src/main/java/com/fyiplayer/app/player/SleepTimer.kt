@@ -1,5 +1,9 @@
+@file:OptIn(UnstableApi::class)
+
 package com.fyiplayer.app.player
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -11,7 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Pauses playback after a chosen number of minutes. One timer for the whole process, shared by
+ * Pauses playback after a chosen number of minutes, or when the playing video ends. One timer for the whole process, shared by
  * the full player and Shorts. Held outside any screen so it keeps counting while the app is in
  * the background; the playback service keeps the process alive while something plays. Not saved:
  * a killed process has nothing playing to pause.
@@ -28,10 +32,15 @@ object SleepTimer {
     /** The running timer, or null when none runs. */
     val running: StateFlow<RunningSleepTimer?> = _running.asStateFlow()
 
+    private val _pausesAtEndOfVideo = MutableStateFlow(false)
+
+    /** True while playback is set to pause when the playing video ends. */
+    val pausesAtEndOfVideo: StateFlow<Boolean> = _pausesAtEndOfVideo.asStateFlow()
+
     /** Starts a timer of [minutes], replacing any running one. */
     fun start(minutes: Int) {
         require(minutes > 0) { "sleep timer needs a positive duration, got $minutes" }
-        job?.cancel()
+        cancel()
         val endsAtMs = System.currentTimeMillis() + minutes * 60_000L
         job = scope.launch {
             var left = endsAtMs - System.currentTimeMillis()
@@ -45,10 +54,25 @@ object SleepTimer {
         }
     }
 
+    /**
+     * Pauses when the playing video ends, replacing any running timer. The player itself pauses
+     * at the end of the item, so autoplay and a queued next video do not start. PlaybackSession
+     * calls [cancel] once that has happened.
+     */
+    fun pauseAtEndOfVideo() {
+        cancel()
+        _pausesAtEndOfVideo.value = true
+        PlaybackSession.exoPlayer.pauseAtEndOfMediaItems = true
+    }
+
     fun cancel() {
         job?.cancel()
         job = null
         _running.value = null
+        if (_pausesAtEndOfVideo.value) {
+            _pausesAtEndOfVideo.value = false
+            PlaybackSession.exoPlayer.pauseAtEndOfMediaItems = false
+        }
     }
 }
 

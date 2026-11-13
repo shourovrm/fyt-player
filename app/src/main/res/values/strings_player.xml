@@ -35,7 +35,9 @@
     <string name="player_quality_stream">Stream instead</string>
     <string name="player_caption_downloaded">Downloaded</string>
     <string name="player_quality_height">%1$dp</string>
-    <string name="player_speed_reset">Reset to 1x</string>
+    <string name="player_resume_from">Resume from %1$s</string>
+    <string name="player_speed_fine_tune">Fine tune</string>
+    <string name="player_speed_presets">Presets</string>
     <string name="player_speed_minus">&#8722;</string>
     <string name="player_speed_plus">+</string>
     <string name="player_speed_slower">Slower</string>
@@ -75,8 +77,10 @@
         <item quantity="other">%d minutes</item>
     </plurals>
     <string name="sleep_timer_one_hour">1 hour</string>
+    <string name="sleep_timer_end_of_video">When this video ends</string>
     <string name="sleep_timer_custom">Custom</string>
     <string name="sleep_timer_pauses_in">Pauses in %1$s</string>
+    <string name="sleep_timer_pauses_at_end">Pauses when this video ends</string>
     <string name="sleep_timer_custom_title">Custom timer</string>
     <string name="sleep_timer_hours_label">Hours</string>
     <string name="sleep_timer_minutes_label">Minutes</string>

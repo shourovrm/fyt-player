@@ -47,6 +47,8 @@ object Sizes {
     val transportButton: Dp = 64.dp
     val progressTrack: Dp = 4.dp
     val progressThin: Dp = 2.dp
+    /** Earlier-position dot on the seek bar: between the idle (10 dp) and expanded (16 dp) thumb. */
+    val resumeDot: Dp = 12.dp
     // Autoplay switch in the player bar (YouTube-style small track with a knob).
     val switchTrackWidth: Dp = 36.dp
     val switchTrackHeight: Dp = 20.dp
@@ -73,6 +75,8 @@ object Sizes {
     val seekPreviewWidth: Dp = 160.dp
     val seekPreviewHeight: Dp = 90.dp
     val sheetMaxWidth: Dp = 320.dp
+    /** Fullscreen speed card: six 48 dp preset tiles, their gaps and the card padding. */
+    val speedCardWidth: Dp = 360.dp
     val dialogMinWidth: Dp = 280.dp
     val playerPortraitHeight: Dp = 220.dp
 

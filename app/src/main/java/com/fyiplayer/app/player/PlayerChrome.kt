@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,6 +41,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,8 +50,8 @@ import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.SeekThumbnails
+import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.NumeralStyle
-import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
@@ -103,6 +106,7 @@ internal fun ControlBar(
     // this Column, not the entire player chrome tree (CLAUDE.md perf task).
     val progress by PlaybackSession.progress.collectAsState()
     val sponsorMarkers by PlaybackSession.sponsorMarkers.collectAsState()
+    val resumeOffer by PlaybackSession.resumeOffer.collectAsState()
     var sliderWidthPx by remember { mutableStateOf(0) }
     // The whole seek row, not the inset slider: the scrub label may reach into the side insets
     // but must stay inside the row's edges.
@@ -195,6 +199,24 @@ internal fun ControlBar(
                     .padding(horizontal = sideInset)
                     .onGloballyPositioned { sliderWidthPx = it.size.width },
             )
+            resumeOffer?.let { offerMs ->
+                val density = LocalDensity.current
+                val markerWidthPx = with(density) { Sizes.touchTarget.roundToPx() }
+                val insetPx = with(density) { sideInset.roundToPx() }
+                // The slider keeps half a thumb clear at each end of its track.
+                val thumbHalfPx = with(density) { Spacing.s24.roundToPx() } / 2
+                val offerFraction = (offerMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                val centrePx = insetPx + thumbHalfPx + offerFraction * (sliderWidthPx - 2 * thumbHalfPx)
+                ResumeMarker(
+                    timeText = positionClock(offerMs, progress.durationMs),
+                    onClick = PlaybackSession::acceptResumeOffer,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        // unbounded: the time label rises above the 40dp slider box.
+                        .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
+                        .offset { IntOffset((centrePx - markerWidthPx / 2).toInt(), 0) },
+                )
+            }
             if (isScrubbing) {
                 val density = LocalDensity.current
                 val previewWidth = Sizes.seekPreviewWidth
@@ -263,20 +285,18 @@ internal fun ControlBar(
                 SleepTimerGlyph(tint = extras.onVideo)
             }
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
-                // Lit like Repeat: a filled pill marks any non-default speed.
-                Text(
-                    speedLabel,
-                    color = if (speedChanged) MaterialTheme.colorScheme.onPrimary else extras.onVideo,
-                    style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
-                    maxLines = 1,
-                    modifier = if (speedChanged) {
-                        Modifier
-                            .background(playedColor, RoundedCornerShape(Radius.m))
-                            .padding(horizontal = Spacing.s8, vertical = 4.dp)
-                    } else {
-                        Modifier
-                    },
-                )
+                // An outline marks any non-default speed. A filled pill was the brightest thing
+                // on the bar (reported: "too white").
+                if (speedChanged) {
+                    QualityBadge(speedLabel)
+                } else {
+                    Text(
+                        speedLabel,
+                        color = extras.onVideo,
+                        style = MaterialTheme.typography.labelMedium.merge(NumeralStyle),
+                        maxLines = 1,
+                    )
+                }
             }
             ControlIcon(description = stringResource(R.string.player_menu_quality), onClick = onOpenQuality) {
                 QualityBadge(qualityButtonText)
@@ -399,6 +419,40 @@ internal fun mmss(ms: Long, forceHours: Boolean = false): String {
     val m = (totalSec % 3600) / 60
     val s = totalSec % 60
     return if (h > 0 || forceHours) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+/**
+ * The earlier position on the seek bar: a dot on the track with the time above it. A tap jumps
+ * there. Drawn over the slider, so for the few seconds it shows it takes the taps in its column.
+ */
+@Composable
+private fun ResumeMarker(timeText: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val extras = MaterialTheme.fyiExtras
+    val description = stringResource(R.string.player_resume_from, timeText)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .width(Sizes.touchTarget)
+            .clickable(role = Role.Button, onClick = onClick)
+            .clearAndSetSemantics { contentDescription = description },
+    ) {
+        Text(
+            timeText,
+            color = extras.onVideo,
+            style = MaterialTheme.typography.labelSmall.merge(NumeralStyle),
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                // unbounded: an h:mm:ss time is wider than the 48dp tap column.
+                .wrapContentWidth(unbounded = true)
+                .background(extras.videoScrim, ControlShape)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        )
+        // Same height as the slider box, so the dot sits on the track.
+        Box(Modifier.height(Spacing.s40), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(Sizes.resumeDot).clip(CircleShape).background(extras.warning))
+        }
+    }
 }
 
 /** The playhead clock. Hours appear for every position once the VIDEO is an hour or longer, so the

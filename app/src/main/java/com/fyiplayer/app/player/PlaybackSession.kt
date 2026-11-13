@@ -192,6 +192,13 @@ object PlaybackSession {
     /** The show-button segment playback is inside right now, or null. */
     val sponsorOffer: StateFlow<SponsorSegment?> = _sponsorOffer.asStateFlow()
     private var lastSkippedSegmentStart: Long? = null // guards re-seeking every tick inside a segment
+    // The saved position of the item being loaded, held until its first frame shows.
+    private var pendingResumeOfferMs: Long? = null
+    private var resumeOfferJob: Job? = null
+    private val _resumeOffer = MutableStateFlow<Long?>(null)
+    /** Where the current video was left last time. Offered for [RESUME_OFFER_MS] after its first
+     *  frame; playback itself starts from the beginning. Null when there is nothing to offer. */
+    val resumeOffer: StateFlow<Long?> = _resumeOffer.asStateFlow()
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -256,6 +263,7 @@ object PlaybackSession {
     // (slower first frame) beats holding the start any longer.
     private const val SEGMENT_INDEX_TIMEOUT_MS = 2_500L
     private const val MAX_RESUME_REWIND_MS = 15_000L
+    private const val RESUME_OFFER_MS = 5_000L
     private const val HEALTHY_TICKS_TO_REARM_RETRY = 60 // 60 x 500ms = 30s of continuous playing
 
     private class PreparedItem(
@@ -675,6 +683,31 @@ object PlaybackSession {
         window = window.map(remap)
     }
 
+    /** Jumps to the offered earlier position; does nothing once the offer has gone. */
+    fun acceptResumeOffer() {
+        val positionMs = _resumeOffer.value ?: return
+        clearResumeOffer()
+        seekTo(positionMs)
+    }
+
+    private fun clearResumeOffer() {
+        resumeOfferJob?.cancel()
+        pendingResumeOfferMs = null
+        _resumeOffer.value = null
+    }
+
+    /** Shows the pending offer, then withdraws it. Starts at the first frame, not at load, so
+     *  the five seconds are not spent behind the loading spinner. */
+    private fun showPendingResumeOffer() {
+        val positionMs = pendingResumeOfferMs ?: return
+        pendingResumeOfferMs = null
+        _resumeOffer.value = positionMs
+        resumeOfferJob = scope.launch {
+            delay(RESUME_OFFER_MS)
+            _resumeOffer.value = null
+        }
+    }
+
     fun seekTo(positionMs: Long) {
         ensureInit()
         player.seekTo(positionMs)
@@ -931,6 +964,7 @@ object PlaybackSession {
         currentCaptions = emptyList()
         currentIsDownload = false
         clearSponsorSegments()
+        clearResumeOffer()
         player.stop()
         player.clearMediaItems()
         _state.value = PlayerState()
@@ -983,6 +1017,7 @@ object PlaybackSession {
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
         window = emptyList()
         clearSponsorSegments() // item is changing -- the old item's segments must not carry over
+        clearResumeOffer()
         loadBeganAtMs = SystemClock.elapsedRealtime()
         awaitingReadyLog = false
         awaitingFirstFrameLog = false
@@ -990,9 +1025,10 @@ object PlaybackSession {
         warmNext(i)
         loadJob = scope.launch {
             // resumeAtMs given = the SAME item continuing (expiry re-resolve, retry). A genuinely
-            // new start may pick up its saved resume point instead. Shorts never resume -- a
-            // swipe-through clip restarting mid-way would just be confusing. The lookup runs beside
-            // the resolve so reading it costs no extra time on the path to the first frame.
+            // new start plays from the beginning and offers its saved position on the seek bar
+            // (see resumeOffer). Shorts never offer one -- a swipe-through clip is too short.
+            // The lookup runs beside the resolve so reading it costs no extra time on the path
+            // to the first frame.
             val savedPositionLookup = if (resumeAtMs == null && !ref.isShort) {
                 async { loadPosition(ref.pageUrl) }
             } else {
@@ -1006,8 +1042,9 @@ object PlaybackSession {
             val source = MediaItemFactory.createOnIo(item.selection, playRef, item.resolved.captions)
             // The source starts AT the resume point. Seeking after prepare() let playback begin
             // from 0 first (audible blip, wasted first segment fetch) before jumping.
-            val resume = (resumeAtMs ?: savedPositionLookup?.await())?.let { segmentStartFor(item.selection, it) }
+            val resume = resumeAtMs?.let { segmentStartFor(item.selection, it) }
             if (resume != null) player.setMediaSource(source, resume) else player.setMediaSource(source)
+            pendingResumeOfferMs = savedPositionLookup?.await()
             player.prepare()
             loadedRef = playRef
             rememberForResumption(playRef)
@@ -1273,6 +1310,7 @@ object PlaybackSession {
         retriedIndex = null
         resetPlayerErrorBudget()
         autoplayFired = false // a genuinely new item is starting -- re-arm the end-of-queue check
+        clearResumeOffer()
         val ref = queue.getOrNull(item.queueIndex) ?: return
         loadedRef = ref
         rememberForResumption(ref)
@@ -1434,6 +1472,7 @@ object PlaybackSession {
 
         override fun onRenderedFirstFrame() {
             _state.update { it.copy(firstFrameRendered = true) }
+            showPendingResumeOffer()
             if (awaitingFirstFrameLog) {
                 awaitingFirstFrameLog = false
                 diag("firstFrame afterLoadStartMs=${msSince(loadBeganAtMs)}")
@@ -1446,6 +1485,8 @@ object PlaybackSession {
             } else if (pausedAtMs == 0L) {
                 pausedAtMs = SystemClock.elapsedRealtime()
             }
+            // The "when this video ends" sleep timer has just paused the player: it is spent.
+            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) SleepTimer.cancel()
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -1467,6 +1508,11 @@ object PlaybackSession {
                 // watched to the end: position==duration rides through savePosition, whose owner
                 // clears the row (a finished video must not grow a stale resume bar)
                 persistPosition()
+                // The "when this video ends" sleep timer: stay ended, start nothing after it.
+                if (SleepTimer.pausesAtEndOfVideo.value) {
+                    SleepTimer.cancel()
+                    return
+                }
                 // Reached the true end of the player's own (<=2-item) timeline with nothing to
                 // auto-advance into — happens when repeat/shuffle changed after the last prefetch.
                 val target = QueueMath.nextIndex(index, queue.size, _state.value.repeatMode, order)

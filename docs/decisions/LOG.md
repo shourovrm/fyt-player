@@ -313,3 +313,7 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-12 | caption/audio pickers ordered: original, written, auto; Latin then other scripts, by English name | platform order (English-name sort, native labels) read as random; sleep timer moved to bottom row
 2026-11-12 | extractor pin 55375817 -> ed08d9ca (no caption download during extraction) | app was one patch behind the fork and tubepipe; every video load with captions spent one timedtext request
 2026-11-12 | For you tab hidden until a channel is subscribed, Local default; For you switch in Home topics; Shorts no-subs text "No channel with shorts is subscribed yet." | user request: a fresh install opened on an empty feed
+2026-11-14 | resume = start at 0 + 5 s dot/time marker on the seek bar, tap seeks | user request; replaces the silent automatic jump
+2026-11-14 | sleep timer "When this video ends" added (reverses the 2026-11-12 drop) | user request; autoplay-off does not cover a queue or autoplay on
+2026-11-14 | speed: outlined bar button, restructured sheet, floating card in fullscreen | user: filled pill too white, presets stacked left, full-width sheet too much in fullscreen
+2026-11-14 | suggestion debounce 300 -> 100 ms | user-reported lag; the wait was the fixed floor
