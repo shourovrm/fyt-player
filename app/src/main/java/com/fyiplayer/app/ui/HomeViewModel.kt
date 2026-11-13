@@ -269,13 +269,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { searchHistoryRepo.clear() }
     }
 
-    /** Debounced (~300ms): a cancel-and-relaunch Job, same pattern as [refreshFeed]'s [feedJob] --
+    /** Debounced (~100ms, enough to skip the letters of a fast typist without a felt wait): a cancel-and-relaunch Job, same pattern as [refreshFeed]'s [feedJob] --
      *  only the latest query's result is ever applied. */
     fun requestSuggestions(q: String) {
         suggestionsJob?.cancel()
         if (q.isBlank()) { suggestions = emptyList(); return }
         suggestionsJob = viewModelScope.launch {
-            delay(300)
+            delay(100)
             suggestions = SearchSuggestions.fetch(q)
         }
     }
