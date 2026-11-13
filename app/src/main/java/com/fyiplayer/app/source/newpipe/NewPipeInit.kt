@@ -19,8 +19,10 @@ internal object NewPipeInit {
     // Prefs load long before the first extractor call, so the settings values are latched here and
     // init reads them. Passing them at the ensure() call site instead would let a late init
     // overwrite the user's choice with the defaults.
-    @Volatile private var language = "en"
-    @Volatile private var country = "US"
+    @Volatile var language = "en"
+        private set
+    @Volatile var country = "US"
+        private set
     // The fork's own default is ON: it asks returnyoutubedislikeapi.com about every video opened.
     // Latched OFF until the user's setting says otherwise, applied at init for the same reason as
     // language/country above.
