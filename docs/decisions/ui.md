@@ -1,8 +1,8 @@
 # UI: home, search, detail tabs, library, playlists, settings, backup
 
 ## Current state
-- 2026-11-14 (built, NOT RUN ON A DEVICE): speed sheet restructured per mock (value, Fine tune = minus/slider/plus in one row, Presets = six equal outlined tiles; Reset removed, the 1x tile does it). Fullscreen player opens `SpeedCard` (360 dp card above the seek bar, tap outside or Back closes) instead of the sheet; Shorts keeps the sheet. Bar speed button = `QualityBadge` outline when speed != 1x (the filled pill read as too white). Supersedes the 2026-10-31 speed line below.
-- 2026-11-14: search suggestion debounce 300 ms -> 100 ms.
+- 2026-11-14 (device-verified A059: portrait sheet, fullscreen card, tap-outside close, outlined button): speed sheet restructured per mock (value, Fine tune = minus/slider/plus in one row, Presets = six equal outlined tiles; Reset removed, the 1x tile does it). Fullscreen player opens `SpeedCard` (360 dp card above the seek bar, tap outside or Back closes) instead of the sheet; Shorts keeps the sheet. Bar speed button = `QualityBadge` outline when speed != 1x (the filled pill read as too white). Supersedes the 2026-10-31 speed line below.
+- 2026-11-14: search suggestion debounce 300 ms -> 100 ms. Device (A059, Wi-Fi, rough screenshot timing): suggestions still land ~0.6-1 s after a keystroke, while the endpoint answers in ~0.1 s warm / ~0.3 s cold from the laptop on the same network. The rest is unexplained: add a timing line around `SearchSuggestions.fetch` before changing more.
 2026-11-05 (built, NOT device-checked: phone disconnected; v0.2.42): Library icon switcher + `LibrarySectionHeading(name, count)`, History date groups (`LibraryHistoryGroups.kt`, tests), shared selection on History/Likes/Channels/Downloads, play-all/play-selected icons.
 2026-11-05 (device-verified; v0.2.41): downloaded videos play from the file (`player/DownloadedPlayback.kt`; caption language "qaa" for the downloaded .srt so it never collides with an online track). Untested on device: missing file while offline (needs airplane mode + a deleted file).
 2026-11-05 (device-verified light, portrait; v0.2.40): theme F coloured icons (`IconColours` in fyiExtras), Settings hub tiles, sheets recoloured per row via nested MaterialTheme; Detail ChannelRow (avatar, @handle from patch 0003, subscriber count, bell = SubscriptionRepository toggle); Home refresh in app bar. Download icon is coloured only once downloaded.
@@ -232,7 +232,7 @@ screen. Detail page has a Like/Save/Download/Share/Queue action row; video/short
 `Channel · views · age` meta line (`shortAge()` display transform, pass-through on unknown text).
 
 ## Open items
-- App start delay (user report 2026-11-14), not diagnosed: no phone attached. Known from code: home shows nothing until the subscribed-channel feed is fetched (feed is memory-only), first frame has empty `enabledSources`, no baseline profile. Measure on device before changing.
+- App start delay (user report 2026-11-14), measured on A059: cold start to first frame 0.26-0.64 s (fine); then ~1.5-3 s of skeleton until the For you feed arrives from the network, cards reorder as channels land, refresh spinner ~7 s. Cause: feed is memory-only. Fix needs a decision: persisting the last feed means storing thumbnail URLs (rule: image URLs stay in memory) or deriving them from the video id.
 - V4 unverified: dark theme, landscape side rail, font scale 1.3, 360 dp phones (grid card title width).
 
 - Not done from the 2026-10-06 review: strings to resources (app is not localisable, ~93

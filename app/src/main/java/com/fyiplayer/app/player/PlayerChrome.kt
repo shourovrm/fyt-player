@@ -288,7 +288,8 @@ internal fun ControlBar(
                 // An outline marks any non-default speed. A filled pill was the brightest thing
                 // on the bar (reported: "too white").
                 if (speedChanged) {
-                    QualityBadge(speedLabel)
+                    // The gap keeps this outline from touching the quality badge's outline.
+                    Box(Modifier.padding(horizontal = 4.dp)) { QualityBadge(speedLabel) }
                 } else {
                     Text(
                         speedLabel,
