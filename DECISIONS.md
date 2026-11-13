@@ -12,7 +12,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- 2026-11-14 (unreleased, device-verified A059 in part): resume marker instead of auto-resume, end-of-video sleep timer,
+- 2026-11-14 v0.3.4 (device-verified A059 in part): resume marker instead of auto-resume, end-of-video sleep timer,
   speed card + outlined speed button, suggestions from www.google.com, saved For you feed at start. Open: Honor 200 fullscreen button. See playback.md, ui.md.
 - 2026-11-12 v0.3.2: extractor pin moved to ed08d9ca (no caption download while a video loads), README links our extractor fork.
 - 2026-11-12 v0.3.1: picker track order (original, written, auto; Latin then other scripts), sleep timer moved to bottom row.
