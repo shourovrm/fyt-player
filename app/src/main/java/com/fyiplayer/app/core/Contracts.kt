@@ -54,6 +54,16 @@ data class SearchPage(
     /** The listing's own name when the page knows it (a playlist's first page) -- lets a URL-only
      *  Listing (share-in) show and persist a real title instead of "Listing". */
     val title: String? = null,
+    /** Set on a channel tab's first page, from the channel info fetched anyway for the tab. */
+    val channelProfile: ChannelProfile? = null,
+)
+
+/** What a channel page header shows. [avatarUrl] is a signed-URL candidate: memory only, never persisted. */
+data class ChannelProfile(
+    val name: String,
+    val avatarUrl: String? = null,
+    val subscriberCount: Long? = null,
+    val description: String? = null,
 )
 
 /** A playable stream variant. [headers] must be applied verbatim or the CDN rejects the request. */

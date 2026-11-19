@@ -1,5 +1,6 @@
 package com.fyiplayer.app.source.newpipe
 
+import com.fyiplayer.app.core.ChannelProfile
 import com.fyiplayer.app.core.ChannelTab
 import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
@@ -127,7 +128,7 @@ class NewPipeYoutubeSource(
                     val handler = channelTabHandler(channelInfo, filter, tab)
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
                     val items = info.relatedItems.mapNotNull { it.toStreamVideoRef()?.withChannel(channelInfo.name, channelUrl) }
-                    SearchPage(items = items, nextPage = info.nextPage.tokenOrNull())
+                    SearchPage(items = items, nextPage = info.nextPage.tokenOrNull(), channelProfile = channelInfo.toProfile())
                 } else {
                     val handler = ServiceList.YouTube.channelTabLHFactory.fromQuery(channelUrl, listOf(tabFilter(filter)), emptyList())
                     val more = ChannelTabInfo.getMoreItems(ServiceList.YouTube, handler, page.toPage())
@@ -523,6 +524,14 @@ internal fun englishAge(
         }
     }
 }
+
+/** The extractor reports an unknown subscriber count as -1. */
+private fun ChannelInfo.toProfile() = ChannelProfile(
+    name = name,
+    avatarUrl = avatarUrl?.takeIf { it.isNotBlank() },
+    subscriberCount = subscriberCount.takeIf { it >= 0 },
+    description = description?.takeIf { it.isNotBlank() },
+)
 
 /** 1_234_567 -> "1.2M". Negative (NewPipe's "unknown count" sentinel is -1) -> null, never
  *  invented. No ".0" suffix on a round number, matching YouTube's own compacting. */

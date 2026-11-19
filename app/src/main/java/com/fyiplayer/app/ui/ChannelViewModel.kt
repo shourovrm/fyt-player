@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fyiplayer.app.FyiApp
+import com.fyiplayer.app.core.ChannelProfile
 import com.fyiplayer.app.core.ChannelTab
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Listing
@@ -88,6 +89,9 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
 
     var availableTabs: List<ChannelTab> by mutableStateOf(ChannelTab.entries)
         private set
+    /** From whichever video tab's first page arrives first; never refetched for another tab. */
+    var profile: ChannelProfile? by mutableStateOf(null)
+        private set
     var selected: ChannelUiTab by mutableStateOf(ChannelUiTab.Content(ChannelTab.VIDEOS))
 
     private val videoTabs = mutableStateMapOf<ChannelTab, VideoTabState>()
@@ -117,6 +121,7 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
         jobs.values.forEach { it.cancel() }
         jobs.clear()
         availableTabs = ChannelTab.entries
+        profile = null
         selected = ChannelUiTab.Content(ChannelTab.VIDEOS)
         videoTabs.clear()
         containerTabs.clear()
@@ -166,6 +171,7 @@ class ChannelViewModel(application: Application) : AndroidViewModel(application)
         videoTabs[tab] = before.copy(loading = true, error = null)
         try {
             val result = source.channelTab(channelUrl, tab, page)
+            if (profile == null) profile = result.channelProfile
             val base = if (page == null) emptyList() else before.items
             val merged = dedupeAppend(base, result.items) { it.pageUrl }
             val fresh = merged.size - base.size

@@ -27,8 +27,6 @@ import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -101,7 +99,7 @@ fun ChannelScreen(
         messageVisible = false
     }
     // The message names the state the tap moves to, so it reads the value before the toggle lands.
-    fun onHeartTapped() {
+    fun onSubscribeTapped() {
         message = ActionMessage(if (subscribed) unsubscribedMessage else subscribedMessage)
         vm.toggleSubscription(listing)
     }
@@ -166,8 +164,8 @@ fun ChannelScreen(
                     onSelectAll = { selection = selectAllOrNone(currentVideos, selection) },
                     actions = {
                         // Whole loaded tab, ignoring selection -- distinct from the FAB's "Play"
-                        // (selected only). Same icon/semantics as the non-selecting top bar's own
-                        // "Play all" button further down this file.
+                        // (selected only). Same semantics as the header's own
+                        // "Play all" button.
                         IconButton(onClick = {
                             if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0, queueTitle = uploadsQueueTitle)
                             selection = emptySet()
@@ -179,7 +177,7 @@ fun ChannelScreen(
                     },
                 )
             } else {
-                ChannelTopBar(listing.title, currentVideos, subscribed, onBack, ::onHeartTapped, ::playAllAndOpen)
+                ChannelTopBar(onBack)
             }
         },
         floatingActionButton = {
@@ -194,6 +192,7 @@ fun ChannelScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.fillMaxSize()) {
+                ChannelHeader(listing, vm.profile, subscribed, currentVideos.isNotEmpty(), ::onSubscribeTapped, ::playAllAndOpen)
                 ChannelTabRow(vm.availableTabs, vm.selected) { vm.selectTab(listing, it) }
                 when (val sel = vm.selected) {
                     is ChannelUiTab.Content -> when {
@@ -219,11 +218,10 @@ fun ChannelScreen(
                     )
                 }
             }
-            // Takes no layout space. Drawn after the Column so it sits over the tab row. The end padding
-            // is one touch target: the heart is the icon left of the play-all button, which occupies the last one.
+            // Takes no layout space. Drawn after the Column so it floats over the header.
             AnimatedVisibility(
                 visible = messageVisible,
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = Spacing.s8, end = Sizes.touchTarget),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = Spacing.s8),
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -235,33 +233,10 @@ fun ChannelScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChannelTopBar(
-    title: String,
-    videos: List<VideoRef>,
-    subscribed: Boolean,
-    onBack: () -> Unit,
-    onToggleSubscribe: () -> Unit,
-    onPlayAll: () -> Unit,
-) {
-    val heartTint = if (subscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+private fun ChannelTopBar(onBack: () -> Unit) {
     TopAppBar(
-        title = { Text(title.ifBlank { stringResource(R.string.channel_title_fallback) }, maxLines = 1) },
+        title = {},
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } },
-        actions = {
-            IconButton(onClick = onToggleSubscribe) {
-                Icon(
-                    if (subscribed) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = stringResource(if (subscribed) R.string.action_unsubscribe else R.string.action_subscribe),
-                    tint = heartTint,
-                    modifier = Modifier.size(Sizes.icon),
-                )
-            }
-            if (videos.isNotEmpty()) {
-                IconButton(onClick = onPlayAll) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
-                }
-            }
-        },
     )
 }
 

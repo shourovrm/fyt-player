@@ -328,3 +328,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-20 | comment rows per mock A: avatar, thumb + count, red heart, blue replies line | user chose A of three mocks; avatars draw over an initial so text never waits
 2026-11-20 | chapter list timestamps use the link colour | user: chapter list looked plain next to blue timestamp links in other videos
 2026-11-20 | comment photo and name open the commenter's channel | user request
+2026-11-20 | channel page profile header (picture, name, subscribers, description, two buttons), no banner | user chose mock B and asked to drop the banner
