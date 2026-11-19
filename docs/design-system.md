@@ -16,6 +16,7 @@ pages, a labelled 56 dp bar and the round pre-redesign player. Tokens:
 - Colour: monochrome text and pages. Dark (default): bg `#000000`, ink `#F1F1F1` on `#0F0F0F`,
   meta `#AAAAAA`. Light: `#FFFFFF` pages, ink `#0F0F0F`, meta `#606060`, hairline `#E5E5E5`.
   Icons carry a fixed colour per role (`IconColours`). Red only for LIVE and errors.
+  Links in running text (descriptions, comments) are blue (`fyiExtras.link`), the one coloured text.
   Watched-progress bars are white on a video scrim.
 - Shape: `ControlShape` 4 dp on buttons, chips, segmented buttons, switch tracks and the search
   field; 8 dp small and 12 dp grid thumbnails; 28 dp sheet tops. The player keeps round controls.

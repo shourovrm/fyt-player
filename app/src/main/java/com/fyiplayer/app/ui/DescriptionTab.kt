@@ -24,6 +24,7 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.res.stringResource
 import com.fyiplayer.app.R
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.SourceRegistry
@@ -68,7 +69,7 @@ private fun DescriptionText(
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
 ) {
-    val linkColor = MaterialTheme.colorScheme.primary
+    val linkColor = MaterialTheme.fyiExtras.link
     val linkStyles = TextLinkStyles(SpanStyle(color = linkColor))
     val listener = htmlLinkListener(detail.ref, onOpenDetail, onOpenListing)
     val parsed = if (detail.descriptionIsHtml) {

@@ -49,6 +49,10 @@ val OnVideoInk = Color(0xFF0F0F0F)
 val VideoScrim = Color(0xB8000000)
 val VideoScrimLight = Color(0x73000000)
 val VideoScrimFaint = Color(0x59000000)
+// Links inside running text (descriptions, comments). The accent is the ink colour here, so a
+// link coloured with it could not be told from the words around it.
+val LightLink = Color(0xFF1565C0)
+val DarkLink = Color(0xFF64B5F6)
 // Marks a liked state over video (Shorts rail). Not a status colour: an identity swatch.
 val LikedOnVideo = Color(0xFFE0245E)
 

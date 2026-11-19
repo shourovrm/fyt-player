@@ -47,6 +47,7 @@ import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Radius
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import com.fyiplayer.app.core.Comment
@@ -130,7 +131,7 @@ private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkI
 private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
     var expanded by remember(comment.id) { mutableStateOf(false) }
     val body = if (comment.isHtml) {
-        val linkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
+        val linkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.fyiExtras.link))
         AnnotatedString.fromHtml(comment.text, linkStyles = linkStyles, linkInteractionListener = links)
     } else {
         AnnotatedString(comment.text)
@@ -189,7 +190,7 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
 @Composable
 private fun CommentBody(body: AnnotatedString, expanded: Boolean, links: LinkInteractionListener, onToggle: () -> Unit) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val linkColor = MaterialTheme.colorScheme.primary
+    val linkColor = MaterialTheme.fyiExtras.link
     val shown = remember(body, linkColor) { withInertLinks(body, linkColor) }
     Text(
         shown,

@@ -22,6 +22,7 @@ data class FyiExtraColors(
     val warning: Color,
     val ink3: Color,
     val surface3: Color,
+    val link: Color,
     val icons: IconColours,
     val onVideo: Color = OnVideo,
     val onVideoDim: Color = OnVideoDim,
@@ -93,6 +94,7 @@ private val LocalFyiExtraColors = staticCompositionLocalOf {
         warning = DarkWarning,
         ink3 = DarkInk3,
         surface3 = DarkSurface3,
+        link = DarkLink,
         icons = DarkIcons,
     )
 }
@@ -188,6 +190,7 @@ fun FyiTheme(
             warning = DarkWarning,
             ink3 = DarkInk3,
             surface3 = DarkSurface3,
+            link = DarkLink,
             icons = DarkIcons,
         )
     } else {
@@ -196,6 +199,7 @@ fun FyiTheme(
             warning = LightWarning,
             ink3 = LightInk3,
             surface3 = LightSurface3,
+            link = LightLink,
             icons = LightIcons,
         )
     }
