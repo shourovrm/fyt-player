@@ -331,3 +331,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-20 | channel page profile header (picture, name, subscribers, description, two buttons), no banner | user chose mock B and asked to drop the banner
 2026-11-20 | Library order Channels, Likes, Playlists, History; channel rows show profile pictures from a memory-only map | user request; pictures are not persisted (image URLs stay in memory)
 2026-11-20 | channel page top bar = page colour | user: grey band behind the back arrow looked like a banner
+2026-11-20 | channel header reduced to one bar row (picture, name, subscribers, heart, Play all) | user: centred header took too much space; chose mock A2 with the heart icon instead of a Subscribe text button

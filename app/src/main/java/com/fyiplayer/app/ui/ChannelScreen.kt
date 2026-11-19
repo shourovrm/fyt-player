@@ -1,5 +1,11 @@
 package com.fyiplayer.app.ui
 
+import com.fyiplayer.app.core.ChannelProfile
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -165,8 +171,8 @@ fun ChannelScreen(
                     onSelectAll = { selection = selectAllOrNone(currentVideos, selection) },
                     actions = {
                         // Whole loaded tab, ignoring selection -- distinct from the FAB's "Play"
-                        // (selected only). Same semantics as the header's own
-                        // "Play all" button.
+                        // (selected only). Same icon/semantics as the non-selecting top bar's own
+                        // "Play all" button further down this file.
                         IconButton(onClick = {
                             if (currentVideos.isNotEmpty()) PlaybackSession.play(currentVideos, 0, queueTitle = uploadsQueueTitle)
                             selection = emptySet()
@@ -178,7 +184,7 @@ fun ChannelScreen(
                     },
                 )
             } else {
-                ChannelTopBar(onBack)
+                ChannelTopBar(listing, vm.profile, currentVideos, subscribed, onBack, ::onSubscribeTapped, ::playAllAndOpen)
             }
         },
         floatingActionButton = {
@@ -193,7 +199,6 @@ fun ChannelScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.fillMaxSize()) {
-                ChannelHeader(listing, vm.profile, subscribed, currentVideos.isNotEmpty(), ::onSubscribeTapped, ::playAllAndOpen)
                 ChannelTabRow(vm.availableTabs, vm.selected) { vm.selectTab(listing, it) }
                 when (val sel = vm.selected) {
                     is ChannelUiTab.Content -> when {
@@ -219,10 +224,11 @@ fun ChannelScreen(
                     )
                 }
             }
-            // Takes no layout space. Drawn after the Column so it floats over the header.
+            // Takes no layout space. Drawn after the Column so it sits over the tab row. The end padding
+            // is one touch target: the heart is the icon left of the play-all button, which occupies the last one.
             AnimatedVisibility(
                 visible = messageVisible,
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = Spacing.s8),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = Spacing.s8, end = Sizes.touchTarget),
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
@@ -232,16 +238,77 @@ fun ChannelScreen(
     }
 }
 
+/**
+ * The whole channel header in one bar: back, picture, name over the subscriber count, the
+ * subscribe heart and Play all. [profile] is null until the first page arrives; the [listing]
+ * fills in meanwhile so the picture and name do not pop in.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChannelTopBar(onBack: () -> Unit) {
+private fun ChannelTopBar(
+    listing: Listing,
+    profile: ChannelProfile?,
+    videos: List<VideoRef>,
+    subscribed: Boolean,
+    onBack: () -> Unit,
+    onToggleSubscribe: () -> Unit,
+    onPlayAll: () -> Unit,
+) {
+    val name = (profile?.name ?: listing.title).ifBlank { stringResource(R.string.channel_title_fallback) }
+    val subscriberText = profile?.subscriberCount?.let { stringResource(R.string.results_subscribers, compactCount(it)) }
+    val heartTint = if (subscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     TopAppBar(
-        title = {},
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ChannelPicture(profile?.avatarUrl ?: listing.thumbnailUrl, name)
+                Column(Modifier.padding(start = Spacing.s8)) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (subscriberText != null) {
+                        Text(
+                            subscriberText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        },
         navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) } },
-        // Page colour, not the bar's own: this bar holds only the back arrow, and a tinted band
-        // behind one icon read as an empty banner above the profile header.
+        actions = {
+            IconButton(onClick = onToggleSubscribe) {
+                Icon(
+                    if (subscribed) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = stringResource(if (subscribed) R.string.action_unsubscribe else R.string.action_subscribe),
+                    tint = heartTint,
+                    modifier = Modifier.size(Sizes.icon),
+                )
+            }
+            if (videos.isNotEmpty()) {
+                IconButton(onClick = onPlayAll) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.channel_play_all))
+                }
+            }
+        },
+        // Page colour, not the bar's own: a tinted band behind the channel's picture and name
+        // read as a banner.
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
     )
+}
+
+/** Round picture; until an image URL is known, the channel's first letter on a flat circle. */
+@Composable
+private fun ChannelPicture(imageUrl: String?, name: String) {
+    Box(
+        Modifier.size(Spacing.s40).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (imageUrl != null) {
+            AsyncImage(model = imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            Text(name.take(1).uppercase(), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
+        }
+    }
 }
 
 @StringRes
