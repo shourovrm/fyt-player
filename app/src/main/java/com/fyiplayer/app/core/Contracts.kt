@@ -269,6 +269,8 @@ data class Comment(
     val isUploader: Boolean = false,
     val isHearted: Boolean = false,
     val authorAvatarUrl: String? = null,
+    /** The commenter's channel page, or null when the platform gives none. */
+    val authorUrl: String? = null,
     /** True when [text] is YouTube HTML (`<a>`, `<br>`) and must be parsed, not shown literally. */
     val isHtml: Boolean = false,
 )

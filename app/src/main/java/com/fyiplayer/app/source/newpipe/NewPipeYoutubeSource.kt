@@ -489,6 +489,7 @@ private fun CommentsInfoItem.toComment(parentId: String?): Comment = Comment(
     isUploader = false,
     isHearted = isHeartedByUploader,
     authorAvatarUrl = uploaderAvatarUrl,
+    authorUrl = uploaderUrl?.takeIf { it.isNotBlank() },
     isHtml = commentText?.type == Description.HTML,
 )
 

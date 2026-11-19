@@ -161,6 +161,7 @@ private data class CommentJson(
     val text: String? = null,
     @SerialName("like_count") val likeCount: Long? = null,
     @SerialName("author_thumbnail") val authorThumbnail: String? = null,
+    @SerialName("author_id") val authorId: String? = null,
     @SerialName("author_is_uploader") val authorIsUploader: Boolean = false,
     @SerialName("is_favorited") val isFavorited: Boolean = false,
     @SerialName("_time_text") val timeText: String? = null,
@@ -196,6 +197,7 @@ internal fun parseCommentsJson(json: String): List<Comment> {
             isUploader = c.authorIsUploader,
             isHearted = c.isFavorited,
             authorAvatarUrl = c.authorThumbnail,
+            authorUrl = c.authorId?.let { "https://www.youtube.com/channel/$it" },
         )
     }
 }

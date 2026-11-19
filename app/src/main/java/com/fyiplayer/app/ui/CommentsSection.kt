@@ -1,6 +1,8 @@
 package com.fyiplayer.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -83,6 +85,11 @@ internal fun CommentsSection(
     modifier: Modifier = Modifier,
 ) {
     val links = htmlLinkListener(currentRef, onOpenDetail, onOpenListing)
+    val openAuthor: (Comment) -> Unit = { comment ->
+        comment.authorUrl?.let { url ->
+            onOpenListing(Listing(sourceId = currentRef.sourceId, kind = Listing.Kind.CHANNEL, key = url, title = comment.author))
+        }
+    }
     Column(modifier.fillMaxWidth()) {
         when {
             loading && comments.isEmpty() -> Box(Modifier.fillMaxWidth().padding(Spacing.s24), contentAlignment = Alignment.Center) {
@@ -104,16 +111,21 @@ internal fun CommentsSection(
             else -> {
                 val topLevel = comments.filter { it.parentId == null }
                 val repliesByParent = comments.filter { it.parentId != null }.groupBy { it.parentId }
-                topLevel.forEach { c -> CommentThread(c, repliesByParent[c.id].orEmpty(), links) }
+                topLevel.forEach { c -> CommentThread(c, repliesByParent[c.id].orEmpty(), links, openAuthor) }
             }
         }
     }
 }
 
 @Composable
-private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkInteractionListener) {
+private fun CommentThread(
+    comment: Comment,
+    replies: List<Comment>,
+    links: LinkInteractionListener,
+    onOpenAuthor: (Comment) -> Unit,
+) {
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
-        CommentRow(comment, Sizes.commentAvatar, links)
+        CommentRow(comment, Sizes.commentAvatar, links, onOpenAuthor)
         if (replies.isNotEmpty()) {
             // Replies and their toggle line up with the comment's text, clear of its avatar.
             val textStart = Sizes.commentAvatar + Spacing.s8
@@ -135,7 +147,7 @@ private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkI
             }
             if (expanded) {
                 Column(Modifier.padding(start = textStart)) {
-                    replies.forEach { r -> CommentRow(r, Spacing.s24, links) }
+                    replies.forEach { r -> CommentRow(r, Spacing.s24, links, onOpenAuthor) }
                 }
             }
         }
@@ -143,7 +155,7 @@ private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkI
 }
 
 @Composable
-private fun CommentRow(comment: Comment, avatarSize: Dp, links: LinkInteractionListener) {
+private fun CommentRow(comment: Comment, avatarSize: Dp, links: LinkInteractionListener, onOpenAuthor: (Comment) -> Unit) {
     var expanded by remember(comment.id) { mutableStateOf(false) }
     val body = if (comment.isHtml) {
         val linkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.fyiExtras.link))
@@ -152,17 +164,19 @@ private fun CommentRow(comment: Comment, avatarSize: Dp, links: LinkInteractionL
         AnnotatedString(comment.text)
     }
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        CommentAvatar(comment, avatarSize)
-        CommentText(comment, body, expanded, links, onToggle = { expanded = !expanded })
+        // The photo and the name open the commenter's channel, when the platform names one.
+        val openAuthor = Modifier.clickable(enabled = comment.authorUrl != null, role = Role.Button) { onOpenAuthor(comment) }
+        CommentAvatar(comment, avatarSize, openAuthor)
+        CommentText(comment, body, expanded, links, openAuthor, onToggle = { expanded = !expanded })
     }
 }
 
 /** Round photo of the commenter. The first letter of the name sits under it, so the row is
  *  complete at once and the photo fills in when it has loaded. */
 @Composable
-private fun CommentAvatar(comment: Comment, size: Dp) {
+private fun CommentAvatar(comment: Comment, size: Dp, openAuthor: Modifier) {
     Box(
-        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant).then(openAuthor),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -187,6 +201,7 @@ private fun CommentText(
     body: AnnotatedString,
     expanded: Boolean,
     links: LinkInteractionListener,
+    openAuthor: Modifier,
     onToggle: () -> Unit,
 ) {
     Column(Modifier.padding(start = Spacing.s8)) {
@@ -200,7 +215,7 @@ private fun CommentText(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 // The video's own channel: its name sits in a pill.
-                modifier = if (comment.isUploader) uploaderPill else Modifier,
+                modifier = openAuthor.then(if (comment.isUploader) uploaderPill else Modifier),
             )
             if (comment.timeText != null) {
                 Text(
