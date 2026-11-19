@@ -319,3 +319,7 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-14 | suggestion debounce 300 -> 100 ms | user-reported lag; the wait was the fixed floor
 2026-11-14 | suggestions fetched from www.google.com by the app, not via the extractor | device: suggestqueries host resolved 350 ms away under AdGuard DNS; same list from www.google.com at 40 ms
 2026-11-14 | For you feed saved to a JSON file and shown at start, one swap after refresh | user: start felt slow; start itself was 0.3 s, the wait was the network feed
+2026-11-19 | resume: fresh open = 0:00 + white Resume pill and hint dot; return (Back, trail, restore, headset) = start at saved position | user: dot too small to tap, back-return and long pause must resume directly; chose pill mock B
+2026-11-19 | saved position not overwritten while its offer shows | a missed offer lost the old position after 5 s of play
+2026-11-19 | seek bars exclude the system back gesture | user: drag from the far edge went Back
+2026-11-19 | trace logs rebuffer time and unrequested pauses | user-reported 'more pausing' could not be confirmed or denied from the trace

@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -172,13 +173,18 @@ fun DetailScreen(
     // here. The old once-per-nav-entry latch left the deeper video running over this page's
     // description (user-reported mismatch). Same-video re-entry stays a no-op, so reopening the
     // mini player's detail never restarts it; error state replays (retry-on-reopen).
+    // The first start of this page's video is a fresh open (saved position offered); every later
+    // entry is a return to it and resumes where it was left. Saveable: it must outlive the back
+    // stack and process restore, where this composable is built anew.
     // Compares the queue slot, not `current`: play() clears `current` until its resolve lands, so a
     // queue started just before navigating here would otherwise be replaced by this one video.
+    var startedOnce by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(pageUrl) {
         val st = PlaybackSession.state.value
         if (st.queue.getOrNull(st.index)?.pageUrl != ref.pageUrl || st.error != null) {
-            PlaybackSession.play(listOf(ref), 0)
+            if (startedOnce) PlaybackSession.playContinuing(ref) else PlaybackSession.play(listOf(ref), 0)
         }
+        startedOnce = true
     }
 
     // Playback moved on by itself (autoplay next / queue auto-advance): open that video's page so

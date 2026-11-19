@@ -1,5 +1,6 @@
 package com.fyiplayer.app.player
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -12,14 +13,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,22 +37,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.core.SeekThumbnails
-import com.fyiplayer.app.ui.theme.ControlShape
 import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
@@ -134,6 +136,8 @@ internal fun ControlBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(Spacing.s40)
+                // Gesture navigation otherwise takes a drag that starts at the screen edge as Back.
+                .systemGestureExclusion()
                 .onGloballyPositioned { containerWidthPx = it.size.width },
         ) {
             Slider(
@@ -200,21 +204,10 @@ internal fun ControlBar(
                     .onGloballyPositioned { sliderWidthPx = it.size.width },
             )
             resumeOffer?.let { offerMs ->
-                val density = LocalDensity.current
-                val markerWidthPx = with(density) { Sizes.touchTarget.roundToPx() }
-                val insetPx = with(density) { sideInset.roundToPx() }
-                // The slider keeps half a thumb clear at each end of its track.
-                val thumbHalfPx = with(density) { Spacing.s24.roundToPx() } / 2
-                val offerFraction = (offerMs.toFloat() / durationMs).coerceIn(0f, 1f)
-                val centrePx = insetPx + thumbHalfPx + offerFraction * (sliderWidthPx - 2 * thumbHalfPx)
-                ResumeMarker(
-                    timeText = positionClock(offerMs, progress.durationMs),
-                    onClick = PlaybackSession::acceptResumeOffer,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        // unbounded: the time label rises above the 40dp slider box.
-                        .wrapContentHeight(align = Alignment.Bottom, unbounded = true)
-                        .offset { IntOffset((centrePx - markerWidthPx / 2).toInt(), 0) },
+                ResumeDot(
+                    fraction = (offerMs.toFloat() / durationMs).coerceIn(0f, 1f),
+                    sideInset = sideInset,
+                    modifier = Modifier.matchParentSize(),
                 )
             }
             if (isScrubbing) {
@@ -423,36 +416,38 @@ internal fun mmss(ms: Long, forceHours: Boolean = false): String {
 }
 
 /**
- * The earlier position on the seek bar: a dot on the track with the time above it. A tap jumps
- * there. Drawn over the slider, so for the few seconds it shows it takes the taps in its column.
+ * Hint at the earlier position, drawn over the slider. Canvas takes no pointer input, so touches
+ * fall through to the Slider; the tappable control is [ResumeButton].
  */
 @Composable
-private fun ResumeMarker(timeText: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val extras = MaterialTheme.fyiExtras
-    val description = stringResource(R.string.player_resume_from, timeText)
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .width(Sizes.touchTarget)
-            .clickable(role = Role.Button, onClick = onClick)
-            .clearAndSetSemantics { contentDescription = description },
-    ) {
-        Text(
-            timeText,
-            color = extras.onVideo,
-            style = MaterialTheme.typography.labelSmall.merge(NumeralStyle),
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier
-                // unbounded: an h:mm:ss time is wider than the 48dp tap column.
-                .wrapContentWidth(unbounded = true)
-                .background(extras.videoScrim, ControlShape)
-                .padding(horizontal = 4.dp, vertical = 2.dp),
+private fun ResumeDot(fraction: Float, sideInset: Dp, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.fyiExtras.warning
+    Canvas(modifier) {
+        // The slider keeps half a thumb clear at each end of its track.
+        val thumbHalf = Spacing.s24.toPx() / 2
+        val trackWidth = size.width - 2 * (sideInset.toPx() + thumbHalf)
+        drawCircle(
+            color = color,
+            radius = Sizes.resumeDot.toPx() / 2,
+            center = Offset(sideInset.toPx() + thumbHalf + fraction * trackWidth, size.height / 2),
         )
-        // Same height as the slider box, so the dot sits on the track.
-        Box(Modifier.height(Spacing.s40), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(Sizes.resumeDot).clip(CircleShape).background(extras.warning))
-        }
+    }
+}
+
+/** "Resume from 12:34", shown while [PlaybackSession.resumeOffer] is set. A real button, not a
+ *  target on the seek bar: a tap on the bar would seek to wherever the finger landed. */
+@Composable
+internal fun ResumeButton(modifier: Modifier = Modifier) {
+    val offerMs = PlaybackSession.resumeOffer.collectAsState().value ?: return
+    // Collected here, not by PlayerScreen, so the 500ms tick recomposes only this button.
+    val durationMs = PlaybackSession.progress.collectAsState().value.durationMs
+    val extras = MaterialTheme.fyiExtras
+    Button(
+        onClick = PlaybackSession::acceptResumeOffer,
+        colors = ButtonDefaults.buttonColors(containerColor = extras.onVideo, contentColor = extras.onVideoInk),
+        modifier = modifier,
+    ) {
+        Text(stringResource(R.string.player_resume_from, positionClock(offerMs, durationMs)))
     }
 }
 

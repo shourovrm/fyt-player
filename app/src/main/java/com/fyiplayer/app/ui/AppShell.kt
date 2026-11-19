@@ -184,14 +184,14 @@ fun AppShell(navController: NavHostController) {
             previous = pageBelow?.takeIf { trailPrevious }?.let { below ->
                 {
                     goPrevious()
-                    PlaybackSession.play(listOf(RefCache.getOrBare(below)), 0)
+                    PlaybackSession.playContinuing(RefCache.getOrBare(below))
                 }
             },
             next = trailForward?.let { target ->
                 {
                     watchTrail = watchTrail.popForward()
                     navController.openDetail(target)
-                    PlaybackSession.play(listOf(target), 0)
+                    PlaybackSession.playContinuing(target)
                 }
             },
         )
@@ -290,7 +290,13 @@ fun AppShell(navController: NavHostController) {
                         onTrailPrevious = if (canGoPrevious) goPrevious else null,
                         onTrailNext = nextTarget?.let { target ->
                             {
-                                if (forwardTarget != null) watchTrail = watchTrail.popForward()
+                                if (forwardTarget != null) {
+                                    watchTrail = watchTrail.popForward()
+                                    // A video Previous stepped away from: started here, so it
+                                    // resumes where it was left; the new page's guard would
+                                    // open it as a fresh video.
+                                    PlaybackSession.playContinuing(target)
+                                }
                                 navController.openDetail(target)
                             }
                         },

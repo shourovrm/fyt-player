@@ -44,6 +44,8 @@ val LightDestructive = Color(0xFFB3352F)
 // Color.White / Color.Black directly.
 val OnVideo = Color(0xFFF2F4F5)
 val OnVideoDim = Color(0xB3F2F4F5)
+// Text on an OnVideo-filled button.
+val OnVideoInk = Color(0xFF0F0F0F)
 val VideoScrim = Color(0xB8000000)
 val VideoScrimLight = Color(0x73000000)
 val VideoScrimFaint = Color(0x59000000)

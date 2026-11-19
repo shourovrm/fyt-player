@@ -25,6 +25,7 @@ data class FyiExtraColors(
     val icons: IconColours,
     val onVideo: Color = OnVideo,
     val onVideoDim: Color = OnVideoDim,
+    val onVideoInk: Color = OnVideoInk,
     val videoScrim: Color = VideoScrim,
     val videoScrimLight: Color = VideoScrimLight,
     val videoScrimFaint: Color = VideoScrimFaint,

@@ -470,6 +470,12 @@ fun PlayerScreen(
                     )
                 }
 
+                // Same height as the skip button whether the controls are up or not: they hide
+                // 3 s into a video, and a button that dropped then moved from under the finger.
+                ResumeButton(
+                    Modifier.align(Alignment.BottomStart).padding(start = Spacing.s24, bottom = Spacing.s64 + Spacing.s16),
+                )
+
                 if (showQualitySheet) {
                     QualitySheet(
                         heights = state.availableHeights,

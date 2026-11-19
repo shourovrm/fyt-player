@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
@@ -491,7 +492,8 @@ private fun ShortsSeekBar(
         // Drag hit-testing is the Slider's own layout bounds, not the drawn track/thumb --
         // A short bar was inside the margin above and let fingers slip off. 48 dp gives a real
         // grab area while the track/thumb art stays thin.
-        modifier = modifier.height(Sizes.touchTarget),
+        // Gesture navigation otherwise takes a drag that starts at the screen edge as Back.
+        modifier = modifier.height(Sizes.touchTarget).systemGestureExclusion(),
         thumb = {
             // Always a dot (YouTube Shorts' red dot): a visible handle is what makes "grab and
             // drag" discoverable; idle 10 dp, halo + 16 dp while the finger is down.
