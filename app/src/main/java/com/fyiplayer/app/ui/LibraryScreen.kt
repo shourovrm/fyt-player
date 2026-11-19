@@ -90,7 +90,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import com.fyiplayer.app.core.ChannelAvatars
 import com.fyiplayer.app.R
 import com.fyiplayer.app.core.Listing
 import com.fyiplayer.app.core.VideoRef
@@ -347,7 +349,7 @@ fun LibraryScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibrarySectionRow(selected: LibraryTab, onSelect: (LibraryTab) -> Unit) {
-    val sections = listOf(LibraryTab.HISTORY, LibraryTab.LIKES, LibraryTab.PLAYLISTS, LibraryTab.CHANNELS)
+    val sections = listOf(LibraryTab.CHANNELS, LibraryTab.LIKES, LibraryTab.PLAYLISTS, LibraryTab.HISTORY)
     SingleChoiceSegmentedButtonRow(
         Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
     ) {
@@ -690,6 +692,8 @@ private fun ChannelsTab(
         LibraryEmptyState(stringResource(R.string.library_channels_empty))
         return
     }
+    // One read for the whole list; a row only looks its channel up.
+    val avatars by ChannelAvatars.byChannelUrl.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize()) {
         items(channels, key = { it.listing.key }) { row ->
             val channel = row.listing
@@ -712,7 +716,7 @@ private fun ChannelsTab(
                     Modifier.weight(1f).alpha(if (row.showInFeed) 1f else 0.4f),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MonogramDisc(channel.title, size = Spacing.s40)
+                    ChannelDisc(channel.title, avatars[channel.key], size = Spacing.s40)
                     Text(
                         channel.title.ifBlank { channel.key },
                         style = MaterialTheme.typography.bodyLarge,
@@ -763,12 +767,12 @@ private fun EyeGlyph(tint: Color, slashed: Boolean, modifier: Modifier = Modifie
     }
 }
 
-/** [Listing.thumbnailUrl] for a subscribed channel would be a signed avatar URL -- never something
- *  to persist or hold in the subscriptions table (rule: canonical page URLs only), so every row
- *  falls back to a plain initial disc rather than fetching one live per row (rule 6, no I/O per
- *  visible list item). */
+/** A subscribed channel's picture. The subscriptions table stores no image URL (rule: canonical
+ *  page URLs only), so [avatarUrl] comes from [ChannelAvatars] and is null until that channel has
+ *  been fetched this session; the initial under it shows until then. No request per row for the
+ *  URL itself (rule 6) -- only the image load. */
 @Composable
-private fun MonogramDisc(title: String, size: Dp) {
+private fun ChannelDisc(title: String, avatarUrl: String?, size: Dp) {
     Box(
         Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
@@ -778,6 +782,9 @@ private fun MonogramDisc(title: String, size: Dp) {
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (avatarUrl != null) {
+            AsyncImage(model = avatarUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
     }
 }
 

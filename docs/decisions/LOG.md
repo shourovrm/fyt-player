@@ -329,3 +329,5 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-20 | chapter list timestamps use the link colour | user: chapter list looked plain next to blue timestamp links in other videos
 2026-11-20 | comment photo and name open the commenter's channel | user request
 2026-11-20 | channel page profile header (picture, name, subscribers, description, two buttons), no banner | user chose mock B and asked to drop the banner
+2026-11-20 | Library order Channels, Likes, Playlists, History; channel rows show profile pictures from a memory-only map | user request; pictures are not persisted (image URLs stay in memory)
+2026-11-20 | channel page top bar = page colour | user: grey band behind the back arrow looked like a banner

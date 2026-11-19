@@ -45,7 +45,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val subscriptions = SubscriptionRepository(app.database.subscriptionDao())
     val followedPlaylists = FollowedPlaylistRepository(app.database.followedPlaylistDao())
 
-    var tab: LibraryTab by mutableStateOf(LibraryTab.LIKES)
+    var tab: LibraryTab by mutableStateOf(LibraryTab.CHANNELS)
         private set
 
     // Empty set == not selecting. A selection only ever means something on the tab it was made on.

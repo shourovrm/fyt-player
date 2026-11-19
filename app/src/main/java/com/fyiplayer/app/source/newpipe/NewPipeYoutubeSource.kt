@@ -1,5 +1,6 @@
 package com.fyiplayer.app.source.newpipe
 
+import com.fyiplayer.app.core.ChannelAvatars
 import com.fyiplayer.app.core.ChannelProfile
 import com.fyiplayer.app.core.ChannelTab
 import com.fyiplayer.app.core.Comment
@@ -125,6 +126,7 @@ class NewPipeYoutubeSource(
                 if (page == null) {
                     val channelInfo = ChannelInfo.getInfo(ServiceList.YouTube, channelUrl)
                     channelNames[channelUrl] = channelInfo.name
+                    ChannelAvatars.record(channelUrl, channelInfo.avatarUrl.takeIf { it.isNotBlank() })
                     val handler = channelTabHandler(channelInfo, filter, tab)
                     val info = ChannelTabInfo.getInfo(ServiceList.YouTube, handler)
                     val items = info.relatedItems.mapNotNull { it.toStreamVideoRef()?.withChannel(channelInfo.name, channelUrl) }
