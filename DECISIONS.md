@@ -12,7 +12,7 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- 2026-11-20 (unreleased, on 0.3.4): resume pill + direct resume on return, seek-bar edge drag, rebuffer trace lines, blue links,
+- 2026-11-20 v0.3.5: resume pill + direct resume on return, seek-bar edge drag, rebuffer trace lines, blue links,
   saved Shorts feed (see shorts.md). Open: "more pausing" report
   not reproduced (starts median 1.6 s, 1 transport error in 23 h of trace); read `rebuffer` / `paused by player` lines in the next Playback report. See playback.md.
 - 2026-11-14 v0.3.4 (device-verified A059 in part): resume marker instead of auto-resume, end-of-video sleep timer,
