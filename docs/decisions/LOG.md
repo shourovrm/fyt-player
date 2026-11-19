@@ -324,3 +324,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-19 | seek bars exclude the system back gesture | user: drag from the far edge went Back
 2026-11-19 | trace logs rebuffer time and unrequested pauses | user-reported 'more pausing' could not be confirmed or denied from the trace
 2026-11-20 | links in descriptions and comments are blue (`fyiExtras.link`) | user: links could not be told from text; the accent is the ink colour
+2026-11-20 | Shorts feed saved to a file with its upload dates, shown at start, one swap after refresh | user: Shorts still slow; cost was 1 tab + 4 date lookups per channel on every start, nothing kept

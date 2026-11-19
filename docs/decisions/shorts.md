@@ -2,6 +2,15 @@
 
 ## Current state
 
+2026-11-20 (device-verified A059, 29 channels, Wi-Fi + VPN): the feed is saved to `shorts_feed.json`
+(`FyiApp.shortsFeedCache`, the Home `FeedCache` class, 240 clips) and shown at once on the next start; the
+refresh keeps what is on screen and swaps once when every channel has answered (only an empty screen fills
+channel by channel), as Home does. Saved clips carry their upload date, which seeds `uploadMillisByPageUrl`,
+so a refresh pays a date lookup only for clips it has not seen. Measured cold start: grid visible at the first
+poll (was 5-7 s of spinner); refresh 15.8 s with 84 lookups on the first run -> 3.6 s with 0 lookups on the
+next. Trace line `ShortsFeed: refresh done ms=.. channels=.. failed=.. dateLookups=..`. Pull-to-refresh swap,
+pager open during the swap and swipe-to-first-frame were not measured.
+
 2026-11-08 (tests pass, device check pending): order is by recency slot of each CLIP's own date,
 round-robin across channels. Every shown clip gets one `VideoSource.detail` call (session-cached by
 pageUrl; a failure is cached as unknown until the next refresh, which retries it once); the tab has no per-clip date. Slot 0 = newest short <= 3 days old, slot k = (3k,
@@ -82,6 +91,8 @@ seekbar; mini player on the shorts grid.
 
 ## Open items
 
+- Speed ideas not done: start the Shorts refresh at app start; keep date lookups out of the 60-entry
+  `StreamInfoCache` (a first run's 84 lookups evict each other, so the first tapped clip resolves again).
 - Shorts in Similar need a signed-in watch-next (sidebar shelf is personalised); revisit when
   YouTube sign-in works. Alternative if wanted: a shorts search on the title as a shelf.
 - Shorts "age/CAPTCHA" wall that PipePipe doesn't show: NOT reproduced (55 swipes, anonymous,

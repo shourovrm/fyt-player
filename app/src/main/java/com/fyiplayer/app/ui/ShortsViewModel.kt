@@ -1,11 +1,13 @@
 package com.fyiplayer.app.ui
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.FyiApp
 import com.fyiplayer.app.core.ChannelTab
 import com.fyiplayer.app.core.VideoRef
@@ -51,6 +53,9 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
      *  refresh, so a manual refresh retries them once. */
     private val uploadMillisByPageUrl = HashMap<String, Long?>()
 
+    /** Date lookups the running refresh had to make; goes to the trace with its duration. */
+    private var dateLookups = 0
+
     /** Clips already written to watch history this session, so the pager settling on one clip
      *  twice writes it once. */
     private val recordedThisSession = HashSet<String>()
@@ -80,7 +85,12 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         refreshFeed(sources)
     }
 
-    /** Rebuilds the feed from scratch: re-reads subscriptions, re-fetches every channel's shorts tab. */
+    /**
+     * Rebuilds the feed: re-reads subscriptions, re-fetches every channel's shorts tab. A feed
+     * already on screen stays there and is swapped once, when every channel has answered; on a
+     * fresh start that feed is the one saved by the last run. Only an empty screen fills channel
+     * by channel. Same shape as [HomeViewModel.refreshFeed].
+     */
     fun refreshFeed(sources: List<VideoSource>) {
         feedJob?.cancel()
         moreJob?.cancel()
@@ -90,13 +100,18 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
         shuffleKeys.clear() // new random order per refresh (app start / pull-to-refresh only)
         // A failed lookup may have been a transient network error, so each refresh retries it once.
         uploadMillisByPageUrl.values.removeAll { it == null }
-        feed = ShortsFeedState(loading = true)
+        feed = feed.copy(loading = true)
+        dateLookups = 0
+        val startedAtMs = SystemClock.elapsedRealtime()
         feedJob = viewModelScope.launch {
+            if (feed.items.isEmpty()) feed = feed.copy(items = loadSavedFeed())
+            val fillAsChannelsArrive = feed.items.isEmpty()
             // Every subscription, same as Home: the old newest-8 cap silently left older
             // subscriptions out of the feed entirely (user-reported). The gate bounds the burst.
             val channels = subscriptionRepo.observeFeedChannels().first()
             if (channels.isEmpty()) {
                 feed = ShortsFeedState(loaded = true, hasSubscriptions = false)
+                app.shortsFeedCache.save(emptyList())
                 return@launch
             }
             seenPageUrls = historyRepo.observe().first().mapTo(HashSet()) { it.pageUrl }
@@ -128,11 +143,22 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                     if (src != null && ok != null) {
                         settled[i] = withUploadDates(src, ok.items.take(SHORTS_ITEMS_PER_CHANNEL), gate)
                     }
-                    val reordered = orderShortsFeed(settled.filterNotNull(), System.currentTimeMillis(), seenPageUrls, shuffleKeys)
-                    feed = feed.copy(items = feedAfterLanding(feed.items, reordered, pagerOpen = showPlayer))
+                    if (fillAsChannelsArrive) {
+                        feed = feed.copy(items = feedAfterLanding(feed.items, orderedSettled(settled), pagerOpen = showPlayer))
+                    }
                 }
             }
             jobs.joinAll()
+            val failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed }
+            // Every channel failing means no connection: keep what is shown and the saved feed.
+            val nothingFetched = failedChannels == channels.size
+            val fetched = orderedSettled(settled)
+            if (!nothingFetched) app.shortsFeedCache.save(fetched)
+            DiagLog.log(
+                "ShortsFeed",
+                "refresh done ms=${SystemClock.elapsedRealtime() - startedAtMs} channels=${channels.size} " +
+                    "failed=$failedChannels dateLookups=$dateLookups",
+            )
             // First-page leftovers become each channel's buffer; NoContent/Failed channels start exhausted.
             cursors = channels.mapIndexed { i, channel ->
                 val ok = outcomes[i] as? ChannelFetchOutcome.Ok
@@ -143,14 +169,30 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
             feed = feed.copy(
+                items = if (nothingFetched) feed.items else feedAfterLanding(feed.items, fetched, pagerOpen = showPlayer),
                 loading = false,
                 loaded = true,
                 hasSubscriptions = true,
                 channelsWithoutShorts = outcomes.count { it is ChannelFetchOutcome.NoContent },
-                failedChannels = outcomes.count { it is ChannelFetchOutcome.Failed },
+                failedChannels = failedChannels,
                 hasMore = cursors.any { it.hasMore },
             )
         }
+    }
+
+    private fun orderedSettled(settled: List<List<VideoRef>?>): List<VideoRef> =
+        orderShortsFeed(settled.filterNotNull(), System.currentTimeMillis(), seenPageUrls, shuffleKeys)
+
+    /** The feed saved by the last run. Its upload dates go into [uploadMillisByPageUrl], so the
+     *  refresh that follows pays a date lookup only for shorts it has not seen before. */
+    private suspend fun loadSavedFeed(): List<VideoRef> {
+        // The file does not store isShort; everything in this feed is one.
+        val saved = app.shortsFeedCache.load().map { it.copy(isShort = true) }
+        for (clip in saved) {
+            val uploadMillis = clip.uploadEpochMs ?: continue
+            uploadMillisByPageUrl[clip.pageUrl] = uploadMillis
+        }
+        return saved
     }
 
     /** [clips] with `uploadEpochMs` filled from one detail call each (session-cached by page URL),
@@ -161,6 +203,7 @@ class ShortsViewModel(application: Application) : AndroidViewModel(application) 
                 async {
                     gate.withPermit {
                         if (clip.pageUrl !in uploadMillisByPageUrl) {
+                            dateLookups++
                             uploadMillisByPageUrl[clip.pageUrl] = lookupUploadMillis { source.detail(clip) }
                         }
                         clip.copy(uploadEpochMs = uploadMillisByPageUrl[clip.pageUrl])

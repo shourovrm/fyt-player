@@ -10,14 +10,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
-private const val MAX_CACHED_ITEMS = 60
-
 /**
- * The last "For you" feed, kept in one JSON file so the next app start shows it at once while the
- * network refresh runs. A failed read or write is logged and treated as "no cache": the feed
+ * The last feed of one tab ("For you", Shorts), kept in one JSON file so the next app start shows
+ * it at once while the network refresh runs. At most [maxItems] are kept. A failed read or write is logged and treated as "no cache": the feed
  * still loads from the network, so a broken cache file must not stop the app.
  */
-class FeedCache(private val file: File) {
+class FeedCache(private val file: File, private val maxItems: Int) {
     suspend fun load(): List<VideoRef> = withContext(Dispatchers.IO) {
         if (!file.exists()) return@withContext emptyList()
         try {
@@ -35,7 +33,7 @@ class FeedCache(private val file: File) {
 
     suspend fun save(items: List<VideoRef>) = withContext(Dispatchers.IO) {
         try {
-            file.writeText(encodeFeed(items.take(MAX_CACHED_ITEMS)))
+            file.writeText(encodeFeed(items.take(maxItems)))
         } catch (e: IOException) {
             Log.w("FeedCache", "feed cache write failed: ${e::class.simpleName}")
         }

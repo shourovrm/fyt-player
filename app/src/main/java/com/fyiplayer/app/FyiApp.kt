@@ -45,7 +45,10 @@ class FyiApp : Application() {
     // Lazy: cheap until first real use, but constructed once so DataStore and Room state is shared.
     val prefs: Prefs by lazy { Prefs(this) }
     val database: AppDatabase by lazy { AppDatabase.get(this) }
-    val feedCache: FeedCache by lazy { FeedCache(File(filesDir, "home_feed.json")) }
+    val feedCache: FeedCache by lazy { FeedCache(File(filesDir, "home_feed.json"), maxItems = 60) }
+    // Larger than Home's: every saved short carries its upload date, and a short missing from
+    // the file costs one date lookup at the next refresh.
+    val shortsFeedCache: FeedCache by lazy { FeedCache(File(filesDir, "shorts_feed.json"), maxItems = 240) }
 
     // Shared by NewPipeResolver only -- distinct from MediaItemFactory's playback client, a
     // different concern (metadata fetch vs. media datasource).

@@ -12,7 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- 2026-11-19 (unreleased, on 0.3.4): resume pill + direct resume on return, seek-bar edge drag, rebuffer trace lines. Open: "more pausing" report
+- 2026-11-20 (unreleased, on 0.3.4): resume pill + direct resume on return, seek-bar edge drag, rebuffer trace lines, blue links,
+  saved Shorts feed (see shorts.md). Open: "more pausing" report
   not reproduced (starts median 1.6 s, 1 transport error in 23 h of trace); read `rebuffer` / `paused by player` lines in the next Playback report. See playback.md.
 - 2026-11-14 v0.3.4 (device-verified A059 in part): resume marker instead of auto-resume, end-of-video sleep timer,
   speed card + outlined speed button, suggestions from www.google.com, saved For you feed at start. Open: Honor 200 fullscreen button. See playback.md, ui.md.
