@@ -29,7 +29,6 @@
         <item quantity="one">%1$d reply</item>
         <item quantity="other">%1$d replies</item>
     </plurals>
-    <string name="detail_comment_channel_badge">Channel</string>
     <plurals name="detail_comment_likes">
         <item quantity="one">%1$d like</item>
         <item quantity="other">%1$d likes</item>

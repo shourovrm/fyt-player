@@ -50,6 +50,13 @@ import com.fyiplayer.app.ui.theme.Spacing
 import com.fyiplayer.app.ui.theme.fyiExtras
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
+import coil.compose.AsyncImage
 import com.fyiplayer.app.core.Comment
 import com.fyiplayer.app.core.ExtractionError
 import com.fyiplayer.app.core.Listing
@@ -106,10 +113,18 @@ internal fun CommentsSection(
 @Composable
 private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkInteractionListener) {
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8)) {
-        CommentRow(comment, links)
+        CommentRow(comment, Sizes.commentAvatar, links)
         if (replies.isNotEmpty()) {
+            // Replies and their toggle line up with the comment's text, clear of its avatar.
+            val textStart = Sizes.commentAvatar + Spacing.s8
             var expanded by remember(comment.id) { mutableStateOf(false) }
-            TextButton(onClick = { expanded = !expanded }, shape = ControlShape, contentPadding = PaddingValues(vertical = 0.dp)) {
+            TextButton(
+                onClick = { expanded = !expanded },
+                shape = ControlShape,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.fyiExtras.link),
+                contentPadding = PaddingValues(vertical = 0.dp),
+                modifier = Modifier.padding(start = textStart),
+            ) {
                 Text(
                     if (expanded) {
                         stringResource(R.string.detail_replies_hide)
@@ -119,8 +134,8 @@ private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkI
                 )
             }
             if (expanded) {
-                Column(Modifier.padding(start = Spacing.s24)) {
-                    replies.forEach { r -> CommentRow(r, links) }
+                Column(Modifier.padding(start = textStart)) {
+                    replies.forEach { r -> CommentRow(r, Spacing.s24, links) }
                 }
             }
         }
@@ -128,7 +143,7 @@ private fun CommentThread(comment: Comment, replies: List<Comment>, links: LinkI
 }
 
 @Composable
-private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
+private fun CommentRow(comment: Comment, avatarSize: Dp, links: LinkInteractionListener) {
     var expanded by remember(comment.id) { mutableStateOf(false) }
     val body = if (comment.isHtml) {
         val linkStyles = TextLinkStyles(SpanStyle(color = MaterialTheme.fyiExtras.link))
@@ -136,21 +151,57 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
     } else {
         AnnotatedString(comment.text)
     }
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        CommentAvatar(comment, avatarSize)
+        CommentText(comment, body, expanded, links, onToggle = { expanded = !expanded })
+    }
+}
+
+/** Round photo of the commenter. The first letter of the name sits under it, so the row is
+ *  complete at once and the photo fills in when it has loaded. */
+@Composable
+private fun CommentAvatar(comment: Comment, size: Dp) {
+    Box(
+        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            comment.author.trimStart('@').take(1).uppercase(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium,
+        )
+        if (comment.authorAvatarUrl != null) {
+            AsyncImage(
+                model = comment.authorAvatarUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CommentText(
+    comment: Comment,
+    body: AnnotatedString,
+    expanded: Boolean,
+    links: LinkInteractionListener,
+    onToggle: () -> Unit,
+) {
+    Column(Modifier.padding(start = Spacing.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(comment.author, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            if (comment.isUploader) {
-                Text(
-                    stringResource(R.string.detail_comment_channel_badge),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .padding(start = 6.dp)
-                        .clip(RoundedCornerShape(Radius.xs))
-                        .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                )
-            }
+            val uploaderPill = Modifier
+                .clip(RoundedCornerShape(Radius.xs))
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+            Text(
+                comment.author,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                // The video's own channel: its name sits in a pill.
+                modifier = if (comment.isUploader) uploaderPill else Modifier,
+            )
             if (comment.timeText != null) {
                 Text(
                     comment.timeText,
@@ -160,20 +211,28 @@ private fun CommentRow(comment: Comment, links: LinkInteractionListener) {
                 )
             }
         }
-        CommentBody(body, expanded, links, onToggle = { expanded = !expanded })
+        CommentBody(body, expanded, links, onToggle)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             if (comment.likeCount != null && comment.likeCount > 0) {
+                val likes = pluralStringResource(R.plurals.detail_comment_likes, comment.likeCount.toInt(), comment.likeCount)
+                Icon(
+                    Icons.Filled.ThumbUp,
+                    contentDescription = likes,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(Sizes.iconSmall),
+                )
                 Text(
-                    pluralStringResource(R.plurals.detail_comment_likes, comment.likeCount.toInt(), comment.likeCount),
+                    compactCount(comment.likeCount),
                     style = MaterialTheme.typography.labelSmall.merge(NumeralStyle),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp),
                 )
             }
             if (comment.isHearted) {
                 Icon(
                     Icons.Filled.Favorite,
                     contentDescription = stringResource(R.string.detail_comment_liked_by_channel),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.fyiExtras.icons.like,
                     modifier = Modifier.padding(start = 6.dp).size(Sizes.iconSmall),
                 )
             }

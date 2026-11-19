@@ -25,6 +25,7 @@ import com.fyiplayer.app.core.Chapter
 import com.fyiplayer.app.ui.theme.NumeralStyle
 import com.fyiplayer.app.ui.theme.Sizes
 import com.fyiplayer.app.ui.theme.Spacing
+import com.fyiplayer.app.ui.theme.fyiExtras
 
 /** Chapter picker for the video playing, same shape as [AudioTrackSheet]. The row under the
  *  playhead is highlighted. That position is read once when the sheet opens, so the highlight
@@ -63,7 +64,8 @@ internal fun ChapterRow(chapter: Chapter, highlighted: Boolean, horizontalPaddin
     ) {
         Text(
             mmss(chapter.startSeconds * 1000L),
-            color = MaterialTheme.colorScheme.primary,
+            // The same colour as a timestamp link in the description text: both seek on tap.
+            color = MaterialTheme.fyiExtras.link,
             style = MaterialTheme.typography.labelLarge.merge(NumeralStyle),
             modifier = Modifier.padding(end = 10.dp),
         )
