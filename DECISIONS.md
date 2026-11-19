@@ -12,14 +12,13 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-20 v0.3.6: comment avatars + commenter channel, link-coloured chapter times, one-row channel header with
+  picture, Library opens on Channels with pictures (memory-only `ChannelAvatars`). Dark theme only verified. See ui.md.
 - 2026-11-20 v0.3.5: resume pill + direct resume on return, seek-bar edge drag, rebuffer trace lines, blue links,
   saved Shorts feed (see shorts.md). Open: "more pausing" report
   not reproduced (starts median 1.6 s, 1 transport error in 23 h of trace); read `rebuffer` / `paused by player` lines in the next Playback report. See playback.md.
 - 2026-11-14 v0.3.4 (device-verified A059 in part): resume marker instead of auto-resume, end-of-video sleep timer,
   speed card + outlined speed button, suggestions from www.google.com, saved For you feed at start. Open: Honor 200 fullscreen button. See playback.md, ui.md.
-- 2026-11-12 v0.3.2: extractor pin moved to ed08d9ca (no caption download while a video loads), README links our extractor fork.
-- 2026-11-06 v0.2.45: extractor from the shared fork submodule (kids videos via the embedded player, no SABR; live
-  streams from the HLS manifest); kids videos start in ~2 s, embed-blocked ones still 8-10 s. See extraction.md.
 - 2026-11-05 v0.2.43: GitHub CI (`.github/workflows/ci.yml` = `just check`), one APK per ABI (arm64-v8a,
   armeabi-v7a, x86_64; release uploads all three), Android 8-10 insets-log crash fixed. Releases: push a vX.Y.Z tag (release.yml).
 - 2026-11-05 released v0.2.42 (v0.2.36-42: monochrome + coloured-icon theme, home layouts, channel row, downloads play
