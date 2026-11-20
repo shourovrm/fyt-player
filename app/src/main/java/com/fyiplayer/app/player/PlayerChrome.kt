@@ -481,12 +481,13 @@ internal fun ResumeButton(fullscreen: Boolean, modifier: Modifier = Modifier) {
             }
         }
             .clip(CircleShape)
-            .background(extras.onVideo)
+            // The dot's colour, so the pill reads as belonging to it.
+            .background(extras.warning)
             .clickable(role = Role.Button, onClick = PlaybackSession::acceptResumeOffer)
             .semantics { contentDescription = description }
             .padding(horizontal = Spacing.s16, vertical = 2.dp),
     ) {
-        Text(stringResource(R.string.player_resume), color = extras.onVideoInk, style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.player_resume), color = extras.onWarning, style = MaterialTheme.typography.labelLarge)
     }
 }
 

@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 data class FyiExtraColors(
     val positive: Color,
     val warning: Color,
+    /** Text on a [warning] fill. */
+    val onWarning: Color,
     val ink3: Color,
     val surface3: Color,
     val link: Color,
@@ -92,6 +94,7 @@ private val LocalFyiExtraColors = staticCompositionLocalOf {
     FyiExtraColors(
         positive = DarkPositive,
         warning = DarkWarning,
+        onWarning = OnVideoInk,
         ink3 = DarkInk3,
         surface3 = DarkSurface3,
         link = DarkLink,
@@ -188,6 +191,7 @@ fun FyiTheme(
         FyiExtraColors(
             positive = DarkPositive,
             warning = DarkWarning,
+        onWarning = OnVideoInk,
             ink3 = DarkInk3,
             surface3 = DarkSurface3,
             link = DarkLink,
@@ -197,6 +201,7 @@ fun FyiTheme(
         FyiExtraColors(
             positive = LightPositive,
             warning = LightWarning,
+            onWarning = OnVideo,
             ink3 = LightInk3,
             surface3 = LightSurface3,
             link = LightLink,
