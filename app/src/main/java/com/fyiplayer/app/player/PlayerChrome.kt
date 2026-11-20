@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -49,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
@@ -119,7 +121,7 @@ internal fun ControlBar(
     val shownMs = if (isScrubbing) scrubValueMs else progress.positionMs
     val durationMs = progress.durationMs.coerceAtLeast(1L)
     val fraction = (shownMs.toFloat() / durationMs).coerceIn(0f, 1f)
-    val sideInset = if (fullscreen) Spacing.s24 else 0.dp
+    val sideInset = seekSideInset(fullscreen)
     val extras = MaterialTheme.fyiExtras
     // White, not the accent: the accent is the ink colour, which vanishes over dark video.
     val playedColor = extras.onVideo
@@ -429,29 +431,56 @@ internal fun mmss(ms: Long, forceHours: Boolean = false): String {
 private fun ResumeDot(fraction: Float, sideInset: Dp, modifier: Modifier = Modifier) {
     val color = MaterialTheme.fyiExtras.warning
     Canvas(modifier) {
-        // The slider keeps half a thumb clear at each end of its track.
-        val thumbHalf = Spacing.s24.toPx() / 2
-        val trackWidth = size.width - 2 * (sideInset.toPx() + thumbHalf)
         drawCircle(
             color = color,
             radius = Sizes.resumeDot.toPx() / 2,
-            center = Offset(sideInset.toPx() + thumbHalf + fraction * trackWidth, size.height / 2),
+            center = Offset(resumeDotCenterX(fraction, size.width, sideInset.toPx(), SLIDER_THUMB.toPx() / 2), size.height / 2),
         )
     }
 }
 
-/** "Resume from 12:34", shown while [PlaybackSession.resumeOffer] is set. A real button, not a
- *  target on the seek bar: a tap on the bar would seek to wherever the finger landed. */
+private val SLIDER_THUMB = Spacing.s24
+
+/** The seek row's inset from the player's side edges. */
+private fun seekSideInset(fullscreen: Boolean): Dp = if (fullscreen) Spacing.s24 else 0.dp
+
+/** X of the resume dot's centre on a seek row [rowWidthPx] wide. The slider keeps half a thumb
+ *  clear at each end of its track, so the track is narrower than the row. */
+internal fun resumeDotCenterX(fraction: Float, rowWidthPx: Float, sideInsetPx: Float, thumbHalfPx: Float): Float {
+    val trackStart = sideInsetPx + thumbHalfPx
+    return trackStart + fraction * (rowWidthPx - 2 * trackStart)
+}
+
+/** Left edge of a pill centred on [dotCenterX], moved sideways only as far as needed to stay
+ *  [marginPx] inside the row: near either end the dot is no longer under the pill's middle. */
+internal fun resumePillLeft(dotCenterX: Float, pillWidthPx: Int, rowWidthPx: Int, marginPx: Int): Int {
+    val rightmost = (rowWidthPx - pillWidthPx - marginPx).coerceAtLeast(marginPx)
+    return (dotCenterX - pillWidthPx / 2f).roundToInt().coerceIn(marginPx, rightmost)
+}
+
+/** "Resume from 12:34", shown while [PlaybackSession.resumeOffer] is set, centred over the
+ *  [ResumeDot] it belongs to. A real button, not a target on the seek bar: a tap on the bar would
+ *  seek to wherever the finger landed. Takes the player's full width and places the pill in it. */
 @Composable
-internal fun ResumeButton(modifier: Modifier = Modifier) {
+internal fun ResumeButton(fullscreen: Boolean, modifier: Modifier = Modifier) {
     val offerMs = PlaybackSession.resumeOffer.collectAsState().value ?: return
     // Collected here, not by PlayerScreen, so the 500ms tick recomposes only this button.
     val durationMs = PlaybackSession.progress.collectAsState().value.durationMs
+    val fraction = (offerMs.toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
+    val sideInset = seekSideInset(fullscreen)
     val extras = MaterialTheme.fyiExtras
     Button(
         onClick = PlaybackSession::acceptResumeOffer,
         colors = ButtonDefaults.buttonColors(containerColor = extras.onVideo, contentColor = extras.onVideoInk),
-        modifier = modifier,
+        modifier = modifier.layout { measurable, constraints ->
+            val pill = measurable.measure(constraints.copy(minWidth = 0))
+            val rowWidth = constraints.maxWidth
+            val dotCenterX = resumeDotCenterX(fraction, rowWidth.toFloat(), sideInset.toPx(), SLIDER_THUMB.toPx() / 2)
+            val margin = (sideInset + Spacing.s16).roundToPx()
+            layout(rowWidth, pill.height) {
+                pill.place(resumePillLeft(dotCenterX, pill.width, rowWidth, margin), 0)
+            }
+        },
     ) {
         Text(stringResource(R.string.player_resume_from, positionClock(offerMs, durationMs)))
     }
