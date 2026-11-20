@@ -4,9 +4,8 @@ import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.core.ExtractionError
 import kotlinx.coroutines.delay
 
-/** Waits before each retry: four attempts in total. The waits add up to 7 s because a Wi-Fi to
- *  mobile-data handover can fail DNS instantly for several seconds: 3 s of waits let the
- *  "No connection" banner show while the network was still switching. */
+/** Waits before each retry: four attempts in total. The waits add up to 7 s: DNS and connect
+ *  failures return instantly, so shorter waits spend every attempt inside one brief outage. */
 internal val TRANSPORT_RETRY_DELAYS_MILLIS: List<Long> = listOf(1_000L, 2_000L, 4_000L)
 
 /**

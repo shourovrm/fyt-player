@@ -42,8 +42,9 @@ internal data class PlayerErrorBudget(
 internal const val MAX_DEFAULT_POSITION_SEEKS = 3
 
 /** Wait before each retry of a transport failure. The first is immediate because a single dropped
- *  socket recovers at once. The later ones give a Wi-Fi to mobile-data handover time to finish:
- *  retrying into a network that is still switching only spends the budget. */
+ *  socket recovers at once. The later ones wait because the media host can stop answering for
+ *  tens of seconds while the rest of the network works (trace 2026-11-20: 8 s timeouts on stable
+ *  Wi-Fi); an immediate retry into that stall only spends the budget. */
 internal val PLAYBACK_TRANSPORT_RETRY_DELAYS_MS: List<Long> = listOf(0L, 2_000L, 5_000L)
 
 /** A genuinely broken surface must reach the error screen instead of re-preparing forever;

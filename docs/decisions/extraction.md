@@ -2,10 +2,14 @@
 
 ## Current state
 
-2026-11-20 (v0.3.8): user reports frequent "No connection" on Shorts and the player with Wi-Fi up. No trace
-(release build: logcat has no app lines, run-as refused), so the cause is read from code: `TransportRetry` gave up
-after 3 s of waits and playback after ONE immediate re-resolve. Now loading waits 1 / 2 / 4 s (four attempts) and
-playback retries three times (playback.md). `SocketException` ("Connection reset") counts as transport in both
+2026-11-20 (v0.3.8): user reports frequent "No connection" on Shorts and the player with Wi-Fi up. Trace of v0.3.7
+(read after the debug build went on): ALL were playback errors 2001/2002 (connect/read timeout, 8 s) on media
+requests, Wi-Fi up since the day before, extraction answering in ~0.8 s throughout. Two episodes in 2 h 45 min:
+15:56 one Short failed 4 times over ~70 s incl. manual retries on fresh URLs; 16:00 a video failed twice in 10 s,
+manual retry 16 s later played. So the media host stalls for 10-70 s; why is unknown (cause class was R8-obfuscated).
+Playback gave up after ONE immediate re-resolve; now three (playback.md). Loading also waits 1 / 2 / 4 s (four
+attempts) though no loading failure was in the trace. Expect the 16:00 kind to recover unseen and the 15:56 kind to
+still end in the error, ~25 s later. Next: the debug trace names the real exception class. `SocketException` ("Connection reset") counts as transport in both
 classifiers; before it showed "Not supported yet." unretried. Next report: read the debug build's trace (build.md).
 Upstream extractor main is 33 commits past our base 1a09d20e (v5.6.0 betas; YouTube fixes f861b436, fb9413ca,
 c9893e53; b7a167e3 refactors the anti-bot exceptions `NewPipeErrors` maps). Not rebased yet.

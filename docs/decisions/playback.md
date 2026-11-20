@@ -89,8 +89,8 @@ init failure with a released surface (IllegalArgumentException mentioning "surfa
 test) = prepare() in place, 10 s cooldown; other decoder errors = ONE fallback to the next
 lower rendition via selectQuality; expired URL = one re-resolve; a 403 on the fresh
 URL is shown, never retried. Transport failure (2026-11-20, v0.3.8) = three re-resolves, waiting 0 / 2 / 5 s
-(`PLAYBACK_TRANSPORT_RETRY_DELAYS_MS`), own budget, re-armed with the rest after 30 s healthy play. NOT device-verified:
-no trace of the reported "No connection" errors existed, cause inferred from code (see extraction.md). SponsorBlock: 8 categories x Off / Skip automatically / Show skip
+(`PLAYBACK_TRANSPORT_RETRY_DELAYS_MS`), own budget, re-armed with the rest after 30 s healthy play. NOT device-verified
+against a real stall (see the v0.3.7 trace in extraction.md). SponsorBlock: 8 categories x Off / Skip automatically / Show skip
 button (`core/SponsorPolicy.kt`, per-category DataStore keys, default sponsor=auto so old
 installs behave the same), seekbar markers, "Skip <category>" overlay, per-channel whitelist
 (DataStore string set; "Skips on" / "Skips off" switch at the right of Detail's channel line,

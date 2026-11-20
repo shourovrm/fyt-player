@@ -12,8 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
-- 2026-11-20 v0.3.8: more transport retries before "No connection" (loading 1/2/4 s, playback 0/2/5 s). Cause inferred,
-  NOT device-verified. Phone runs the debug build: on the next error read `playback_trace.txt` via run-as (build.md).
+- 2026-11-20 v0.3.8: more transport retries before "No connection" (loading 1/2/4 s, playback 0/2/5 s). v0.3.7 trace: media host stalls
+  10-70 s on stable Wi-Fi, reason unknown; fix NOT verified against a real stall. Phone runs the debug build: on the next error read `playback_trace.txt` via run-as (build.md).
   Extractor rebase onto upstream main (33 commits) still open (extraction.md).
 - 2026-11-20 v0.3.7: ⌄ minimise lands on the last static page; mini player restores the Detail chain;
   Back skips videos while minimised (device-verified A059 except the Shorts-pager path). See playback.md.
