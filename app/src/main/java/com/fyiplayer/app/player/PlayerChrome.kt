@@ -20,8 +20,6 @@ import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -458,7 +456,7 @@ internal fun resumePillLeft(dotCenterX: Float, pillWidthPx: Int, rowWidthPx: Int
     return (dotCenterX - pillWidthPx / 2f).roundToInt().coerceIn(marginPx, rightmost)
 }
 
-/** "Resume from 12:34", shown while [PlaybackSession.resumeOffer] is set, centred over the
+/** "Resume" (spoken: "Resume from 12:34"), shown while [PlaybackSession.resumeOffer] is set, centred over the
  *  [ResumeDot] it belongs to. A real button, not a target on the seek bar: a tap on the bar would
  *  seek to wherever the finger landed. Takes the player's full width and places the pill in it. */
 @Composable
@@ -469,9 +467,10 @@ internal fun ResumeButton(fullscreen: Boolean, modifier: Modifier = Modifier) {
     val fraction = (offerMs.toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
     val sideInset = seekSideInset(fullscreen)
     val extras = MaterialTheme.fyiExtras
-    Button(
-        onClick = PlaybackSession::acceptResumeOffer,
-        colors = ButtonDefaults.buttonColors(containerColor = extras.onVideo, contentColor = extras.onVideoInk),
+    val description = stringResource(R.string.player_resume_from, positionClock(offerMs, durationMs))
+    // A plain box, not a Material Button: that is 40dp tall at least, and the gap between the
+    // play button and the control row in the portrait player is under 28dp.
+    Box(
         modifier = modifier.layout { measurable, constraints ->
             val pill = measurable.measure(constraints.copy(minWidth = 0))
             val rowWidth = constraints.maxWidth
@@ -480,9 +479,14 @@ internal fun ResumeButton(fullscreen: Boolean, modifier: Modifier = Modifier) {
             layout(rowWidth, pill.height) {
                 pill.place(resumePillLeft(dotCenterX, pill.width, rowWidth, margin), 0)
             }
-        },
+        }
+            .clip(CircleShape)
+            .background(extras.onVideo)
+            .clickable(role = Role.Button, onClick = PlaybackSession::acceptResumeOffer)
+            .semantics { contentDescription = description }
+            .padding(horizontal = Spacing.s16, vertical = 2.dp),
     ) {
-        Text(stringResource(R.string.player_resume_from, positionClock(offerMs, durationMs)))
+        Text(stringResource(R.string.player_resume), color = extras.onVideoInk, style = MaterialTheme.typography.labelLarge)
     }
 }
 

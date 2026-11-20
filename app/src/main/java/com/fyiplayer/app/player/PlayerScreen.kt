@@ -470,12 +470,12 @@ fun PlayerScreen(
                     )
                 }
 
-                // Just above the control row, at the same height whether the controls are up or
+                // Between the play button and the control row, at the same height whether the controls are up or
                 // not: they hide 3 s into a video, and a button that dropped then moved from under
                 // the finger.
                 ResumeButton(
                     fullscreen = fullscreen,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(bottom = Spacing.s64),
+                    modifier = Modifier.align(Alignment.BottomStart).padding(bottom = Spacing.s56),
                 )
 
                 if (showQualitySheet) {

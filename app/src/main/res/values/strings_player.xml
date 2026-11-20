@@ -35,6 +35,7 @@
     <string name="player_quality_stream">Stream instead</string>
     <string name="player_caption_downloaded">Downloaded</string>
     <string name="player_quality_height">%1$dp</string>
+    <string name="player_resume">Resume</string>
     <string name="player_resume_from">Resume from %1$s</string>
     <string name="player_speed_fine_tune">Fine tune</string>
     <string name="player_speed_presets">Presets</string>
