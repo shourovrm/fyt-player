@@ -12,6 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-20 v0.3.7: ⌄ minimise lands on the last static page; mini player restores the Detail chain;
+  Back skips videos while minimised (device-verified A059 except the Shorts-pager path). See playback.md.
 - 2026-11-20 v0.3.6: comment avatars + commenter channel, link-coloured chapter times, one-row channel header with
   picture, Library opens on Channels with pictures (memory-only `ChannelAvatars`). Dark theme only verified. See ui.md.
 - 2026-11-20 v0.3.5: resume pill + direct resume on return, seek-bar edge drag, rebuffer trace lines, blue links,
