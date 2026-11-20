@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.fyiplayer.app.R
@@ -264,7 +265,7 @@ internal fun ControlBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(Sizes.touchTarget)
+                .height(if (fullscreen) Sizes.touchTarget else Spacing.s40)
                 .padding(horizontal = rowGutter + sideInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -275,7 +276,7 @@ internal fun ControlBar(
             )
             Box(modifier = Modifier.weight(1f))
             ControlIcon(description = stringResource(R.string.player_sleep_timer), onClick = onOpenSleepTimer) {
-                SleepTimerGlyph(tint = extras.onVideo)
+                SleepTimerGlyph(tint = extras.onVideo, size = Sizes.controlGlyph)
             }
             ControlIcon(description = stringResource(R.string.player_menu_speed), onClick = onOpenSpeed) {
                 // An outline marks any non-default speed. A filled pill was the brightest thing
@@ -300,7 +301,7 @@ internal fun ControlBar(
                 description = stringResource(if (looping) R.string.player_loop_stop else R.string.player_loop),
                 onClick = onToggleLoop,
             ) {
-                RepeatGlyph(tint = if (looping) playedColor else extras.onVideo, size = Sizes.icon)
+                RepeatGlyph(tint = if (looping) playedColor else extras.onVideo, size = Sizes.controlGlyph)
             }
             ControlIcon(
                 description = stringResource(
@@ -308,7 +309,7 @@ internal fun ControlBar(
                 ),
                 onClick = onToggleFullscreen,
             ) {
-                FullscreenGlyph(fullscreen = fullscreen, tint = extras.onVideo, size = Sizes.icon)
+                FullscreenGlyph(fullscreen = fullscreen, tint = extras.onVideo, size = Sizes.controlGlyph)
             }
         }
     }
@@ -328,20 +329,25 @@ internal fun ControlBar(
         Modifier.fillMaxWidth()
     }
     Column(modifier = modifier.then(chrome)) {
-        // Offset into the slider box's own (touch-only) top area so the row sits just above the
-        // line; the box below is the hit area, not drawn chrome.
-        if (expanded && !fullscreen) Box(Modifier.offset(y = Spacing.s16)) { row() }
-        // Shown for the whole of a chaptered video, empty before the first chapter starts, so the
-        // bar does not jump when the first chapter begins.
-        if (expanded && chapters.isNotEmpty()) {
-            Text(
-                currentChapterTitle,
-                color = extras.onVideo,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = rowGutter + sideInset),
-            )
+        // Portrait: the chapter title and the row are pushed down into the slider box's touch-only
+        // top area, so the row sits close above the line. The row's buttons reach 8dp into that
+        // area; zIndex puts them above the slider there, or a tap on a button's lower edge would
+        // seek instead. The slider keeps the 16dp just above the line and every gap between buttons.
+        Column(Modifier.zIndex(1f).offset(y = if (fullscreen) 0.dp else Spacing.s24)) {
+            // Above the row, not between row and line: the row then sits equally close to the line
+            // with and without chapters. Shown for the whole of a chaptered video, empty before the
+            // first chapter starts, so the bar does not jump when the first chapter begins.
+            if (expanded && chapters.isNotEmpty()) {
+                Text(
+                    currentChapterTitle,
+                    color = extras.onVideo,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = rowGutter + sideInset),
+                )
+            }
+            if (expanded && !fullscreen) row()
         }
         // Portrait: pushed down so the line sits on the video's bottom edge; the touch box keeps
         // its full 40dp, the overflow is only the invisible lower half of the thumb. Same push idle

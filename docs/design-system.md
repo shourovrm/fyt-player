@@ -88,8 +88,9 @@ values = segmented button, more = check list; destructive rows: error text, conf
 
 Pre-redesign layout and shapes. Top right: chapters, captions, audio language as 48 dp round
 scrim buttons. Centre: previous and next 48 dp circles, play 64 dp circle. Bottom row: time,
-speed (12 dp pill when not 1x), quality badge, autoplay, loop, fullscreen; seek line on the
-video's bottom edge. Text over video is onVideo on videoScrim.
+sleep timer, speed (12 dp pill when not 1x), quality badge, autoplay, loop, fullscreen, glyphs 20 dp
+(`Sizes.controlGlyph`), 40 dp tall in portrait and centred 36 dp above the seek line; chapter name
+above the row; seek line on the video's bottom edge. Text over video is onVideo on videoScrim.
 
 ## Gates
 

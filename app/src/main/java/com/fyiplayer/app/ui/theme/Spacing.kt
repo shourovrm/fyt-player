@@ -28,6 +28,8 @@ object Sizes {
     /** Outline of the quality badge. Thinner than the 2 dp inline allowance, so it needs a token. */
     val badgeBorder: Dp = 1.5.dp
     val icon: Dp = 24.dp
+    /** Glyphs in the player's bottom row: smaller than [icon] so seven controls leave the picture visible. */
+    val controlGlyph: Dp = 20.dp
     /** Coloured square behind a 24 dp icon in the Settings hub and sheet titles. */
     val iconTile: Dp = 36.dp
     val iconSmall: Dp = 16.dp
