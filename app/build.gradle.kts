@@ -48,6 +48,11 @@ android {
     }
 
     buildTypes {
+        // Debuggable so `adb logcat` and `run-as` can read the playback trace on a connected phone.
+        // Signed with the release key so it installs over the released app and keeps its data.
+        debug {
+            if (keystoreFile.exists()) signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

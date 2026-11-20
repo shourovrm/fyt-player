@@ -2,6 +2,10 @@
 
 ## Current state
 
+2026-11-20: debug variant exists for tracing on the connected phone only. It is signed with the release key, so
+`adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk` goes over the released app and keeps its data.
+Read the trace with `adb shell run-as com.fyiplayer.app cat files/playback_trace.txt`. Releases stay the release variant.
+
 2026-08-23 (v0.2.8): app renamed to "FYT Player" -- launcher label, backup copy/filename, docs,
 rootProject.name only. applicationId stays `com.fyiplayer.app` (a new id = a new app on Android,
 no in-place update, all local data lost). README.md added; repo public at github.com/shourovrm/fyt-player.
