@@ -12,6 +12,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 - `docs/decisions/LOG.md` — append-only log; grep only
 
 ## Next
+- 2026-11-20 v0.3.9: player bottom row 36 dp above the seek line with 20 dp glyphs; resume pill = small "Resume" in the
+  dot's colour, centred over the dot (device-verified A059 portrait, light). Fullscreen and dark theme not looked at. See playback.md.
 - 2026-11-20 v0.3.8: more transport retries before "No connection" (loading 1/2/4 s, playback 0/2/5 s). v0.3.7 trace: media host stalls
   10-70 s on stable Wi-Fi, reason unknown; fix NOT verified against a real stall. Phone runs the debug build: on the next error read `playback_trace.txt` via run-as (build.md).
   Extractor rebase onto upstream main (33 commits) still open (extraction.md).
