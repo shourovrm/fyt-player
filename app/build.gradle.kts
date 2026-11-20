@@ -23,8 +23,8 @@ android {
         applicationId = "com.fyiplayer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 57
-        versionName = "0.3.7"
+        versionCode = 58
+        versionName = "0.3.8"
     }
 
     // One APK per ABI: the python/ffmpeg payload is ~50 MB per ABI, so a universal APK would be huge.

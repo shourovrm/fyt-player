@@ -333,3 +333,5 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-20 | channel page top bar = page colour | user: grey band behind the back arrow looked like a banner
 2026-11-20 | channel header reduced to one bar row (picture, name, subscribers, heart, Play all) | user: centred header took too much space; chose mock A2 with the heart icon instead of a Subscribe text button
 2026-11-20 | ⌄ minimise pops to the nearest static page, remembers the Detail chain; mini player restores it; Back skips Detail/Shorts player while minimised | user: minimise sometimes landed on or replayed the previous video
+2026-11-20 | transport retries: loading 1/2/4 s, playback three re-resolves at 0/2/5 s; SocketException = transport | user: "No connection" shown often with Wi-Fi up, expected several reconnect attempts first
+2026-11-20 | debug variant signed with the release key | user wants readable logs on the connected phone; release build exposes none over adb
