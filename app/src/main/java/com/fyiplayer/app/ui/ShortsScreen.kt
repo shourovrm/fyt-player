@@ -84,6 +84,10 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
     val sources = remember(enabledIds) { SourceRegistry.browseSourcesFor(enabledIds) }
 
     LaunchedEffect(sources) { vm.loadFeedIfNeeded(sources) }
+    // Minimised from a Detail opened out of the pager: show the grid. Set during composition, not
+    // in an effect, because the pager would otherwise compose for one frame and restart its clips
+    // over the minimised video.
+    if (vm.showPlayer && MinimizedTrail.active) vm.showPlayer = false
 
     // Hoisted above the grid/pager branch below, not inside it: a `remember` inside a
     // conditionally-composed branch is torn down every time that branch stops composing, which

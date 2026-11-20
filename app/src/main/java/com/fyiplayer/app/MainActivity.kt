@@ -17,6 +17,7 @@ import com.fyiplayer.app.player.MiniPlayer
 import com.fyiplayer.app.player.QueueBar
 import com.fyiplayer.app.ui.AppScaffold
 import com.fyiplayer.app.ui.AppShell
+import com.fyiplayer.app.ui.MinimizedTrail
 import com.fyiplayer.app.ui.openDetail
 import com.fyiplayer.app.ui.openSharedUrl
 import com.fyiplayer.app.ui.theme.FyiTheme
@@ -80,7 +81,7 @@ class MainActivity : ComponentActivity() {
             FyiTheme {
                 AppScaffold(
                     queueBar = { nav -> QueueBar(onOpen = { nav.openDetail(it) }) },
-                    miniPlayer = { nav -> MiniPlayer(onOpen = { nav.openDetail(it) }) },
+                    miniPlayer = { nav -> MiniPlayer(onOpen = { MinimizedTrail.reopen(nav, it) }) },
                 ) { nav ->
                     // Runs once the graph is set (same composition pass, before this effect body
                     // executes) and again on every new shared URL -- warm-start intents included.

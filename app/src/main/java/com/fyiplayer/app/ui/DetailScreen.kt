@@ -114,6 +114,7 @@ import kotlin.math.roundToInt
 @Composable
 fun DetailScreen(
     pageUrl: String,
+    returning: Boolean,
     onOpenDetail: (VideoRef) -> Unit,
     onOpenListing: (Listing) -> Unit,
     onOpenShorts: (List<VideoRef>, Int) -> Unit,
@@ -178,7 +179,8 @@ fun DetailScreen(
     // stack and process restore, where this composable is built anew.
     // Compares the queue slot, not `current`: play() clears `current` until its resolve lands, so a
     // queue started just before navigating here would otherwise be replaced by this one video.
-    var startedOnce by rememberSaveable { mutableStateOf(false) }
+    // A page put back under the mini player's video counts as started: its video played before.
+    var startedOnce by rememberSaveable { mutableStateOf(returning) }
     LaunchedEffect(pageUrl) {
         val st = PlaybackSession.state.value
         if (st.queue.getOrNull(st.index)?.pageUrl != ref.pageUrl || st.error != null) {

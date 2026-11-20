@@ -41,7 +41,8 @@ object Routes {
     const val LIBRARY = "library"
     const val DOWNLOADS = "downloads"
     const val SETTINGS = "settings"
-    const val DETAIL = "detail/{pageUrl}"
+    // returning: the page is put back by MinimizedTrail.reopen, so its video was already started once.
+    const val DETAIL = "detail/{pageUrl}?returning={returning}"
     // key is a full channel/playlist URL (path segment); sourceId/kind/title ride as query args so
     // ListingScreen can call the right VideoSource.listing() without a second lookup.
     const val LISTING = "listing/{key}?sourceId={sourceId}&kind={kind}&title={title}"
@@ -50,7 +51,11 @@ object Routes {
 
 /** Raw-URL overload for screens that only have a page URL (Shorts/Library/Playlist placeholders,
  *  still unbuilt). Detail then starts blank until its own resolve lands -- honest, not a crash. */
-fun NavController.openDetail(pageUrl: String) = navigate("detail/${Uri.encode(pageUrl)}")
+fun NavController.openDetail(pageUrl: String) {
+    // A video opened by any other means leaves the minimised chain behind.
+    MinimizedTrail.clear()
+    navigate("detail/${Uri.encode(pageUrl)}")
+}
 
 /** [ref] is stashed in [RefCache] (see its doc) so Detail paints its header from it immediately —
  *  a nav route can only carry the page URL itself. Preferred whenever a full ref is on hand. */
@@ -59,9 +64,9 @@ fun NavController.openDetail(ref: VideoRef) {
     openDetail(ref.pageUrl)
 }
 
-/** X and ⌄ on the Detail player: pops every Detail page on top of the stack, so the user lands on the
+/** X on the Detail player: pops every Detail page on top of the stack, so the user lands on the
  *  screen the first video was opened from. Stops at the first non-Detail entry, so Home stays the
- *  floor when no other screen sits under the chain. */
+ *  floor when no other screen sits under the chain. ⌄ is [MinimizedTrail.minimize]. */
 fun NavController.closeDetailChain() {
     while (currentBackStackEntry?.destination?.route == Routes.DETAIL && popBackStack()) {
     }
@@ -221,7 +226,11 @@ fun AppShell(navController: NavHostController) {
                 onOpenSettings = { navController.openSettings() },
             )
         }
-        composable(Routes.SHORTS_PLAYER) {
+        composable(Routes.SHORTS_PLAYER) { entry ->
+            if (MinimizedTrail.active) {
+                SkipWhileMinimized(navController, entry)
+                return@composable
+            }
             ShortsPlayerScreen(
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenChannel = { navController.openListing(it) },
@@ -244,8 +253,15 @@ fun AppShell(navController: NavHostController) {
         }
         composable(
             Routes.DETAIL,
-            arguments = listOf(navArgument("pageUrl") { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument("pageUrl") { type = NavType.StringType },
+                navArgument("returning") { type = NavType.BoolType; defaultValue = false },
+            ),
         ) { entry ->
+            if (MinimizedTrail.active) {
+                SkipWhileMinimized(navController, entry)
+                return@composable
+            }
             val pageUrl = entry.arguments?.getString("pageUrl")?.let(Uri::decode).orEmpty()
             val app = rememberFyiApp()
             val prefs = app.prefs
@@ -256,6 +272,7 @@ fun AppShell(navController: NavHostController) {
             val canGoPrevious = WatchTrail.canGoPrevious(routeBelow(navBackStack, entry))
             DetailScreen(
                 pageUrl = pageUrl,
+                returning = entry.arguments?.getBoolean("returning") == true,
                 onOpenDetail = { navController.openDetail(it) },
                 onOpenListing = { navController.openListing(it) },
                 onOpenShorts = { items, index -> navController.openShortsPlayer(items, index) },
@@ -275,7 +292,8 @@ fun AppShell(navController: NavHostController) {
                         pageRef = surfaceRef,
                         // Both unwind every Detail page to the screen the first video came from
                         // (playlist, channel, library). X also stops playback; ⌄ keeps it running
-                        // in the mini player. A one-level pop would land on the previous Detail,
+                        // in the mini player and also unwinds Shorts players, whose pager would
+                        // restart its clips. A one-level pop would land on the previous Detail,
                         // whose entry guard restarts that video over the one still playing.
                         onClose = {
                             PlaybackSession.clear()
@@ -284,7 +302,7 @@ fun AppShell(navController: NavHostController) {
                         },
                         onMinimize = {
                             watchTrail = watchTrail.cleared()
-                            navController.closeDetailChain()
+                            MinimizedTrail.minimize(navController)
                         },
                         watchTrailEnabled = true,
                         onTrailPrevious = if (canGoPrevious) goPrevious else null,
@@ -353,5 +371,15 @@ fun AppShell(navController: NavHostController) {
             )
         }
     }
+    }
+}
+
+/** A Detail or Shorts player entry that Back reached while a video is minimised: drawn blank and
+ *  popped, so Back lands on the static page below. Only the top entry pops, so an entry still being
+ *  composed on its way out cannot take the page under it along. */
+@Composable
+private fun SkipWhileMinimized(navController: NavController, entry: NavBackStackEntry) {
+    LaunchedEffect(entry.id) {
+        if (navController.currentBackStackEntry?.id == entry.id) navController.popBackStack()
     }
 }
