@@ -21,3 +21,4 @@ keystore.properties
 
 # design-system mockups (throwaway)
 .design-mockups/
+.impeccable/
