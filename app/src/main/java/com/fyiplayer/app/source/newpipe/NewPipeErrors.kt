@@ -4,7 +4,7 @@ import com.fyiplayer.app.DiagLog
 import com.fyiplayer.app.core.AccessChallengeReason
 import com.fyiplayer.app.core.ExtractionError
 import java.io.IOException
-import java.net.ConnectException
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
@@ -79,7 +79,8 @@ internal fun AccessChallengeReason.otherClientMayHelp(): Boolean =
  *  deep chain can't hang this check. */
 private fun isTransportFailure(e: Throwable): Boolean =
     generateSequence(e as Throwable?) { it.cause }.take(8).any {
-        it is SocketTimeoutException || it is UnknownHostException || it is ConnectException || it is SSLException
+        // SocketException covers refused connections and "Connection reset" alike.
+        it is SocketTimeoutException || it is UnknownHostException || it is SocketException || it is SSLException
     }
 
 // Class names only, outer to inner: the wrapper is usually plain IOException, and the cause

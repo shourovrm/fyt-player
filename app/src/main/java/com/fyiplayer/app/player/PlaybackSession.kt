@@ -241,13 +241,14 @@ object PlaybackSession {
     private var rebuildJob: Job? = null // SABR quality/dub rebuild in flight (see rebuildCurrent)
     private var prefetchJob: Job? = null
     private var tickerJob: Job? = null
-    // One re-resolve attempt per item after an expired URL or a transport failure. Re-armed on item
+    // One re-resolve attempt per item after an expired URL. Re-armed on item
     // change, on a play press, and after HEALTHY_TICKS_TO_REARM_RETRY ticks of continuous playing.
     private var retriedIndex: Int? = null
     // The other bounded error recoveries (see PlayerErrorPolicy). Per item: re-armed with
     // resetPlayerErrorBudget() when a genuinely new item starts and after a healthy stretch.
     private var defaultPositionSeeks = 0
     private var lowerRenditionSpent = false
+    private var transportRetries = 0
     // Not per item: the surface belongs to the app, so its cooldown is wall-clock.
     private var lastSurfaceRecoveryAtMs: Long? = null
     private var autoplayFired = false // guards STATE_ENDED's possible re-emission from double-firing autoplay
@@ -408,6 +409,7 @@ object PlaybackSession {
     private fun resetPlayerErrorBudget() {
         defaultPositionSeeks = 0
         lowerRenditionSpent = false
+        transportRetries = 0
     }
 
     private fun msSince(startedAtMs: Long): Long = SystemClock.elapsedRealtime() - startedAtMs
@@ -1021,8 +1023,9 @@ object PlaybackSession {
      *  [resumeAtMs], when given, seeks back to it after the fresh source is prepared -- used by
      *  the expiry re-resolve path (onPlayerError) where this is the same item continuing, not a
      *  genuinely new one starting at 0. [atSavedPosition] starts a new item at its saved position
-     *  instead of offering it (see [playContinuing]). */
-    private fun startAt(i: Int, resumeAtMs: Long? = null, atSavedPosition: Boolean = false) {
+     *  instead of offering it (see [playContinuing]). [waitBeforeMs] delays the resolve (see
+     *  PLAYBACK_TRANSPORT_RETRY_DELAYS_MS); any newer start cancels the wait with the load. */
+    private fun startAt(i: Int, resumeAtMs: Long? = null, atSavedPosition: Boolean = false, waitBeforeMs: Long = 0) {
         loadJob?.cancel(); rebuildJob?.cancel()
         prefetchJob?.cancel()
         // Whatever the user picks here supersedes a pending "play a related video" lookup.
@@ -1046,6 +1049,7 @@ object PlaybackSession {
         diag("load start index=$i resumeGiven=${resumeAtMs != null}")
         warmNext(i)
         loadJob = scope.launch {
+            delay(waitBeforeMs)
             // resumeAtMs given = the SAME item continuing (expiry re-resolve, retry). A genuinely
             // new start plays from the beginning and offers its saved position on the seek bar
             // (see resumeOffer), unless [atSavedPosition]. Shorts never offer or resume one -- a swipe-through clip is too short.
@@ -1595,6 +1599,7 @@ object PlaybackSession {
             val now = SystemClock.elapsedRealtime()
             val budget = PlayerErrorBudget(
                 reResolveSpent = retriedIndex == index,
+                transportRetriesSpent = transportRetries,
                 defaultPositionSeeksSpent = defaultPositionSeeks,
                 lowerRenditionSpent = lowerRenditionSpent,
                 lowerRenditionAvailable = lowerCeiling != null && currentFormats.isNotEmpty(),
@@ -1620,13 +1625,18 @@ object PlaybackSession {
                     // player stopped. No re-resolve -- the URL is fine, the surface was not.
                     player.prepare()
                 }
-                PlayerErrorAction.RERESOLVE_EXPIRED_URL, PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE -> {
+                PlayerErrorAction.RERESOLVE_EXPIRED_URL -> {
                     retriedIndex = index
                     val ref = queue.getOrNull(index)
-                    // Only a dead URL invalidates the resolver: after a transport blip the cached
-                    // formats are still good and re-using them is the fast path.
-                    if (action == PlayerErrorAction.RERESOLVE_EXPIRED_URL && ref != null) resolver.invalidate(ref.pageUrl)
+                    if (ref != null) resolver.invalidate(ref.pageUrl)
                     startAt(index, resumeAtMs = player.currentPosition)
+                }
+                PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE -> {
+                    // The resolver is not invalidated: after a transport blip the cached formats
+                    // are still good and re-using them is the fast path.
+                    val waitMs = PLAYBACK_TRANSPORT_RETRY_DELAYS_MS[transportRetries]
+                    transportRetries++
+                    startAt(index, resumeAtMs = player.currentPosition, waitBeforeMs = waitMs)
                 }
                 PlayerErrorAction.FALL_BACK_TO_LOWER_RENDITION -> {
                     lowerRenditionSpent = true
@@ -1660,8 +1670,9 @@ internal fun isNetworkCause(error: Throwable?): Boolean {
     var depth = 0
     while (cause != null && depth++ < 8) {
         when (cause) {
+            // SocketException covers refused connections and "Connection reset" alike.
             is java.net.SocketTimeoutException, is java.net.UnknownHostException,
-            is java.net.ConnectException, is javax.net.ssl.SSLException,
+            is java.net.SocketException, is javax.net.ssl.SSLException,
             -> return true
         }
         if (cause is HttpDataSource.InvalidResponseCodeException) return false

@@ -20,7 +20,8 @@ private fun budget(
     lowerSpent: Boolean = false,
     lowerAvailable: Boolean = true,
     msSinceSurface: Long? = null,
-) = PlayerErrorBudget(reResolveSpent, seeksSpent, lowerSpent, lowerAvailable, msSinceSurface)
+    transportRetriesSpent: Int = 0,
+) = PlayerErrorBudget(reResolveSpent, transportRetriesSpent, seeksSpent, lowerSpent, lowerAvailable, msSinceSurface)
 
 class PlayerErrorPolicyTest {
 
@@ -49,10 +50,26 @@ class PlayerErrorPolicyTest {
         assertEquals(PlayerErrorAction.SHOW_ERROR, classifyPlayerError(refused, afterReResolve))
     }
 
-    @Test fun `transport failure re-resolves once without invalidating`() {
+    @Test fun `transport failure retries once per delay then shows the error`() {
         val dropped = facts(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, transport = true)
+        val lastRetry = PLAYBACK_TRANSPORT_RETRY_DELAYS_MS.size - 1
         assertEquals(PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE, classifyPlayerError(dropped, budget()))
-        assertEquals(PlayerErrorAction.SHOW_ERROR, classifyPlayerError(dropped, budget(reResolveSpent = true)))
+        assertEquals(
+            PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE,
+            classifyPlayerError(dropped, budget(transportRetriesSpent = lastRetry)),
+        )
+        assertEquals(
+            PlayerErrorAction.SHOW_ERROR,
+            classifyPlayerError(dropped, budget(transportRetriesSpent = lastRetry + 1)),
+        )
+    }
+
+    @Test fun `transport retries stay available after the expired-url re-resolve`() {
+        val dropped = facts(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, transport = true)
+        assertEquals(
+            PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE,
+            classifyPlayerError(dropped, budget(reResolveSpent = true)),
+        )
     }
 
     @Test fun `surface loss re-prepares, then respects the cooldown`() {

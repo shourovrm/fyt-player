@@ -2,6 +2,14 @@
 
 ## Current state
 
+2026-11-20 (v0.3.8): user reports frequent "No connection" on Shorts and the player with Wi-Fi up. No trace
+(release build: logcat has no app lines, run-as refused), so the cause is read from code: `TransportRetry` gave up
+after 3 s of waits and playback after ONE immediate re-resolve. Now loading waits 1 / 2 / 4 s (four attempts) and
+playback retries three times (playback.md). `SocketException` ("Connection reset") counts as transport in both
+classifiers; before it showed "Not supported yet." unretried. Next report: read the debug build's trace (build.md).
+Upstream extractor main is 33 commits past our base 1a09d20e (v5.6.0 betas; YouTube fixes f861b436, fb9413ca,
+c9893e53; b7a167e3 refactors the anti-bot exceptions `NewPipeErrors` maps). Not rebased yet.
+
 2026-11-06: the extractor is now the submodule `third_party/PipePipeExtractor` = fork `shourovrm/pipe-extractor-patched`
 branch `patched` (upstream 1a09d20e + our patch commits; tubepipe pins the same commit). 2026-11-12: pin moved to
 `ed08d9ca` (no caption download during extraction: `getSubtitles` no longer fetches the first caption track on

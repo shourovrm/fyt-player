@@ -11,7 +11,7 @@ internal enum class PlayerErrorAction {
     REPREPARE_AFTER_SURFACE_LOSS,
     /** A signed URL aged out (HTTP 401/403/410): drop the cached resolve and fetch a fresh one. */
     RERESOLVE_EXPIRED_URL,
-    /** The network dropped under the player: re-resolve, the cached formats stay valid. */
+    /** The network dropped under the player: wait, then re-resolve; the cached formats stay valid. */
     RERESOLVE_AFTER_TRANSPORT_FAILURE,
     /** The device decoder refused this rendition: play the next lower one. */
     FALL_BACK_TO_LOWER_RENDITION,
@@ -29,7 +29,9 @@ internal data class PlayerErrorFacts(
 
 /** What the session has already spent on the current item, plus what is possible right now. */
 internal data class PlayerErrorBudget(
+    /** The one re-resolve an expired URL gets. */
     val reResolveSpent: Boolean,
+    val transportRetriesSpent: Int,
     val defaultPositionSeeksSpent: Int,
     val lowerRenditionSpent: Boolean,
     val lowerRenditionAvailable: Boolean,
@@ -38,6 +40,11 @@ internal data class PlayerErrorBudget(
 )
 
 internal const val MAX_DEFAULT_POSITION_SEEKS = 3
+
+/** Wait before each retry of a transport failure. The first is immediate because a single dropped
+ *  socket recovers at once. The later ones give a Wi-Fi to mobile-data handover time to finish:
+ *  retrying into a network that is still switching only spends the budget. */
+internal val PLAYBACK_TRANSPORT_RETRY_DELAYS_MS: List<Long> = listOf(0L, 2_000L, 5_000L)
 
 /** A genuinely broken surface must reach the error screen instead of re-preparing forever;
  *  PipePipe uses the same 10 s. */
@@ -65,10 +72,12 @@ internal fun classifyPlayerError(facts: PlayerErrorFacts, budget: PlayerErrorBud
         }
     }
 
-    val expired = facts.httpStatus in EXPIRED_HTTP_CODES
-    if (expired || facts.isTransportFailure) {
-        if (budget.reResolveSpent) return PlayerErrorAction.SHOW_ERROR
-        return if (expired) PlayerErrorAction.RERESOLVE_EXPIRED_URL else PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE
+    if (facts.httpStatus in EXPIRED_HTTP_CODES) {
+        return if (budget.reResolveSpent) PlayerErrorAction.SHOW_ERROR else PlayerErrorAction.RERESOLVE_EXPIRED_URL
+    }
+    if (facts.isTransportFailure) {
+        val retriesLeft = budget.transportRetriesSpent < PLAYBACK_TRANSPORT_RETRY_DELAYS_MS.size
+        return if (retriesLeft) PlayerErrorAction.RERESOLVE_AFTER_TRANSPORT_FAILURE else PlayerErrorAction.SHOW_ERROR
     }
 
     if (facts.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED && facts.isSurfaceReleased) {

@@ -52,7 +52,7 @@ class TransportRetryTest {
     }
 
     @Test
-    fun givesUpAfterThreeAttemptsWithOneAndTwoSecondWaits() = runBlocking {
+    fun givesUpAfterFourAttemptsWithOneTwoAndFourSecondWaits() = runBlocking {
         val (delays, delayBefore) = recordingDelay()
         var attempts = 0
         assertThrows(ExtractionError.Network::class.java) {
@@ -63,8 +63,8 @@ class TransportRetryTest {
                 }
             }
         }
-        assertEquals(3, attempts)
-        assertEquals(listOf(1_000L, 2_000L), delays)
+        assertEquals(4, attempts)
+        assertEquals(listOf(1_000L, 2_000L, 4_000L), delays)
     }
 
     @Test
@@ -97,8 +97,8 @@ class TransportRetryTest {
                 }
             }
         }
-        assertEquals(3, attempts)
-        assertEquals(2, delays.size)
+        assertEquals(4, attempts)
+        assertEquals(3, delays.size)
         assertTrue(thrown.cause is SocketTimeoutException)
     }
 

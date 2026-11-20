@@ -64,8 +64,8 @@ object MediaItemFactory {
     private val loadErrorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
         override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long =
             // Transport failures (timeout/DNS/connect) skip the backoff as well: PlaybackSession's
-            // onPlayerError re-prepares once from the saved position, PipePipe-style, and one
-            // fresh attempt beats three retries on a socket the OS already dropped.
+            // onPlayerError re-prepares from the saved position (PLAYBACK_TRANSPORT_RETRY_DELAYS_MS),
+            // and a fresh attempt beats a retry on a socket the OS already dropped.
             if (isExpiredHttpError(loadErrorInfo.exception) || isNetworkCause(loadErrorInfo.exception)) C.TIME_UNSET
             else super.getRetryDelayMsFor(loadErrorInfo)
     }
