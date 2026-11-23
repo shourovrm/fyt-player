@@ -23,7 +23,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.placeCursorAtEnd
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -112,22 +115,29 @@ fun HomeScreen(
 
     val isSearching = vm.query.isNotBlank()
     val searchShown = searchOpen || isSearching
+    val searchText = vm.searchField.text.toString()
     val focusManager = LocalFocusManager.current
-    fun closeSearch() {
+    // Search is not a nav destination, so Back is walked here: out of the box to the results,
+    // then to the search before this one, then out of search.
+    fun leaveSearchStep() {
+        if (searchFieldFocused && isSearching) {
+            focusManager.clearFocus()
+            vm.resetSearchField()
+            return
+        }
+        if (vm.returnToEarlierSearch(browseSources)) return
         vm.clearSearch()
         searchOpen = false
         focusManager.clearFocus()
     }
-    // Every other screen exits on back; Home has no screen "above" search to pop to, so back must
-    // leave search mode instead of falling through to the Activity's default (closing the app).
-    BackHandler(enabled = searchShown) { closeSearch() }
+    BackHandler(enabled = searchShown) { leaveSearchStep() }
     LaunchedEffect(searchOpen) {
         if (searchOpen) focusRequester.requestFocus()
     }
-    // Suggestion fetch tracks the query while the field has focus -- requestSuggestions debounces
-    // internally, and a blank query (or losing focus) drops any suggestions on screen.
-    LaunchedEffect(vm.query, searchFieldFocused) {
-        if (searchFieldFocused && vm.query.isNotBlank()) vm.requestSuggestions(vm.query) else vm.clearSuggestions()
+    // Suggestion fetch tracks the typed text while the field has focus -- requestSuggestions
+    // debounces internally, and blank text (or losing focus) drops any suggestions on screen.
+    LaunchedEffect(searchText, searchFieldFocused) {
+        if (searchFieldFocused && searchText.isNotBlank()) vm.requestSuggestions(searchText) else vm.clearSuggestions()
     }
 
     val tabIds = remember(browseSources) { listOf(ALL_TAB_ID) + browseSources.map { it.id } }
@@ -216,12 +226,11 @@ fun HomeScreen(
     Column(Modifier.fillMaxSize()) {
         if (searchShown) {
             SearchPill(
-                query = vm.query,
-                onQueryChange = { vm.query = it },
+                field = vm.searchField,
+                focused = searchFieldFocused,
                 onFocusChanged = { searchFieldFocused = it },
-                onClose = { closeSearch() },
-                onClear = { vm.clearSearch() },
-                onSearch = { submitSearch(vm.query) },
+                onBack = { leaveSearchStep() },
+                onSearch = { submitSearch(searchText) },
                 focusRequester = focusRequester,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.pageMargin, vertical = Spacing.s8),
             )
@@ -244,7 +253,7 @@ fun HomeScreen(
                     Text(stringResource(R.string.home_no_sources), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            vm.query.isBlank() && searchFieldFocused && searchHistory.isNotEmpty() -> {
+            searchText.isBlank() && searchFieldFocused && searchHistory.isNotEmpty() -> {
                 SearchHistorySuggestions(
                     entries = searchHistory.map { it.query },
                     onPick = { submitSearch(it) },
@@ -252,9 +261,9 @@ fun HomeScreen(
                     onClearAll = { vm.clearSearchHistory() },
                 )
             }
-            // Typed but not yet submitted: searchResults is still the empty map runSearch hasn't
-            // populated yet, so show live suggestions here instead of a "No results" flash.
-            searchFieldFocused && vm.query.isNotBlank() && vm.searchResults.isEmpty() -> {
+            // Typing, whether or not a search is already on screen: suggestions cover the results
+            // until the text is submitted or the box is left.
+            searchFieldFocused && searchText.isNotBlank() -> {
                 SearchSuggestionsDropdown(suggestions = vm.suggestions, onPick = { submitSearch(it) })
             }
             isSearching -> {
@@ -661,16 +670,15 @@ private fun HomeAppBar(
 }
 
 /**
- * Search field, shown in place of the app bar while search is open. Back arrow closes search;
- * the trailing Clear empties the query and keeps the field open.
+ * Search field, shown in place of the app bar while search is open. The back arrow does what
+ * system Back does; the trailing Clear empties the text and puts the cursor in the field.
  */
 @Composable
 private fun SearchPill(
-    query: String,
-    onQueryChange: (String) -> Unit,
+    field: TextFieldState,
+    focused: Boolean,
     onFocusChanged: (Boolean) -> Unit,
-    onClose: () -> Unit,
-    onClear: () -> Unit,
+    onBack: () -> Unit,
     onSearch: () -> Unit,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
@@ -683,26 +691,35 @@ private fun SearchPill(
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onClose) {
+        IconButton(onClick = onBack) {
             Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Box(Modifier.weight(1f).padding(start = Spacing.s8)) {
-            if (query.isEmpty()) {
+            if (field.text.isEmpty()) {
                 Text(stringResource(R.string.home_search_placeholder), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
             }
             BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
+                state = field,
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester).onFocusChanged { onFocusChanged(it.isFocused) },
-                singleLine = true,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSearch() }, onDone = { onSearch() }),
+                onKeyboardAction = { onSearch() },
             )
+            // A tap on the unfocused field lands the cursor at the end of the text, wherever it
+            // hit; once focused the field takes its own taps and the cursor goes where tapped.
+            if (!focused) {
+                Box(
+                    Modifier.matchParentSize().clickable(interactionSource = null, indication = null) {
+                        field.edit { placeCursorAtEnd() }
+                        focusRequester.requestFocus()
+                    },
+                )
+            }
         }
-        if (query.isNotEmpty()) {
-            IconButton(onClick = onClear) { Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.home_clear_search), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (field.text.isNotEmpty()) {
+            IconButton(onClick = { field.clearText(); focusRequester.requestFocus() }) { Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.home_clear_search), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

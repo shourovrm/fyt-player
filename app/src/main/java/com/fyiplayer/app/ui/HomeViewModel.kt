@@ -1,6 +1,9 @@
 package com.fyiplayer.app.ui
 
 import android.app.Application
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +46,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val searchHistoryRepo = SearchHistoryRepository(app.database.searchHistoryDao())
     private val subscriptionRepo = SubscriptionRepository(app.database.subscriptionDao())
 
+    /** The search whose results are on screen; blank = no search. The text being typed lives in
+     *  [searchField] and becomes the query only on submit. */
     var query: String by mutableStateOf("")
+        private set
+
+    /** The search box's text and cursor. */
+    val searchField = TextFieldState()
+
+    /** Searches submitted before [query], oldest first: where Back returns to. */
+    private val earlierQueries = ArrayDeque<String>()
     var selectedTab: String by mutableStateOf(ALL_TAB_ID)
 
     internal val searchResults = mutableStateMapOf<String, TabResult>()
@@ -234,7 +246,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun runSearch(q: String, sources: List<VideoSource>) {
         if (q.isBlank()) return
+        if (query.isNotBlank() && query != q) earlierQueries.addLast(query)
+        showSearch(q, sources)
+    }
+
+    /** Back from a search: shows the search submitted before it. False when there is none. */
+    fun returnToEarlierSearch(sources: List<VideoSource>): Boolean {
+        val earlier = earlierQueries.removeLastOrNull() ?: return false
+        showSearch(earlier, sources)
+        return true
+    }
+
+    /** Puts the text of the search on screen back into the box, dropping an unsubmitted edit. */
+    fun resetSearchField() = searchField.setTextAndPlaceCursorAtEnd(query)
+
+    private fun showSearch(q: String, sources: List<VideoSource>) {
         query = q
+        searchField.setTextAndPlaceCursorAtEnd(q)
         cancelJobsWithPrefix("search:")
         viewModelScope.launch {
             if (prefs.recordSearchHistory.first()) searchHistoryRepo.record(q, sourceId = null)
@@ -256,6 +284,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearSearch() {
         query = ""
+        searchField.clearText()
+        earlierQueries.clear()
         cancelJobsWithPrefix("search:")
         searchResults.clear()
     }
