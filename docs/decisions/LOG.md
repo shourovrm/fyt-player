@@ -339,3 +339,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-20 | resume pill centred over its dot, clamped at the edges, just above the control row | user: pill sat at the left, far from the dot
 2026-11-23 | search text split from the submitted query (TextFieldState), Back walks earlier searches | user: no suggestions after a search, cursor handle stuck, Back went straight Home
 2026-11-23 | buffer 50 s / 32 MB, media3 retries on transport errors, exact resume after an error restart | trace: 3 network errors each followed by a 4-5 s rewind; fail-fast stopped loading while the buffer drained
+2026-11-23 | Shorts park the minimised video and give it back paused | user: could not start a Short with a video in the mini player; YouTube keeps it paused

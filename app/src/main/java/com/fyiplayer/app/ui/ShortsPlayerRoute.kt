@@ -31,7 +31,7 @@ internal object ShortsPlayerRequest {
 fun ShortsPlayerScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Unit, onClose: () -> Unit) {
     val items = ShortsPlayerRequest.items
     var page by rememberSaveable { mutableStateOf(ShortsPlayerRequest.index) }
-    BackHandler { PlaybackSession.clear(); onClose() }
+    BackHandler { PlaybackSession.closeShorts(); onClose() }
     if (items.isEmpty()) {
         // Handoff lost (process death restored this route without its list): nothing to page.
         LaunchedEffect(Unit) { onClose() }

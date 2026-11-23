@@ -97,7 +97,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
     var actionSheetRef by remember { mutableStateOf<VideoRef?>(null) }
     // Back out of the pager stops playback too: a vertical clip must not keep playing into the
     // mini player, which would reopen it in the landscape detail player with no swipe navigation.
-    BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false; PlaybackSession.clear() }
+    BackHandler(enabled = vm.showPlayer) { vm.showPlayer = false; PlaybackSession.closeShorts() }
 
     val feed = vm.feed
     // Channels land one by one and newer clips are inserted above older ones. A keyed grid keeps
@@ -151,6 +151,7 @@ fun ShortsScreen(onOpenDetail: (String) -> Unit, onOpenChannel: (Listing) -> Uni
                             gridState = gridState,
                             onOpenPlayer = { tapped, paintedIndex ->
                                 vm.pagerPage = pagerPageForTap(vm.feed.items, tapped.pageUrl, paintedIndex)
+                                MinimizedTrail.parkForShorts()
                                 vm.showPlayer = true
                             },
                             onLongPress = { actionSheetRef = it },
@@ -306,7 +307,8 @@ internal fun ShortsPager(
                     {
                         // Stop, don't leak the vertical clip into the mini player; back re-enters
                         // this pager, which finds the session empty and replays the same page.
-                        PlaybackSession.clear()
+                        // (With a parked video the mini player takes it back and Back skips the pager.)
+                        PlaybackSession.closeShorts()
                         onOpenChannel(Listing(sourceId = ref.sourceId, kind = Listing.Kind.CHANNEL, key = url, title = ref.uploader.orEmpty()))
                     }
                 },

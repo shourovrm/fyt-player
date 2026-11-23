@@ -14,13 +14,21 @@ import com.fyiplayer.app.player.PlaybackSession
  *
  * While it is [active] the user is on a static page with the video minimised. Detail and Shorts
  * player entries that Back reaches below that page are skipped: their entry guard would replace the
- * minimised video with their own.
+ * minimised video with their own. A Short the user opens from that page is the exception, see
+ * [parkForShorts].
  */
 object MinimizedTrail {
     private var pages by mutableStateOf(emptyList<String>())
 
     /** Pages are held and the mini player still has a video; closing it ends the skipping. */
-    val active: Boolean get() = pages.isNotEmpty() && PlaybackSession.state.value.queue.isNotEmpty()
+    val active: Boolean
+        get() = pages.isNotEmpty() && PlaybackSession.state.value.queue.isNotEmpty() && !PlaybackSession.hasParked
+
+    /** A Short is being opened: the minimised video steps aside for it and returns, paused, when
+     *  Shorts close. Without this the Shorts page would be skipped as a leftover entry. */
+    fun parkForShorts() {
+        if (active) PlaybackSession.park()
+    }
 
     fun clear() {
         pages = emptyList()

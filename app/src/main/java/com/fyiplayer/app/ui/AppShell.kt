@@ -139,6 +139,7 @@ fun NavController.openSharedUrl(url: String) {
 fun NavController.openShortsPlayer(items: List<VideoRef>, index: Int) {
     ShortsPlayerRequest.items = items
     ShortsPlayerRequest.index = index
+    MinimizedTrail.parkForShorts()
     navigate(Routes.SHORTS_PLAYER)
 }
 

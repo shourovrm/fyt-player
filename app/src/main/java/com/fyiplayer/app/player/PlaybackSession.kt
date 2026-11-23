@@ -507,7 +507,37 @@ object PlaybackSession {
      *  there is none) instead of offering it. */
     fun playContinuing(ref: VideoRef) = startQueue(listOf(ref), 0, null, atSavedPosition = true)
 
-    private fun startQueue(refs: List<VideoRef>, startIndex: Int, queueTitle: String?, atSavedPosition: Boolean) {
+    /** The queue a Shorts visit took the player from, and where it stopped. */
+    private class ParkedQueue(val refs: List<VideoRef>, val index: Int, val title: String?, val positionMs: Long)
+    private var parked: ParkedQueue? = null
+    val hasParked: Boolean get() = parked != null
+
+    /** Sets the current queue aside before Shorts take the one player; [closeShorts] puts it back. */
+    fun park() {
+        ensureInit()
+        if (queue.isEmpty()) return
+        parked = ParkedQueue(queue, index, _state.value.queueTitle, player.currentPosition)
+    }
+
+    /** Shorts are closing: the parked queue comes back paused where it stopped (the mini player
+     *  shows it again); with nothing parked the player empties, so no clip leaks into the mini player. */
+    fun closeShorts() {
+        val returning = parked
+        if (returning == null) {
+            clear()
+            return
+        }
+        parked = null
+        startQueue(returning.refs, returning.index, returning.title, atSavedPosition = false, pausedAtMs = returning.positionMs)
+    }
+
+    private fun startQueue(
+        refs: List<VideoRef>,
+        startIndex: Int,
+        queueTitle: String?,
+        atSavedPosition: Boolean,
+        pausedAtMs: Long? = null,
+    ) {
         ensureInit()
         // play() always means a genuinely new queue (never a mid-queue continuation -- those go
         // through skipNext/skipPrevious/playAt instead), so the OLD item must not keep playing
@@ -525,6 +555,8 @@ object PlaybackSession {
         queue = refs
         order = null
         index = QueueMath.clamp(startIndex, refs.size)
+        // A parked queue waits only for a Shorts visit; any other new queue replaces it for good.
+        if (queue.getOrNull(index)?.isShort != true) parked = null
         prepared = null
         retriedIndex = null
         autoplayFired = false
@@ -545,7 +577,7 @@ object PlaybackSession {
         )
         _progress.value = PlaybackProgress()
         refreshSessionCommands()
-        startAt(index, atSavedPosition = atSavedPosition)
+        startAt(index, atSavedPosition = atSavedPosition, pausedAtMs = pausedAtMs)
     }
 
     /**
@@ -983,6 +1015,7 @@ object PlaybackSession {
     fun clear() {
         ensureInit()
         persistPosition() // before the player is emptied below
+        parked = null
         loadJob?.cancel(); rebuildJob?.cancel(); prefetchJob?.cancel(); tickerJob?.cancel()
         autoplayJob?.cancel(); autoplayJob = null
         loadedRef = null
@@ -1031,7 +1064,13 @@ object PlaybackSession {
      *  genuinely new one starting at 0. [atSavedPosition] starts a new item at its saved position
      *  instead of offering it (see [playContinuing]). [waitBeforeMs] delays the resolve (see
      *  PLAYBACK_TRANSPORT_RETRY_DELAYS_MS); any newer start cancels the wait with the load. */
-    private fun startAt(i: Int, resumeAtMs: Long? = null, atSavedPosition: Boolean = false, waitBeforeMs: Long = 0) {
+    private fun startAt(
+        i: Int,
+        resumeAtMs: Long? = null,
+        atSavedPosition: Boolean = false,
+        waitBeforeMs: Long = 0,
+        pausedAtMs: Long? = null,
+    ) {
         loadJob?.cancel(); rebuildJob?.cancel()
         prefetchJob?.cancel()
         // Whatever the user picks here supersedes a pending "play a related video" lookup.
@@ -1061,7 +1100,7 @@ object PlaybackSession {
             // (see resumeOffer), unless [atSavedPosition]. Shorts never offer or resume one -- a swipe-through clip is too short.
             // The lookup runs beside the resolve so reading it costs no extra time on the path
             // to the first frame.
-            val savedPositionLookup = if (resumeAtMs == null && !ref.isShort) {
+            val savedPositionLookup = if (resumeAtMs == null && pausedAtMs == null && !ref.isShort) {
                 async { loadPosition(ref.pageUrl) }
             } else {
                 null
@@ -1081,6 +1120,7 @@ object PlaybackSession {
             // back. A saved position from an earlier visit still snaps, for the faster start.
             val resume = when {
                 resumeAtMs != null -> resumeAtMs
+                pausedAtMs != null -> pausedAtMs
                 resumeFromMs != null -> segmentStartFor(item.selection, resumeFromMs)
                 else -> null
             }
@@ -1093,7 +1133,7 @@ object PlaybackSession {
             awaitingReadyLog = true
             awaitingFirstFrameLog = true
             diag("sourceSet afterLoadStartMs=${msSince(loadBeganAtMs)}")
-            player.playWhenReady = true
+            player.playWhenReady = pausedAtMs == null
             // retriedIndex is deliberately NOT cleared here. This runs on the re-resolve that a
             // failed item triggered, so clearing it would re-arm the retry for the same item and
             // a host that rejects every fresh URL (403) would loop forever. It is cleared only
@@ -1564,6 +1604,11 @@ object PlaybackSession {
                         "afterSeek=$rebufferFollowsSeek",
                 )
                 rebufferBeganAtMs = 0L
+            }
+            // The ticker only runs while playing: an item that becomes ready paused (a parked video
+            // coming back) still has to show its position and length.
+            if (playbackState == Player.STATE_READY && !player.playWhenReady) {
+                _progress.value = PlaybackProgress(player.currentPosition.coerceAtLeast(0), player.duration.coerceAtLeast(0))
             }
             _state.update {
                 it.copy(
