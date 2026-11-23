@@ -31,7 +31,8 @@ It is installed from an APK file, not the Play Store. See [Install](#install).
 
 **Browse and search**
 - The Home feed shows new videos from your YouTube subscriptions. Subscribe to at least one channel to fill the feed.
-- Search suggestions, channel pages with Videos, Shorts, Playlists and Live tabs, and a Subscribe button under the title bar.
+- Search suggestions that follow your typing, also when you edit a search you already ran. Back returns to the search before it.
+- Channel pages with Videos, Shorts, Playlists and Live tabs, and a Subscribe button under the title bar.
 - Playlists, comments and a Similar tab with YouTube recommendations, including a shorts shelf.
 - Choose the content region and language in settings.
 - Show the Home feed as full-width cards, a compact list or a two-column grid. Choose the default layout in settings or switch it next to search.
@@ -51,8 +52,10 @@ It is installed from an APK file, not the Play Store. See [Install](#install).
 - Double-tap to seek, swipe to adjust brightness or volume, choose quality and preview with seek-bar thumbnails.
 - Videos resume where you left off. List rows show a watched-progress bar for started videos; turn it off with the "Remember playback position" setting.
 - SponsorBlock can skip segments. Use the shield in a video's action row to turn it off for that channel.
-- A mini player stays on screen while you browse.
-- Set separate default quality limits for Wi-Fi and mobile data.
+- A mini player stays on screen while you browse. Open a short and the video waits; it is back in the mini player, paused, when you leave Shorts.
+- Quality starts on Auto: the highest resolution under your limit, lowered while the connection is slow and raised again when it recovers. Pick a resolution to lock it.
+- Set separate quality limits for Wi-Fi and mobile data.
+- About 50 seconds are buffered ahead, so a short network drop passes without a pause.
 
 **Library**
 - History is grouped by day. Select multiple items in History, likes, channels and downloads to play or remove them; each page also has a play-all button.
