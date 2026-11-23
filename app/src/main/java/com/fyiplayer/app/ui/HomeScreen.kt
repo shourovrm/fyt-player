@@ -261,9 +261,10 @@ fun HomeScreen(
                     onClearAll = { vm.clearSearchHistory() },
                 )
             }
-            // Typing, whether or not a search is already on screen: suggestions cover the results
-            // until the text is submitted or the box is left.
-            searchFieldFocused && searchText.isNotBlank() -> {
+            // Typing: suggestions cover the results of the search on screen. While there are none
+            // (still loading, or the service has nothing for a long query) those results stay
+            // visible; with no search on screen the empty list shows instead of the Home feed.
+            searchFieldFocused && searchText.isNotBlank() && (vm.suggestions.isNotEmpty() || !isSearching) -> {
                 SearchSuggestionsDropdown(suggestions = vm.suggestions, onPick = { submitSearch(it) })
             }
             isSearching -> {
