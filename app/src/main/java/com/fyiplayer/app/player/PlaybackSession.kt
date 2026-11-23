@@ -264,6 +264,8 @@ object PlaybackSession {
     private var awaitingReadyLog = false
     private var awaitingFirstFrameLog = false
     private var rebufferBeganAtMs = 0L
+    private var rebufferFollowsSeek = false
+    private var lastSeekAtMs = 0L
     private var pausedAtMs = 0L // when playWhenReady last went false
     private var resumePressedAtMs = 0L // set by a plain resume, cleared when audio is actually playing
 
@@ -271,6 +273,9 @@ object PlaybackSession {
     // (slower first frame) beats holding the start any longer.
     private const val SEGMENT_INDEX_TIMEOUT_MS = 2_500L
     private const val MAX_RESUME_REWIND_MS = 15_000L
+    private const val MAX_BUFFER_BYTES = 32 * 1024 * 1024
+    // Buffering that begins this soon after a seek is the seek's own, not a network stall.
+    private const val SEEK_REBUFFER_WINDOW_MS = 1_000L
     private const val RESUME_OFFER_MS = 5_000L
     private const val HEALTHY_TICKS_TO_REARM_RETRY = 60 // 60 x 500ms = 30s of continuous playing
 
@@ -352,17 +357,18 @@ object PlaybackSession {
                     .forEach { it.experimentalSetLegacyDecodingEnabled(true) }
             }
         }
-        // Default LoadControl targets 2.5s-to-first-frame / 50s max buffer, tuned for on-device
-        // local files. Shortened min/max (12s/20s) trades some rebuffer resilience for faster
-        // start on a network stream; matches what PipePipe ships for the same reason.
+        // 50 s ahead is media3's default and what rides out a media host that stops answering
+        // for tens of seconds (seen in the trace). The start is not slower for it: playback
+        // begins at bufferForPlaybackMs. The byte cap is what bounds memory at high bitrates.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 12_000,
-                /* maxBufferMs = */ 20_000,
+                /* minBufferMs = */ 50_000,
+                /* maxBufferMs = */ 50_000,
                 /* bufferForPlaybackMs = */ 2_000,
                 /* bufferForPlaybackAfterRebufferMs = */ 3_000,
             )
-            .setPrioritizeTimeOverSizeThresholds(true)
+            .setTargetBufferBytes(MAX_BUFFER_BYTES)
+            .setPrioritizeTimeOverSizeThresholds(false)
             .build()
         player = ExoPlayer.Builder(appContext, renderersFactory).setLoadControl(loadControl).build().apply {
             // audio focus and becoming-noisy belong on the player, not the media session
@@ -1070,7 +1076,14 @@ object PlaybackSession {
             // from 0 first (audible blip, wasted first segment fetch) before jumping.
             val savedPositionMs = savedPositionLookup?.await()
             val resumeFromMs = resumeAtMs ?: savedPositionMs.takeIf { atSavedPosition }
-            val resume = resumeFromMs?.let { segmentStartFor(item.selection, it) }
+            // The same item continuing after an error resumes exactly where it stopped: the
+            // segment snap replayed up to a segment (4-5 s in the trace), which read as a jump
+            // back. A saved position from an earlier visit still snaps, for the faster start.
+            val resume = when {
+                resumeAtMs != null -> resumeAtMs
+                resumeFromMs != null -> segmentStartFor(item.selection, resumeFromMs)
+                else -> null
+            }
             if (resume != null) player.setMediaSource(source, resume) else player.setMediaSource(source)
             pendingResumeOfferMs = savedPositionMs.takeUnless { atSavedPosition }
             offerHeldFor = null // the outgoing item's hold ends with it
@@ -1529,6 +1542,14 @@ object PlaybackSession {
             _state.update { it.copy(videoWidth = videoSize.width, videoHeight = videoSize.height) }
         }
 
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) lastSeekAtMs = SystemClock.elapsedRealtime()
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY && awaitingReadyLog) {
                 awaitingReadyLog = false
@@ -1536,8 +1557,12 @@ object PlaybackSession {
             } else if (playbackState == Player.STATE_BUFFERING && !awaitingReadyLog) {
                 // Buffering after the start: a seek, or the network not keeping up.
                 rebufferBeganAtMs = SystemClock.elapsedRealtime()
+                rebufferFollowsSeek = lastSeekAtMs != 0L && msSince(lastSeekAtMs) < SEEK_REBUFFER_WINDOW_MS
             } else if (playbackState == Player.STATE_READY && rebufferBeganAtMs != 0L) {
-                diag("rebuffer ms=${msSince(rebufferBeganAtMs)} bufferedAheadMs=${player.totalBufferedDuration}")
+                diag(
+                    "rebuffer ms=${msSince(rebufferBeganAtMs)} bufferedAheadMs=${player.totalBufferedDuration} " +
+                        "afterSeek=$rebufferFollowsSeek",
+                )
                 rebufferBeganAtMs = 0L
             }
             _state.update {
@@ -1610,7 +1635,7 @@ object PlaybackSession {
             diag(
                 "playerError code=${error.errorCode} name=${error.errorCodeName} " +
                     "http=${facts.httpStatus} network=${facts.isTransportFailure} " +
-                    "surface=${facts.isSurfaceReleased} cause=${error.cause?.javaClass?.simpleName} " +
+                    "surface=${facts.isSurfaceReleased} cause=${rootCauseOf(error).javaClass.simpleName} " +
                     "index=$index action=$action",
             )
             when (action) {
@@ -1657,6 +1682,17 @@ object PlaybackSession {
         }
     }
 
+}
+
+/** The innermost cause: the exception that names what actually failed (a timeout, a reset),
+ *  where the outer ones are media3's wrappers. */
+private fun rootCauseOf(error: Throwable): Throwable {
+    var cause = error
+    var depth = 0
+    while (depth++ < 8) {
+        cause = cause.cause?.takeIf { it !== cause } ?: return cause
+    }
+    return cause
 }
 
 /** A signed URL that aged out comes back as one of these; re-resolve rather than retry it.
