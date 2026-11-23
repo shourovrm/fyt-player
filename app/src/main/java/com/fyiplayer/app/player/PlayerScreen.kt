@@ -481,7 +481,8 @@ fun PlayerScreen(
                 if (showQualitySheet) {
                     QualitySheet(
                         heights = state.availableHeights,
-                        selectedHeight = if (state.qualityIsAuto) null else state.selectedHeight,
+                        playingHeight = state.selectedHeight,
+                        isAuto = state.qualityIsAuto,
                         playingDownload = state.playingDownload,
                         onSelect = { PlaybackSession.selectQuality(it); showQualitySheet = false },
                         onStream = { PlaybackSession.streamCurrent(); showQualitySheet = false },

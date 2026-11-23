@@ -106,4 +106,15 @@ class DashManifestBuilderTest {
         assertNotNull(manifest)
         assertTrue(manifest!!.contains("value=\"2\""))
     }
+
+    @Test fun `lower renditions join the video set and one without byte ranges is left out`() {
+        val lower = video("https://r1.googlevideo.com/videoplayback?id=a&itag=136").copy(formatId = "136", height = 720)
+        val noRanges = video("https://r1.googlevideo.com/videoplayback?id=a&itag=135", index = null).copy(formatId = "135", height = 480)
+        val manifest = buildDashManifest(video(), audio(), listOf(lower, noRanges))!!
+        assertEquals(2, Regex("<AdaptationSet ").findAll(manifest).count())
+        assertTrue(manifest.contains("<Representation id=\"137\""))
+        assertTrue(manifest.contains("<Representation id=\"136\""))
+        assertTrue(manifest.contains("height=\"720\""))
+        assertFalse(manifest.contains("<Representation id=\"135\""))
+    }
 }

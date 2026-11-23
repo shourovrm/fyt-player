@@ -21,6 +21,9 @@ import android.os.Looper
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
@@ -82,8 +85,8 @@ data class PlayerState(
     val ended: Boolean = false,
     val error: ExtractionError? = null,
     val selectedHeight: Int? = null,
-    /** True only after the user picks Auto. [selectedHeight] still holds the height the ceiling
-     *  chose then, so the quality button needs this flag to say "Auto". */
+    /** True while the player picks the rendition, which is how every stream starts; false once the
+     *  user pins a height. [selectedHeight] is the height playing now in both cases. */
     val qualityIsAuto: Boolean = false,
     val availableHeights: List<Int> = emptyList(),
     // Captions default OFF (Contracts.kt's CaptionTrack carries no selection flag, and `init`
@@ -265,6 +268,7 @@ object PlaybackSession {
     private var awaitingFirstFrameLog = false
     private var rebufferBeganAtMs = 0L
     private var rebufferFollowsSeek = false
+    private lateinit var bandwidthMeter: DefaultBandwidthMeter
     private var lastSeekAtMs = 0L
     private var pausedAtMs = 0L // when playWhenReady last went false
     private var resumePressedAtMs = 0L // set by a plain resume, cleared when audio is actually playing
@@ -274,6 +278,8 @@ object PlaybackSession {
     private const val SEGMENT_INDEX_TIMEOUT_MS = 2_500L
     private const val MAX_RESUME_REWIND_MS = 15_000L
     private const val MAX_BUFFER_BYTES = 32 * 1024 * 1024
+    private const val QUALITY_INCREASE_MIN_BUFFER_MS = 20_000
+    private const val INITIAL_BITRATE_ESTIMATE = 100_000_000L
     // Buffering that begins this soon after a seek is the seek's own, not a network stall.
     private const val SEEK_REBUFFER_WINDOW_MS = 1_000L
     private const val RESUME_OFFER_MS = 5_000L
@@ -370,7 +376,30 @@ object PlaybackSession {
             .setTargetBufferBytes(MAX_BUFFER_BYTES)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
-        player = ExoPlayer.Builder(appContext, renderersFactory).setLoadControl(loadControl).build().apply {
+        // Auto quality: media3 moves between the renditions a source offers. Up only with 20 s
+        // buffered (its default is 10), so a short fast spell does not flip the picture back and
+        // forth; down, as by default, only once less than 25 s is buffered.
+        val trackSelector = DefaultTrackSelector(
+            appContext,
+            AdaptiveTrackSelection.Factory(
+                QUALITY_INCREASE_MIN_BUFFER_MS,
+                AdaptiveTrackSelection.DEFAULT_MAX_DURATION_FOR_QUALITY_DECREASE_MS,
+                AdaptiveTrackSelection.DEFAULT_MIN_DURATION_TO_RETAIN_AFTER_DISCARD_MS,
+                AdaptiveTrackSelection.DEFAULT_BANDWIDTH_FRACTION,
+            ),
+        )
+        // The Settings ceiling is the user's choice of top quality; the screen size must not lower it.
+        trackSelector.setParameters(trackSelector.buildUponParameters().clearViewportSizeConstraints())
+        // A first guess this high starts every video on its tallest rendition, as before Auto could
+        // adapt. The default guess starts low and climbs: a visible quality change on every video.
+        bandwidthMeter = DefaultBandwidthMeter.Builder(appContext)
+            .setInitialBitrateEstimate(INITIAL_BITRATE_ESTIMATE)
+            .build()
+        player = ExoPlayer.Builder(appContext, renderersFactory)
+            .setLoadControl(loadControl)
+            .setTrackSelector(trackSelector)
+            .setBandwidthMeter(bandwidthMeter)
+            .build().apply {
             // audio focus and becoming-noisy belong on the player, not the media session
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -848,29 +877,37 @@ object PlaybackSession {
     }
 
     /** Reselects a format from the current item's already-resolved list — no re-resolve, no
-     *  network wait. [height] null reapplies the configured ceiling ("Auto"). Only ever picks
-     *  from [currentFormats], so this can never offer a height the item has no format for. */
+     *  network wait. [height] null is Auto: the configured ceiling, with the lower renditions to
+     *  fall to. Only ever picks from [currentFormats], so this can never offer a height the item
+     *  has no format for. */
     fun selectQuality(height: Int?) {
         ensureInit()
         // The dub pick must survive a quality change, so it is passed back in, not reset.
-        rebuildCurrent(height ?: maxHeight(), _state.value.selectedAudioTrackId)
-        _state.update { it.copy(qualityIsAuto = height == null) }
+        rebuildCurrent(height, _state.value.selectedAudioTrackId)
     }
+
+    /** The height the user pinned, or null on Auto: what a rebuild for another reason keeps. */
+    private fun pinnedHeight(): Int? = if (_state.value.qualityIsAuto) null else _state.value.selectedHeight
 
     /** Switches the audio language of the current item, keeping its height. [trackId] must be one
      *  of [PlayerState.availableAudioTracks]. Same rebuild as [selectQuality], no re-resolve. */
     fun selectAudioTrack(trackId: String) {
         ensureInit()
-        rebuildCurrent(_state.value.selectedHeight ?: maxHeight(), trackId)
+        rebuildCurrent(pinnedHeight(), trackId)
     }
 
-    /** Rebuilds the current item's source from [currentFormats] at [height] with [audioTrackId],
-     *  keeping position and play state. The chosen ids are read back from the selection itself. */
-    private fun rebuildCurrent(height: Int, audioTrackId: String?) {
+    /** Rebuilds the current item's source from [currentFormats] at [height] (null = Auto) with
+     *  [audioTrackId], keeping position and play state. The chosen ids are read back from the
+     *  selection itself. */
+    private fun rebuildCurrent(height: Int?, audioTrackId: String?) {
         if (currentFormats.isEmpty()) return
         // A download has exactly one format; the quality ceiling must not reject it.
-        val selection = if (currentIsDownload) FormatSelection.Single(currentFormats.single())
-        else FormatSelector.select(currentFormats, height, audioTrackId = audioTrackId).selection ?: return
+        val selection = if (currentIsDownload) {
+            FormatSelection.Single(currentFormats.single())
+        } else {
+            FormatSelector.select(currentFormats, height ?: maxHeight(), audioTrackId = audioTrackId, adaptive = height == null)
+                .selection ?: return
+        }
         val resumeAt = player.currentPosition
         // A quality or dub change must not start playback the user had paused.
         val wasPlayWhenReady = player.playWhenReady
@@ -908,6 +945,7 @@ object PlaybackSession {
         _state.update {
             it.copy(
                 selectedHeight = newHeight,
+                qualityIsAuto = height == null && !currentIsDownload,
                 selectedCaptionLanguage = language,
                 selectedAudioTrackId = audioTrackIdOf(selection),
             )
@@ -1151,7 +1189,7 @@ object PlaybackSession {
             _state.update {
                 it.copy(
                     current = playRef, firstFrameRendered = false, index = i, queueSize = queue.size, queue = queue, error = null,
-                    selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
+                    selectedHeight = item.height, qualityIsAuto = !item.downloaded, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
                     availableCaptions = orderCaptions(item.resolved.captions, item.resolved.formats), selectedCaptionLanguage = language,
                     availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                     selectedAudioTrackId = audioTrackIdOf(item.selection),
@@ -1243,7 +1281,7 @@ object PlaybackSession {
             return null
         }
         diag("resolve ok index=$i ms=${msSince(resolveBeganAtMs)}")
-        val result = FormatSelector.select(resolved.formats, maxHeight())
+        val result = FormatSelector.select(resolved.formats, maxHeight(), adaptive = true)
         val selection = result.selection
         if (selection == null) {
             // Shape only -- protocol/codecs/height per format, never a URL -- enough to see why
@@ -1305,7 +1343,7 @@ object PlaybackSession {
             if (online.isEmpty() || i != index || !currentIsDownload || queue.getOrNull(i)?.pageUrl != ref.pageUrl) return@launch
             currentCaptions = currentCaptions + online
             _state.update { it.copy(availableCaptions = orderCaptions(currentCaptions, currentFormats)) }
-            rebuildCurrent(_state.value.selectedHeight ?: maxHeight(), null)
+            rebuildCurrent(pinnedHeight(), null)
         }
     }
 
@@ -1409,7 +1447,7 @@ object PlaybackSession {
         _state.update {
             it.copy(
                 current = ref, firstFrameRendered = if (resetFirstFrame) false else it.firstFrameRendered, index = item.queueIndex, queueSize = queue.size, queue = queue, error = null,
-                selectedHeight = item.height, qualityIsAuto = false, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
+                selectedHeight = item.height, qualityIsAuto = !item.downloaded, availableHeights = availableHeightsOf(item.resolved.formats), playingDownload = item.downloaded,
                 availableCaptions = orderCaptions(item.resolved.captions, item.resolved.formats), selectedCaptionLanguage = language,
                 availableAudioTracks = audioTrackOptionsOf(item.resolved.formats),
                 selectedAudioTrackId = audioTrackIdOf(item.selection),
@@ -1580,6 +1618,13 @@ object PlaybackSession {
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             _state.update { it.copy(videoWidth = videoSize.width, videoHeight = videoSize.height) }
+            // On Auto the player may have moved to another rendition: the quality label follows.
+            val playingId = player.videoFormat?.id
+            val playingHeight = currentFormats.firstOrNull { it.formatId == playingId }?.height
+            if (playingHeight != null && playingHeight != _state.value.selectedHeight) {
+                diag("quality height=$playingHeight was=${_state.value.selectedHeight} estimateKbps=${bandwidthMeter.bitrateEstimate / 1000}")
+                _state.update { it.copy(selectedHeight = playingHeight) }
+            }
         }
 
         override fun onPositionDiscontinuity(
@@ -1601,7 +1646,7 @@ object PlaybackSession {
             } else if (playbackState == Player.STATE_READY && rebufferBeganAtMs != 0L) {
                 diag(
                     "rebuffer ms=${msSince(rebufferBeganAtMs)} bufferedAheadMs=${player.totalBufferedDuration} " +
-                        "afterSeek=$rebufferFollowsSeek",
+                        "afterSeek=$rebufferFollowsSeek estimateKbps=${bandwidthMeter.bitrateEstimate / 1000}",
                 )
                 rebufferBeganAtMs = 0L
             }

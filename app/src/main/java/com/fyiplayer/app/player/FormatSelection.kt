@@ -6,7 +6,14 @@ import com.fyiplayer.app.core.Protocol
 /** What to hand the player: one self-contained format, or a video+audio pair to merge. */
 sealed class FormatSelection {
     data class Single(val format: MediaFormat) : FormatSelection()
-    data class Paired(val video: MediaFormat, val audio: MediaFormat) : FormatSelection()
+
+    /** [stepDownVideos]: the lower renditions the player may fall to while the network is slow
+     *  (Auto quality), tallest first. Empty pins playback to [video]. */
+    data class Paired(
+        val video: MediaFormat,
+        val audio: MediaFormat,
+        val stepDownVideos: List<MediaFormat> = emptyList(),
+    ) : FormatSelection()
 }
 
 /** [selection] is null exactly when [reason] explains why nothing was selectable. */
@@ -76,11 +83,32 @@ object FormatSelector {
     private fun bestManifest(formats: List<MediaFormat>, ceiling: Int) =
         formats.filter { it.isManifest() && it.fitsCeiling(ceiling) }.maxByOrNull { it.height ?: 0 }
 
+    /** "avc1.640028" -> "avc1". VP9 keeps its profile ("vp09.02" is HDR), so SDR and HDR never mix. */
+    private fun codecFamily(format: MediaFormat): String? {
+        val parts = format.videoCodec?.split('.') ?: return null
+        return if (parts[0] == "vp09") parts.take(2).joinToString(".") else parts[0]
+    }
+
+    /** The renditions below [video] that can share its manifest, one per height, tallest first:
+     *  same container, codec family and request headers, each with its byte ranges. The player
+     *  only switches between streams of one codec, and one data source serves them all. */
+    private fun stepDownVideosFor(formats: List<MediaFormat>, video: MediaFormat): List<MediaFormat> {
+        val topHeight = video.height ?: return emptyList()
+        return formats
+            .filter { it.isVideoOnly && it.protocol == Protocol.PROGRESSIVE && it.segmentIndex != null }
+            .filter { it.container == video.container && it.headers == video.headers && codecFamily(it) == codecFamily(video) }
+            .filter { (it.height ?: Int.MAX_VALUE) < topHeight }
+            .sortedByDescending { it.height }
+            .distinctBy { it.height }
+    }
+
     fun select(
         formats: List<MediaFormat>,
         maxHeight: Int,
         audioOnly: Boolean = false,
         audioTrackId: String? = null,
+        /** Auto quality: a video+audio pair also carries its lower renditions, see [FormatSelection.Paired]. */
+        adaptive: Boolean = false,
     ): SelectionResult {
         if (audioOnly) {
             val audio = bestAudioOnly(formats, audioTrackId)
@@ -122,8 +150,10 @@ object FormatSelector {
         return when {
             pairedHeight < 0 && muxedHeight < 0 ->
                 SelectionResult(null, "no playable format at or under ${maxHeight}p")
-            pairedHeight >= muxedHeight && video != null && audio != null ->
-                SelectionResult(FormatSelection.Paired(video, audio))
+            pairedHeight >= muxedHeight && video != null && audio != null -> {
+                val stepDownVideos = if (adaptive) stepDownVideosFor(formats, video) else emptyList()
+                SelectionResult(FormatSelection.Paired(video, audio, stepDownVideos))
+            }
             muxed != null -> SelectionResult(FormatSelection.Single(muxed))
             else -> SelectionResult(null, "no playable format at or under ${maxHeight}p")
         }

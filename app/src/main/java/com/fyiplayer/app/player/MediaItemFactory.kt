@@ -164,11 +164,12 @@ object MediaItemFactory {
     /** One video + one audio stream as a [DashMediaSource], or null (with the reason) when the
      *  manifest cannot be built or parsed. Every chunk request goes out through [dataSourceFactory]
      *  -- the same cache + ChunkedRangeDataSource + OkHttp stack the progressive path uses. */
-    private fun dashSourceFor(video: MediaFormat, audio: MediaFormat, metadata: MediaMetadata): Pair<MediaSource?, String?> {
-        val manifestText = buildDashManifest(video, audio) ?: return null to "manifestRejected"
+    private fun dashSourceFor(selection: FormatSelection.Paired, metadata: MediaMetadata): Pair<MediaSource?, String?> {
+        val manifestText = buildDashManifest(selection.video, selection.audio, selection.stepDownVideos)
+            ?: return null to "manifestRejected"
         val manifest = parseManifest(manifestText) ?: return null to "manifestParseFailed"
         val mediaItem = MediaItem.Builder().setMediaMetadata(metadata).build()
-        val source = DashMediaSource.Factory(dataSourceFactory(video.headers))
+        val source = DashMediaSource.Factory(dataSourceFactory(selection.video.headers))
             .setLoadErrorHandlingPolicy(loadErrorHandlingPolicy)
             .createMediaSource(manifest, mediaItem)
         return source to null
@@ -216,12 +217,14 @@ object MediaItemFactory {
 
     /** A video+audio pair: DASH with SegmentBase when both sides carry byte ranges (bounded range
      *  requests that finish, so the HTTP/1.1 connection is reused), else two progressive sources. */
-    private fun pairedSource(video: MediaFormat, audio: MediaFormat, metadata: MediaMetadata): MediaSource {
+    private fun pairedSource(selection: FormatSelection.Paired, metadata: MediaMetadata): MediaSource {
+        val video = selection.video
+        val audio = selection.audio
         var fallbackReason = dashFallbackReason(video, audio)
         if (fallbackReason == null) {
-            val (dashSource, parseFailure) = dashSourceFor(video, audio, metadata)
+            val (dashSource, parseFailure) = dashSourceFor(selection, metadata)
             if (dashSource != null) {
-                DiagLog.log("Playback", "source=dash")
+                DiagLog.log("Playback", "source=dash renditions=${1 + selection.stepDownVideos.size}")
                 return dashSource
             }
             fallbackReason = parseFailure
@@ -286,7 +289,7 @@ object MediaItemFactory {
                 DiagLog.log("Playback", "source=$label")
                 sourceFor(selection.format, metadata)
             }
-            is FormatSelection.Paired -> pairedSource(selection.video, selection.audio, metadata)
+            is FormatSelection.Paired -> pairedSource(selection, metadata)
         }
         if (captions.isEmpty()) return base
         val subtitleSources = captions.map(::subtitleSourceFor).toTypedArray()

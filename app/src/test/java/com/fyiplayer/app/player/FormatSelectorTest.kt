@@ -2,6 +2,7 @@ package com.fyiplayer.app.player
 
 import com.fyiplayer.app.core.MediaFormat
 import com.fyiplayer.app.core.Protocol
+import com.fyiplayer.app.core.SegmentIndexInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -155,5 +156,50 @@ class MuxedWithoutHeightTest {
         )
         val single = FormatSelector.select(formats, maxHeight = 1080).selection as FormatSelection.Single
         assertEquals("18", single.format.formatId)
+    }
+
+    private val ranges = SegmentIndexInfo(
+        initStart = 0, initEnd = 739, indexStart = 740, indexEnd = 2063,
+        codecs = "avc1.640028", bitrate = 1_000_000, durationMs = 60_000,
+    )
+
+    private fun ranged(id: String, height: Int, codec: String) =
+        fmt(id, height = height, video = codec).copy(segmentIndex = ranges)
+
+    @Test fun `auto carries the lower renditions of the same codec, tallest first`() {
+        val top = ranged("avc1080", 1080, "avc1.640028")
+        val formats = listOf(
+            ranged("avc360", 360, "avc1.4d401e"),
+            top,
+            ranged("vp9-720", 720, "vp09.00.31.08"),
+            ranged("avc720", 720, "avc1.4d401f"),
+            ranged("avc720-second", 720, "avc1.4d401f"),
+            fmt("avc480-no-ranges", height = 480, video = "avc1.4d401e"),
+            fmt("a", audio = "mp4a", bitrate = 128_000),
+        )
+        val paired = FormatSelector.select(formats, maxHeight = 1080, adaptive = true).selection as FormatSelection.Paired
+        assertEquals(top, paired.video)
+        assertEquals(listOf("avc720", "avc360"), paired.stepDownVideos.map { it.formatId })
+    }
+
+    @Test fun `a pinned height carries no lower renditions`() {
+        val formats = listOf(
+            ranged("avc1080", 1080, "avc1.640028"),
+            ranged("avc720", 720, "avc1.4d401f"),
+            fmt("a", audio = "mp4a", bitrate = 128_000),
+        )
+        val paired = FormatSelector.select(formats, maxHeight = 1080).selection as FormatSelection.Paired
+        assertTrue(paired.stepDownVideos.isEmpty())
+    }
+
+    @Test fun `HDR and SDR VP9 never share a ladder`() {
+        val formats = listOf(
+            ranged("sdr1080", 1080, "vp09.00.40.08"),
+            ranged("hdr720", 720, "vp09.02.31.10"),
+            ranged("sdr480", 480, "vp09.00.30.08"),
+            fmt("a", audio = "opus", bitrate = 128_000),
+        )
+        val paired = FormatSelector.select(formats, maxHeight = 1080, adaptive = true).selection as FormatSelection.Paired
+        assertEquals(listOf("sdr480"), paired.stepDownVideos.map { it.formatId })
     }
 }

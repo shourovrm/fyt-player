@@ -340,3 +340,4 @@ Append-only: `YYYY-MM-DD | decision | why`. Grep this file; do not read it whole
 2026-11-23 | search text split from the submitted query (TextFieldState), Back walks earlier searches | user: no suggestions after a search, cursor handle stuck, Back went straight Home
 2026-11-23 | buffer 50 s / 32 MB, media3 retries on transport errors, exact resume after an error restart | trace: 3 network errors each followed by a 4-5 s rewind; fail-fast stopped loading while the buffer drained
 2026-11-23 | Shorts park the minimised video and give it back paused | user: could not start a Short with a video in the mini player; YouTube keeps it paused
+2026-11-23 | Auto quality adapts through media3 (ladder in the DASH manifest), badge stays "Auto", sheet says "Auto (720p)" | user: drop quality only on Auto, no flapping, badge with the height is too wide

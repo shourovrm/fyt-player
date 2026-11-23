@@ -13,8 +13,8 @@ Index only. Knowledge lives in `docs/decisions/`; read the topic files your task
 
 ## Next
 - 2026-11-23 (unreleased, on A059 as a RELEASE build of 0.3.9, so no run-as trace: read Settings > Playback log): search box rework + Back
-  through earlier searches (ui.md); 50 s buffer, media3 transport retries, exact resume after an error (playback.md). Open: slow-delivered
-  Short, FGS crash, rebuffer classification (playback.md Open items).
+  through earlier searches (ui.md); 50 s buffer, media3 transport retries, exact resume after an error (playback.md). Also: Shorts park the minimised video; Auto quality is adaptive
+  but a real step down is NOT yet seen on a device (rig in playback.md Open items). Open: FGS crash, rebuffer classification.
 - 2026-11-20 v0.3.9: player bottom row 36 dp above the seek line with 20 dp glyphs; resume pill = small "Resume" in the
   dot's colour, centred over the dot (device-verified A059 portrait, light). Fullscreen and dark theme not looked at. See playback.md.
 - 2026-11-20 v0.3.8: more transport retries before "No connection" (loading 1/2/4 s, playback 0/2/5 s). v0.3.7 trace: media host stalls

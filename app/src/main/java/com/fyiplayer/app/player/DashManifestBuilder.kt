@@ -18,8 +18,9 @@ private const val STEREO_CHANNELS = 2
 
 /** A single-Period static MPD with one video and one audio AdaptationSet, or null when either
  *  format lacks a usable [MediaFormat.segmentIndex] or has a container with no known mime type
- *  -- the caller then falls back to plain progressive playback. */
-internal fun buildDashManifest(video: MediaFormat, audio: MediaFormat): String? {
+ *  -- the caller then falls back to plain progressive playback. [stepDownVideos] join the video
+ *  set as further Representations the player may switch to. */
+internal fun buildDashManifest(video: MediaFormat, audio: MediaFormat, stepDownVideos: List<MediaFormat> = emptyList()): String? {
     val videoIndex = video.segmentIndex?.takeIf(::isUsable) ?: return null
     val audioIndex = audio.segmentIndex?.takeIf(::isUsable) ?: return null
     val videoMimeType = mimeTypeFor("video", video.container) ?: return null
@@ -34,33 +35,24 @@ internal fun buildDashManifest(video: MediaFormat, audio: MediaFormat): String? 
         append("profiles=\"urn:mpeg:dash:profile:full:2011\" ")
         append("mediaPresentationDuration=\"${durationAttribute(durationMs)}\">\n")
         append("<Period>\n")
-        appendAdaptationSet(
-            adaptationSetId = 0,
-            mimeType = videoMimeType,
-            representation = {
-                append("<Representation id=\"${escapeXml(video.formatId)}\" codecs=\"${escapeXml(videoIndex.codecs)}\" ")
-                append("startWithSAP=\"1\" bandwidth=\"${videoIndex.bitrate}\"")
-                videoIndex.width?.let { append(" width=\"$it\"") }
-                video.height?.let { append(" height=\"$it\"") }
-                videoIndex.frameRate?.let { append(" frameRate=\"$it\"") }
-                append(">\n")
-                appendSource(video.url, videoIndex)
-            },
-        )
-        appendAdaptationSet(
-            adaptationSetId = 1,
-            mimeType = audioMimeType,
-            representation = {
-                append("<Representation id=\"${escapeXml(audio.formatId)}\" codecs=\"${escapeXml(audioIndex.codecs)}\" ")
-                append("startWithSAP=\"1\" bandwidth=\"${audioIndex.bitrate}\"")
-                audioIndex.audioSampleRate?.let { append(" audioSamplingRate=\"$it\"") }
-                append(">\n")
-                append("<AudioChannelConfiguration ")
-                append("schemeIdUri=\"urn:mpeg:dash:23003:3:audio_channel_configuration:2011\" ")
-                append("value=\"${audioIndex.audioChannels ?: STEREO_CHANNELS}\"/>\n")
-                appendSource(audio.url, audioIndex)
-            },
-        )
+        append("<AdaptationSet id=\"0\" mimeType=\"$videoMimeType\" subsegmentAlignment=\"true\">\n")
+        appendVideoRepresentation(video, videoIndex)
+        for (lower in stepDownVideos) {
+            // A rendition without usable byte ranges is left out; the others still play.
+            val lowerIndex = lower.segmentIndex?.takeIf(::isUsable) ?: continue
+            appendVideoRepresentation(lower, lowerIndex)
+        }
+        append("</AdaptationSet>\n")
+        append("<AdaptationSet id=\"1\" mimeType=\"$audioMimeType\" subsegmentAlignment=\"true\">\n")
+        append("<Representation id=\"${escapeXml(audio.formatId)}\" codecs=\"${escapeXml(audioIndex.codecs)}\" ")
+        append("startWithSAP=\"1\" bandwidth=\"${audioIndex.bitrate}\"")
+        audioIndex.audioSampleRate?.let { append(" audioSamplingRate=\"$it\"") }
+        append(">\n")
+        append("<AudioChannelConfiguration ")
+        append("schemeIdUri=\"urn:mpeg:dash:23003:3:audio_channel_configuration:2011\" ")
+        append("value=\"${audioIndex.audioChannels ?: STEREO_CHANNELS}\"/>\n")
+        appendSource(audio.url, audioIndex)
+        append("</Representation>\n</AdaptationSet>\n")
         append("</Period>\n</MPD>\n")
     }
 }
@@ -88,14 +80,15 @@ private fun durationAttribute(durationMs: Long): String {
     return "PT$seconds.${milliseconds}S"
 }
 
-private fun StringBuilder.appendAdaptationSet(
-    adaptationSetId: Int,
-    mimeType: String,
-    representation: StringBuilder.() -> Unit,
-) {
-    append("<AdaptationSet id=\"$adaptationSetId\" mimeType=\"$mimeType\" subsegmentAlignment=\"true\">\n")
-    representation()
-    append("</Representation>\n</AdaptationSet>\n")
+private fun StringBuilder.appendVideoRepresentation(video: MediaFormat, index: SegmentIndexInfo) {
+    append("<Representation id=\"${escapeXml(video.formatId)}\" codecs=\"${escapeXml(index.codecs)}\" ")
+    append("startWithSAP=\"1\" bandwidth=\"${index.bitrate}\"")
+    index.width?.let { append(" width=\"$it\"") }
+    video.height?.let { append(" height=\"$it\"") }
+    index.frameRate?.let { append(" frameRate=\"$it\"") }
+    append(">\n")
+    appendSource(video.url, index)
+    append("</Representation>\n")
 }
 
 private fun StringBuilder.appendSource(url: String, index: SegmentIndexInfo) {
